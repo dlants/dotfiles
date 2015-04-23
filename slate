@@ -1,0 +1,24 @@
+config defaultToCurrentScreen true
+config resizePercentOf
+config windowHintsShowIcons true
+config windowHintsIgnoreHiddenWindows false
+config windowHintsSpread true
+ 
+# Cmd+E brings up window chooser based on alphabet
+bind e:cmd hint asdfghjklqwertyuiopzxcvbnm
+
+bind l:cmd focus right
+bind h:cmd focus left
+bind k:cmd focus up
+bind j:cmd focus down
+bind z:cmd focus behind
+
+alias full move screenOriginX;screenOriginY screenSizeX;screenSizeY
+alias lefthalf move screenOriginX;screenOriginY screenSizeX/2;screenSizeY
+alias righthalf move screenOriginX+screenSizeX/2;screenOriginY screenSizeX/2;screenSizeY
+
+bind h:alt;cmd ${lefthalf}
+bind l:alt;cmd ${righthalf}
+bind k:alt;cmd ${full}
+
+
