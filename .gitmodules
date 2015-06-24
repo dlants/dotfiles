@@ -43,3 +43,9 @@
 [submodule "antigen"]
 	path = antigen
 	url = https://github.com/zsh-users/antigen.git
+[submodule "prezto"]
+	path = prezto
+	url = https://github.com/sorin-ionescu/prezto.git
+[submodule ".prezto"]
+	path = .prezto
+	url = https://github.com/sorin-ionescu/prezto.git
