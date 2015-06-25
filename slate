@@ -16,9 +16,10 @@ bind z:cmd focus behind
 alias full move screenOriginX;screenOriginY screenSizeX;screenSizeY
 alias lefthalf move screenOriginX;screenOriginY screenSizeX/2;screenSizeY
 alias righthalf move screenOriginX+screenSizeX/2;screenOriginY screenSizeX/2;screenSizeY
+alias tophalf move screenOriginX;screenOriginY screenSizeX;screenSizeY/2
+alias bottomhalf move screenOriginX;screenOriginY+screenSizeY/2 screenSizeX;screenSizeY/2
 
 bind h:alt;cmd ${lefthalf}
 bind l:alt;cmd ${righthalf}
-bind k:alt;cmd ${full}
-
-
+bind k:alt;cmd ${tophalf}
+bind j:alt;cmd ${bottomhalf}
