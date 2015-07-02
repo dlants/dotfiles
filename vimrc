@@ -3,12 +3,20 @@ execute pathogen#infect()
 " basics
 syntax enable
 filetype plugin indent on
+
+au BufNewFile,BufRead *.babel setf javascript
+au BufNewFile,BufRead *.es6 setf javascript
+au BufNewFile,BufRead *.cjsx setf coffee
+
 set background=dark
 colorscheme solarized
 set nowrap
 set number
 set cursorline
 set cursorcolumn
+
+" default register is clipboard
+set clipboard=unnamed
 
 " tabs and spaces!
 set tabstop=2
@@ -52,9 +60,7 @@ if executable('ag')
 endif
 
 " more CtrlP options
-let g:ctrlp_max_files = 0 " all the files
 let g:ctrlp_match_window = 'top,order:ttb,min:1,max:100'
-let g:ctrlp_match_func = {'match': 'matcher#cmatch'} " fast matching
 let g:ctrlp_open_multiple_files='ri'
 let g:ctrlp_working_path_mode = ''
 
@@ -65,3 +71,7 @@ map <C-n> :NERDTreeToggle<CR>
 let g:indent_guides_enable_on_vim_startup=1
 let g:indent_guides_auto_colors=0
 hi IndentGuidesOdd ctermbg=black
+
+" syntastic
+let g:syntastic_javascript_checkers = ['eslint']
+let g:jsx_ext_required = 0 " Allow JSX in normal JS files

@@ -49,3 +49,12 @@
 [submodule ".prezto"]
 	path = .prezto
 	url = https://github.com/sorin-ionescu/prezto.git
+[submodule "vim/bundle/vim-javascript"]
+	path = vim/bundle/vim-javascript
+	url = git@github.com:pangloss/vim-javascript.git
+[submodule "vim/bundle/vim-jsx"]
+	path = vim/bundle/vim-jsx
+	url = git@github.com:mxw/vim-jsx.git
+[submodule "vim/bundle/ctrlp-cmatcher"]
+	path = vim/bundle/ctrlp-cmatcher
+	url = git@github.com:JazzCore/ctrlp-cmatcher.git
