@@ -10,3 +10,6 @@ alias vi='vim'
 # make alt + arrow move by word
 bindkey "^[^[[D" backward-word
 bindkey "^[^[[C" forward-word
+
+go() { cd ~/src/$1; }
+compctl -W ~/src/ -/ go

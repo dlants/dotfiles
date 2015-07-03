@@ -73,5 +73,7 @@ let g:indent_guides_auto_colors=0
 hi IndentGuidesOdd ctermbg=black
 
 " syntastic
-let g:syntastic_javascript_checkers = ['eslint']
+" let g:syntastic_javascript_checkers = ['eslint']
+let g:syntastic_coffee_checkers = ["coffeelint"]
+let g:syntastic_coffee_coffeelint_args = "--csv --file ~/src/pillow/.coffeelint.json"
 let g:jsx_ext_required = 0 " Allow JSX in normal JS files
