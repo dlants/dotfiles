@@ -11,5 +11,5 @@ ln -sf ~/dotfiles/vimrc ~/.vimrc
 
 vim +PluginInstall +qall
 
-cd ~/.vim/bundle/ctrlp-cmatcher
-CFLAGS=-Qunused-arguments CPPFLAGS=-Qunused-arguments ./install.sh
+# ctrlp-cmatcher requires an install
+zsh -c "cd ~/.vim/bundle/ctrlp-cmatcher && CFLAGS=-Qunused-arguments CPPFLAGS=-Qunused-arguments ./install.sh"
