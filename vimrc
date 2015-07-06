@@ -77,6 +77,17 @@ set hlsearch
 " airline
 let g:airline_powerline_fonts = 1
 
+if executable('ag')
+  " Use ag over grep
+  " set grepprg=ag\ --nogroup\ --nocolor
+
+  " Use ag in CtrlP for listing files. Lightning fast and respects .gitignore
+  let g:ctrlp_user_command = 'ag %s -l --nocolor -g ""'
+
+  " ag is fast enough that CtrlP doesn't need to cache
+  let g:ctrlp_use_caching = 0
+endif
+
 " more CtrlP options
 let g:ctrlp_match_window = 'top,order:ttb,min:1,max:100'
 let g:ctrlp_open_multiple_files='ri'
