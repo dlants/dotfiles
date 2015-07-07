@@ -26,6 +26,7 @@ Plugin 'mxw/vim-jsx'
 Plugin 'tpope/vim-sensible'
 Plugin 'tpope/vim-unimpaired'
 Plugin 'bling/vim-airline'
+Plugin 'ervandew/supertab'
 
 " Run `vim +PluginInstall +qall` if this list updates
 call vundle#end() " required
