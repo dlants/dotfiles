@@ -22,7 +22,6 @@ set __fish_git_prompt_char_stashstate '_'
 set __fish_git_prompt_char_upstream_ahead '+'
 set __fish_git_prompt_char_upstream_behind '-'
 
-
 function fish_prompt
   set last_status $status
 
@@ -39,3 +38,7 @@ function fish_prompt
 
   set_color normal
 end
+
+# env
+set -Ux EDITOR vim
+set -Ux TERM 'xterm-256color'

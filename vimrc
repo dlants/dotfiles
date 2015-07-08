@@ -1,6 +1,7 @@
 set shell=/bin/bash
 set nocompatible " be iMproved, required
 filetype off     " required
+set t_Co=256
 
 " set the runtime path to include vundle and initialize
 set rtp+=~/.vim/bundle/Vundle.vim
@@ -16,7 +17,6 @@ Plugin 'scrooloose/nerdtree'
 Plugin 'scrooloose/syntastic'
 Plugin 'mtscout6/vim-cjsx'
 Plugin 'kchmck/vim-coffee-script'
-Plugin 'altercation/vim-colors-solarized'
 Plugin 'tpope/vim-fugitive'
 Plugin 'airblade/vim-gitgutter'
 Plugin 'nathanaelkane/vim-indent-guides'
@@ -28,6 +28,8 @@ Plugin 'tpope/vim-sensible'
 Plugin 'tpope/vim-unimpaired'
 Plugin 'bling/vim-airline'
 Plugin 'ervandew/supertab'
+Plugin 'yosiat/oceanic-next-vim'
+Plugin 'nanotech/jellybeans.vim'
 
 " Run `vim +PluginInstall +qall` if this list updates
 call vundle#end() " required
@@ -41,7 +43,6 @@ au BufNewFile,BufRead *.es6 setf javascript
 au BufNewFile,BufRead *.cjsx setf coffee
 
 set background=dark
-colorscheme solarized
 set nowrap
 set number
 set cursorline
@@ -77,7 +78,7 @@ set incsearch
 set hlsearch
 
 " airline
-let g:airline_powerline_fonts = 1
+let g:airline_powerline_fonts = 0
 
 if executable('ag')
   " Use ag over grep
@@ -109,3 +110,7 @@ hi IndentGuidesOdd ctermbg=black
 let g:syntastic_coffee_checkers = ["coffeelint"]
 let g:syntastic_coffee_coffeelint_args = "--csv --file ~/src/pillow/.coffeelint.json"
 let g:jsx_ext_required = 0 " Allow JSX in normal JS files
+
+" load colorscheme last...
+colorscheme jellybeans
+
