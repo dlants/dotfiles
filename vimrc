@@ -16,6 +16,7 @@ Plugin 'kien/ctrlp.vim'
 Plugin 'scrooloose/nerdtree'
 Plugin 'scrooloose/syntastic'
 Plugin 'mtscout6/vim-cjsx'
+Plugin 'wavded/vim-stylus'
 Plugin 'kchmck/vim-coffee-script'
 Plugin 'tpope/vim-fugitive'
 Plugin 'airblade/vim-gitgutter'
@@ -40,13 +41,14 @@ syntax enable
 
 au BufNewFile,BufRead *.babel setf javascript
 au BufNewFile,BufRead *.es6 setf javascript
-au BufNewFile,BufRead *.cjsx setf coffee
 
 set background=dark
 set nowrap
 set number
 set cursorline
 set cursorcolumn
+
+" change highlight colors
 
 " default register is clipboard
 set clipboard=unnamed
@@ -113,4 +115,3 @@ let g:jsx_ext_required = 0 " Allow JSX in normal JS files
 
 " load colorscheme last...
 colorscheme jellybeans
-
