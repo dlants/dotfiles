@@ -41,9 +41,14 @@ end
 
 # env
 set -Ux EDITOR vim
+alias vi vim
+set -gx PATH /usr/local/opt/coreutils/libexec/gnubin /usr/local/bin $PATH
 
 # ssh agent
 setenv SSH_ENV $HOME/.ssh/environment
+
+# docker-machine
+eval (docker-machine env default)
 
 function start_agent                                                                                                                                                                    
     echo "Initializing new SSH agent ..."
