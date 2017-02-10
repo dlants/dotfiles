@@ -5,6 +5,9 @@ set t_Co=256
 
 " plugins
 Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+"Plug 'Valloric/YouCompleteMe', {'do': './install.py'}
+Plug 'Shougo/vimproc.vim', {'do': 'make'}
+"Plug 'Shougo/denite.nvim', { 'do': ':UpdateRemotePlugins' }
 Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' }
 Plug 'junegunn/fzf.vim'
 Plug 'scrooloose/nerdtree', {'on': 'NERDTreeToggle'}
@@ -17,22 +20,38 @@ Plug 'tpope/vim-abolish'
 Plug 'nanotech/jellybeans.vim'
 Plug 'ntpeters/vim-better-whitespace'
 Plug 'easymotion/vim-easymotion'
+
 " language support
 Plug 'dag/vim-fish'
 Plug 'ElmCast/elm-vim', {'for': 'elm'}
+
+" purescript
+Plug 'raichoo/purescript-vim'
+Plug 'frigoeu/psc-ide-vim'
+
+" Plug 'let-def/ocp-indent-vim'
+Plug 'bitc/vim-hdevtools'
+Plug 'itchyny/vim-haskell-indent'
+Plug 'eagletmt/neco-ghc'
+
+" typescript
+Plug 'leafgarland/typescript-vim'
+Plug 'HerringtonDarkholme/yats.vim'
+Plug 'Quramy/tsuquyomi'
+Plug 'Quramy/vim-js-pretty-template'
+Plug 'jason0x43/vim-js-indent'
+Plug 'clausreinke/typescript-tools.vim'
+Plug 'mhartington/nvim-typescript'
+
+" js
+Plug 'pangloss/vim-javascript'
+Plug 'ianks/vim-tsx'
 Plug 'mxw/vim-jsx'
 Plug 'mtscout6/vim-cjsx'
 Plug 'wavded/vim-stylus'
 Plug 'kchmck/vim-coffee-script'
 Plug 'elzr/vim-json'
-Plug 'pangloss/vim-javascript'
 Plug 'digitaltoad/vim-jade', {'for': 'pug'}
-Plug 'raichoo/purescript-vim'
-Plug 'frigoeu/psc-ide-vim'
-Plug 'let-def/ocp-indent-vim'
-Plug 'bitc/vim-hdevtools'
-Plug 'itchyny/vim-haskell-indent'
-Plug 'eagletmt/neco-ghc'
 call plug#end()
 
 filetype plugin indent on " required
@@ -42,8 +61,7 @@ let mapleader = " "
 let maplocalleader = "\\"
 syntax enable
 
-au BufNewFile,BufRead *.babel setf javascript
-au BufNewFile,BufRead *.es6 setf javascript
+"au BufNewFile,BufRead *.es6 setf javascript.jsx
 au BufNewFile,BufRead *.jade setf pug
 au BufNewFile,BufRead *.re setf reason
 
@@ -95,14 +113,19 @@ let g:deoplete#enable_smart_case = 1
 let g:deoplete#enable_auto_select = 1
 
 let g:deoplete#omni#input_patterns = {}
+let g:deoplete#omni#input_patterns.default = '\h\w*'
 let g:deoplete#omni#input_patterns.purescript = '[^. *\t]'
+
+" from https://github.com/Shougo/neocomplete.vim/issues/418
+"if !exists('g:neocomplete#force_omni_input_patterns')
+"    let g:neocomplete#force_omni_input_patterns = {}
+"endif
+"let g:neocomplete#force_omni_input_patterns.typescript = '[^. *\t]\.\w*\|\h\w*::'
 
 inoremap <expr><TAB>  pumvisible() ? "\<C-n>" : "\<TAB>"
 " fzf
 " position
-let g:fzf_layout = {'up': '~40%'}
-
-" mappings
+let g:fzf_layout = {'up': '~50%'}
 map <C-O> :Files<CR>
 map <C-P> :GFiles<CR>
 
@@ -118,17 +141,27 @@ let g:indent_guides_auto_colors=0
 hi IndentGuidesOdd ctermbg=black
 
 " syntastic
-"let g:syntastic_javascript_checkers = ['eslint']
+let g:syntastic_javascript_checkers = ['eslint']
+let g:syntastic_javascript_eslint_exec = './node_modules/.bin/eslint'
+"let g:syntastic_javascript_eslint_args = '--file ~/src/pillow/.eslintrc.json'
 let g:syntastic_coffee_checkers = ['coffeelint']
 let g:syntastic_coffee_coffeelint_args = '--reporter csv --file ~/src/pillow/.coffeelint.json'
-let g:syntastic_mode_map = {"mode": "passive", "active_filetypes": ["elm", "purescript", "haskell"]}
-"let g:jsx_ext_required = 1 " Do Not Allow JSX in normal JS files
+let g:syntastic_mode_map = { "passive_filetypes": ["javascript"] }
 let g:syntastic_always_populate_loc_list = 1
 let g:syntastic_check_on_open = 1
 let g:syntastic_check_on_wq = 0
 
 " javascript
-let g:javascript_plugin_flow = 1
+let g:jsx_ext_required = 0 " allow jsx in all files
+"autocmd FileType javascript.jsx :let b:syntastic_mode='active'
+
+" typescript
+let g:tsuquyomi_disable_quickfix = 1
+let g:syntastic_typescript_checkers = ['tsuquyomi']
+
+autocmd FileType typescript nmap <buffer> <Leader>t : <C-u>echo tsuquyomi#hint()<CR>
+autocmd FileType typescript nmap <buffer> <Leader>e <Plug>(TsuquyomiRenameSymbol)
+autocmd FileType typescript nmap <buffer> <Leader>E <Plug>(TsuquyomiRenameSymbolC)
 
 " haskell
 autocmd FileType haskell setlocal omnifunc=necoghc#omnifunc
@@ -144,7 +177,7 @@ let g:elm_syntastic_show_warnings = 1
 " psc-ide-vim
 " syntastic support
 let g:psc_ide_syntastic_mode = 1
-let g:psc_ide_server_port = 8887
+"let g:psc_ide_log_level = 3
 
 au FileType purescript nmap <leader>b :!pulp build<CR>
 au FileType purescript nmap <leader>r :!pulp run<CR>
@@ -163,10 +196,10 @@ au FileType purescript nmap <leader>qd :PSCIDEremoveImportQualifications<CR>
 au FileType purescript nmap <leader>qa :PSCIDEaddImportQualifications<CR>
 
 " OCaml + merlin
-"let s:ocamlmerlin=substitute(system('opam config var share'),'\n$','','') . "/merlin"
-"execute "set rtp+=".s:ocamlmerlin."/vim"
-"execute "set rtp+=".s:ocamlmerlin."/vimbufsync"
-"let g:syntastic_ocaml_checkers=['merlin']
+" let s:ocamlmerlin=substitute(system('opam config var share'),'\n$','','') . "/merlin"
+" execute "set rtp+=".s:ocamlmerlin."/vim"
+" execute "set rtp+=".s:ocamlmerlin."/vimbufsync"
+" let g:syntastic_ocaml_checkers=['merlin']
 "
 "" Reason plugin which uses Merlin
 "let s:reasondir=substitute(system('opam config var share'),'\n$','','') . "/reason"
@@ -186,4 +219,4 @@ set esckeys
 set nottimeout
 
 " make esc leave input mode in terminal
-:tnoremap <Esc> <C-\><C-n>
+":tnoremap <Esc> <C-\><C-n>
