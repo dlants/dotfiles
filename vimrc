@@ -5,6 +5,7 @@ set t_Co=256
 
 " plugins
 Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+Plug 'Shougo/echodoc.vim'
 "Plug 'Valloric/YouCompleteMe', {'do': './install.py'}
 Plug 'Shougo/vimproc.vim', {'do': 'make'}
 "Plug 'Shougo/denite.nvim', { 'do': ':UpdateRemotePlugins' }
@@ -71,6 +72,8 @@ set number
 set cursorline
 set cursorcolumn
 set colorcolumn=120
+set completeopt-=preview
+set noshowmode
 
 " change highlight colors
 
@@ -107,14 +110,16 @@ set hlsearch
 let g:python_host_prog = '/usr/bin/python2.7'
 let g:python3_host_prog = '/Library/Frameworks/Python.framework/Versions/3.5/bin/python3.5'
 
-" deoplete
+" deoplete + echodoc
 let g:deoplete#enable_at_startup = 1
 let g:deoplete#enable_smart_case = 1
-let g:deoplete#enable_auto_select = 1
+let g:deoplete#enable_camel_case = 1
+let g:echodoc_enable_at_startup = 1
 
 let g:deoplete#omni#input_patterns = {}
 let g:deoplete#omni#input_patterns.default = '\h\w*'
 let g:deoplete#omni#input_patterns.purescript = '[^. *\t]'
+autocmd CompleteDone * pclose!
 
 " from https://github.com/Shougo/neocomplete.vim/issues/418
 "if !exists('g:neocomplete#force_omni_input_patterns')
@@ -141,15 +146,27 @@ let g:indent_guides_auto_colors=0
 hi IndentGuidesOdd ctermbg=black
 
 " syntastic
+" recommended
+set statusline+=%#warningmsg#
+set statusline+=%{SyntasticStatuslineFlag()}
+set statusline+=%*
+
+let g:syntastic_always_populate_loc_list = 1
+" leader + e shows errors
+"nnoremap <Leader>e :Errors<CR>
+let g:syntastic_auto_loc_list = 0
+let g:syntastic_check_on_open = 1
+let g:syntastic_check_on_wq = 0
+
+" other
+let g:syntastic_echo_current_error = 1
+let g:syntastic_cursor_column = 1
 let g:syntastic_javascript_checkers = ['eslint']
 let g:syntastic_javascript_eslint_exec = './node_modules/.bin/eslint'
 "let g:syntastic_javascript_eslint_args = '--file ~/src/pillow/.eslintrc.json'
 let g:syntastic_coffee_checkers = ['coffeelint']
 let g:syntastic_coffee_coffeelint_args = '--reporter csv --file ~/src/pillow/.coffeelint.json'
 let g:syntastic_mode_map = { "passive_filetypes": ["javascript"] }
-let g:syntastic_always_populate_loc_list = 1
-let g:syntastic_check_on_open = 1
-let g:syntastic_check_on_wq = 0
 
 " javascript
 let g:jsx_ext_required = 0 " allow jsx in all files
@@ -159,9 +176,13 @@ let g:jsx_ext_required = 0 " allow jsx in all files
 let g:tsuquyomi_disable_quickfix = 1
 let g:syntastic_typescript_checkers = ['tsuquyomi']
 
+autocmd FileType typescript nmap <buffer> <Leader>h : <C-u>echo tsuquyomi#hint()<CR>
 autocmd FileType typescript nmap <buffer> <Leader>t : <C-u>echo tsuquyomi#hint()<CR>
-autocmd FileType typescript nmap <buffer> <Leader>e <Plug>(TsuquyomiRenameSymbol)
-autocmd FileType typescript nmap <buffer> <Leader>E <Plug>(TsuquyomiRenameSymbolC)
+autocmd FileType typescript nmap <buffer> <Leader>r <Plug>(TsuquyomiRenameSymbol)
+autocmd FileType typescript nmap <buffer> <Leader>d :TsuDefinition<CR>
+autocmd FileType typescript nmap <buffer> <Leader>R <Plug>(TsuquyomiRenameSymbolC)
+autocmd FileType typescript nmap <buffer> <Leader>m <Plug>(TsuquyomiImport)
+autocmd FileType typescript nmap <buffer> <Leader>e :TsuquyomiGeterrProject<CR>
 
 " haskell
 autocmd FileType haskell setlocal omnifunc=necoghc#omnifunc
