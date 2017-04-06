@@ -3,24 +3,46 @@ set nocompatible " be iMproved, required
 filetype off     " required
 set t_Co=256
 
-" plugins
-Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
-Plug 'Shougo/echodoc.vim'
-"Plug 'Valloric/YouCompleteMe', {'do': './install.py'}
+" async support
 Plug 'Shougo/vimproc.vim', {'do': 'make'}
-"Plug 'Shougo/denite.nvim', { 'do': ':UpdateRemotePlugins' }
+
+" completion
+Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+
+" files / navigation
 Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' }
 Plug 'junegunn/fzf.vim'
-Plug 'scrooloose/nerdtree', {'on': 'NERDTreeToggle'}
+Plug 'tpope/vim-vinegar'
+
+" show errors
 Plug 'scrooloose/syntastic'
-Plug 'tpope/vim-fugitive'
-Plug 'airblade/vim-gitgutter'
-Plug 'tpope/vim-unimpaired'
-Plug 'bling/vim-airline'
-Plug 'tpope/vim-abolish'
+
+" status line
+"Plug 'bling/vim-airline'
+Plug 'tpope/vim-flagship'
+
+" pretty colors
 Plug 'nanotech/jellybeans.vim'
+
+" trim whitespace on save
 Plug 'ntpeters/vim-better-whitespace'
+"Plug 'Shougo/echodoc.vim'
+"Plug 'Valloric/YouCompleteMe', {'do': './install.py'}
+"Plug 'Shougo/denite.nvim', { 'do': ':UpdateRemotePlugins' }
+
+" git
+Plug 'airblade/vim-gitgutter'
+Plug 'tpope/vim-fugitive'
+Plug 'tpope/vim-rhubarb'
+
+" vim enhancements (motion, repeatability)
+Plug 'tpope/vim-commentary'
+Plug 'tpope/vim-unimpaired'
+Plug 'tpope/vim-abolish'
+Plug 'tpope/vim-endwise'
+Plug 'tpope/vim-surround'
 Plug 'easymotion/vim-easymotion'
+Plug 'tpope/vim-repeat'
 
 " language support
 Plug 'dag/vim-fish'
@@ -53,6 +75,10 @@ Plug 'wavded/vim-stylus'
 Plug 'kchmck/vim-coffee-script'
 Plug 'elzr/vim-json'
 Plug 'digitaltoad/vim-jade', {'for': 'pug'}
+
+" racket
+Plug 'wlangstroth/vim-racket'
+Plug '~/.vim/plugged/slimv'
 call plug#end()
 
 filetype plugin indent on " required
@@ -68,7 +94,7 @@ au BufNewFile,BufRead *.re setf reason
 
 set background=dark
 set nowrap
-set number
+set relativenumber
 set cursorline
 set cursorcolumn
 set colorcolumn=120
@@ -94,11 +120,11 @@ nnoremap <C-H> <C-W><C-H>
 
 " faster pane resize
 " noshift resizes vertically
-nnoremap = :resize +5<CR>
-nnoremap - :resize -5<CR>
+nnoremap <leader>= :resize +5<CR>
+nnoremap <leader>- :resize -5<CR>
 " with shift resizes horizontally
-nnoremap + :vertical resize +5<CR>
-nnoremap _ :vertical resize -5<CR>
+nnoremap <leader>+ :vertical resize +5<CR>
+nnoremap <leader>_ :vertical resize -5<CR>
 
 " search
 set ignorecase
@@ -134,11 +160,21 @@ let g:fzf_layout = {'up': '~50%'}
 map <C-O> :Files<CR>
 map <C-P> :GFiles<CR>
 
-" airline
-let g:airline_powerline_fonts = 1
+" Ag
+map <leader>a :Ag<CR>
+" from https://github.com/junegunn/fzf.vim/issues/346
+command! -bang -nargs=* Ag call fzf#vim#ag(<q-args>, {'options': '--delimiter : --nth 4..'}, <bang>0)
 
-" nerdtree
-map <C-n> :NERDTreeToggle<CR>
+" airline
+" let g:airline_powerline_fonts = 1
+
+" flagship
+set laststatus=2
+set showtabline=1
+set guioptions-=e
+
+" tpope's status line
+set statusline=%m%r%f\ %=%-16(\ %l,%c-%v\ %)%P
 
 " indentGuides plugin
 let g:indent_guides_enable_on_vim_startup=1
@@ -200,11 +236,9 @@ let g:elm_syntastic_show_warnings = 1
 let g:psc_ide_syntastic_mode = 1
 "let g:psc_ide_log_level = 3
 
-au FileType purescript nmap <leader>b :!pulp build<CR>
-au FileType purescript nmap <leader>r :!pulp run<CR>
+au FileType purescript nmap <leader>b :!psc-package build<CR>
 au FileType purescript nmap <leader>e :ll<CR>
-au FileType purescript nmap <leader>i :sp<CR>:terminal<CR>pulp psci<CR>
-"au FileType purescript nmap <leader>i :sp<CR>:terminal<CR>pulp psci<CR>:load %
+au FileType purescript nmap <leader>i :sp<CR>:terminal<CR>psci<CR>
 au FileType purescript nmap <leader>t :PSCIDEtype<CR>
 au FileType purescript nmap <leader>s :PSCIDEapplySuggestion<CR>
 au FileType purescript nmap <leader>a :PSCIDEaddTypeAnnotation<CR>
