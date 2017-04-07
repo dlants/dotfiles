@@ -12,6 +12,7 @@ Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
 " files / navigation
 Plug 'junegunn/fzf', { 'dir': '~/.fzf', 'do': './install --all' }
 Plug 'junegunn/fzf.vim'
+Plug 'Shougo/denite.nvim', { 'do': ':UpdateRemotePlugins' }
 Plug 'tpope/vim-vinegar'
 
 " show errors
@@ -28,7 +29,6 @@ Plug 'nanotech/jellybeans.vim'
 Plug 'ntpeters/vim-better-whitespace'
 "Plug 'Shougo/echodoc.vim'
 "Plug 'Valloric/YouCompleteMe', {'do': './install.py'}
-"Plug 'Shougo/denite.nvim', { 'do': ':UpdateRemotePlugins' }
 
 " git
 Plug 'airblade/vim-gitgutter'
@@ -156,14 +156,41 @@ autocmd CompleteDone * pclose!
 inoremap <expr><TAB>  pumvisible() ? "\<C-n>" : "\<TAB>"
 " fzf
 " position
-let g:fzf_layout = {'up': '~50%'}
-map <C-O> :Files<CR>
-map <C-P> :GFiles<CR>
+" let g:fzf_layout = {'up': '~50%'}
+" map <C-O> :Files<CR>
+" map <C-P> :GFiles<CR>
 
 " Ag
-map <leader>a :Ag<CR>
+" map <leader>a :Ag<CR>
 " from https://github.com/junegunn/fzf.vim/issues/346
-command! -bang -nargs=* Ag call fzf#vim#ag(<q-args>, {'options': '--delimiter : --nth 4..'}, <bang>0)
+" command! -bang -nargs=* Ag call fzf#vim#ag(<q-args>, {'options': '--delimiter : --nth 4..'}, <bang>0)
+
+" denite file search (c-p uses gitignore, c-o looks at everything)
+map <C-P> :DeniteProjectDir -buffer-name=git -direction=top file_rec/git<CR>
+map <C-O> :DeniteProjectDir -buffer-name=files -direction=top file_rec<CR>
+
+" -u flag to unrestrict (see ag docs)
+call denite#custom#var('file_rec', 'command',
+\ ['ag', '--follow', '--nocolor', '--nogroup', '-u', '-g', ''])
+
+call denite#custom#alias('source', 'file_rec/git', 'file_rec')
+call denite#custom#var('file_rec/git', 'command',
+\ ['ag', '--follow', '--nocolor', '--nogroup', '-g', ''])
+
+" denite content search
+map <leader>a :DeniteProjectDir -buffer-name=grep -default-action=quickfix grep:::!<CR>
+
+call denite#custom#source(
+\ 'grep', 'matchers', ['matcher_regexp'])
+
+" use ag for content search
+call denite#custom#var('grep', 'command', ['ag'])
+call denite#custom#var('grep', 'default_opts',
+    \ ['-i', '--vimgrep'])
+call denite#custom#var('grep', 'recursive_opts', [])
+call denite#custom#var('grep', 'pattern_opt', [])
+call denite#custom#var('grep', 'separator', ['--'])
+call denite#custom#var('grep', 'final_opts', [])
 
 " airline
 " let g:airline_powerline_fonts = 1
