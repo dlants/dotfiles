@@ -4,11 +4,14 @@ filetype off     " required
 set t_Co=256
 set shell=/bin/bash
 
+" ale and neomake aren't loaded together
+let g:ale_emit_conflict_warnings = 0
+
 " completion
-Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
+"Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
 " Plug 'Shougo/echodoc.vim'
 " Plug 'Shougo/neoinclude.vim' " <- deoplete source for relative / project files
-" Plug 'roxma/nvim-completion-manager'
+Plug 'roxma/nvim-completion-manager'
 
 " files / navigation
 Plug 'jremmen/vim-ripgrep'
@@ -58,6 +61,7 @@ Plug 'easymotion/vim-easymotion'
 " language support
 Plug 'dag/vim-fish'
 Plug 'ElmCast/elm-vim', {'for': 'elm'}
+Plug 'roxma/ncm-elm-oracle'
 
 " idris
 Plug 'idris-hackers/idris-vim', {'for': 'idris'}
@@ -82,8 +86,13 @@ Plug 'ianks/vim-tsx' " tsx syntax highlighting
 " Plug 'Quramy/tsuquyomi'
 Plug 'Quramy/vim-js-pretty-template'
 " Plug 'jason0x43/vim-js-indent' " better indentation
-Plug 'jason0x43/vim-tss', {'for': 'typescript', 'do': 'npm install' } " code navigation, error reporting (+ neomake)
-Plug 'mhartington/nvim-typescript', {'for': 'typescript', 'do': ':UpdateRemotePlugins' } " deoplete source
+Plug 'mhartington/nvim-typescript', {'commit': 'b1d61b22d2459f1f62ab256f564b52d05626440a', 'for': 'typescript', 'do': ':UpdateRemotePlugins' }
+Plug 'w0rp/ale', {'for': ['typescript', 'elm']}
+
+" post install (yarn install | npm install) then load plugin only for editing supported files
+Plug 'prettier/vim-prettier', {
+  \ 'do': 'yarn install',
+  \ 'for': ['javascript', 'typescript', 'css', 'less', 'scss', 'json', 'graphql', 'markdown', 'vue'] }
 
 "Plug 'neovim/node-host', { 'branch': 'next'} " , 'do': 'npm install -g neovim@next' }
 "Plug 'neovim/node-host', {'do': 'npm install'}
@@ -186,15 +195,43 @@ let g:python3_host_prog = '/Library/Frameworks/Python.framework/Versions/3.5/bin
 
 " ncm
 set shortmess+=c " don't show completion messages
+inoremap <expr> <Tab> pumvisible() ? "\<C-n>" : "\<Tab>"
+inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
+
+" au User CmSetup call cm#register_source({'name': 'cm-purescript',
+"         \ 'priority': 9,
+"         \ 'scoping': 1,
+"         \ 'scopes': ['purescript'],
+"         \ 'abbreviation': 'purs',
+"         \ 'word_pattern': '[\w\-]+',
+"         \ 'cm_refresh_patterns':['[\w\-]+\s*:\s+'],
+"         \ 'cm_refresh': {'omnifunc': 'PSCIDEomni'},
+"         \ })
+
+" ale
+" let g:ale_linters = {
+" \ 'typescript': ['tslint']
+" \}
+let g:ale_fixers = {
+\ 'typescript': ['tslint', 'tsserver']
+\}
+let g:ale_lint_on_text_changed = 'never'
+
+" Prettier async format on save
+let g:prettier#autoformat = 0
+let g:prettier#quickfix_enabled = 0
+nmap <Leader>` <Plug>(Prettier)
+" format on save
+" autocmd BufWritePre *.js,*.jsx,*.mjs,*.ts,*.tsx,*.css,*.less,*.scss,*.json,*.graphql,*.md,*.vue PrettierAsync
 
 " deoplete + echodoc
-let g:deoplete#enable_at_startup = 1
-let g:deoplete#enable_smart_case = 1
-let g:deoplete#enable_camel_case = 1
-let g:deoplete#file#enable_buffer_path = 1
-"
-let g:deoplete#omni#input_patterns = {}
-let g:deoplete#omni#input_patterns.default = '\h\w*'
+" let g:deoplete#enable_at_startup = 1
+" let g:deoplete#enable_smart_case = 1
+" let g:deoplete#enable_camel_case = 1
+" let g:deoplete#file#enable_buffer_path = 1
+" "
+" let g:deoplete#omni#input_patterns = {}
+" let g:deoplete#omni#input_patterns.default = '\h\w*'
 
 " don't pop up the preview window
 set completeopt-=preview
@@ -203,7 +240,7 @@ autocmd CompleteDone * pclose!
 
 " neomake
 " let g:neomake_verbose = 3
-autocmd! BufWritePost * Neomake
+" autocmd! BufWritePost * Neomake
 
 inoremap <expr><TAB>  pumvisible() ? "\<C-n>" : "\<TAB>"
 
@@ -233,6 +270,7 @@ imap <c-x><c-l> <plug>(fzf-complete-line)
 " Rg
 let g:rg_highlight = 1
 let g:rg_derive_root = 1
+cmap Gg Rg
 
 " javascript
 let g:jsx_ext_required = 0 " allow jsx in all files
@@ -249,27 +287,35 @@ autocmd! BufWritePost *.ts,*.tsx TSSyncErr
 autocmd FileType typescript nmap <buffer> <Leader>n :TSRename<CR>
 "autocmd FileType typescript nmap <buffer> <Leader>d :TssDefinition<CR>
 "autocmd FileType typescript nmap <buffer> <Leader>R :TssReferences<CR>
-autocmd FileType typescript nmap <buffer> <Leader>f :TssFormat<CR>
+"autocmd FileType typescript nmap <buffer> <Leader>f :TssFormat<CR>
 
 autocmd FileType typescript nmap <buffer> <Leader>t :TSType<CR>
 autocmd FileType typescript nmap <buffer> <Leader>T :TSDoc<CR>
 autocmd FileType typescript nmap <buffer> <Leader>d :TSDef<CR>
 autocmd FileType typescript nmap <buffer> <Leader>D :TSTypeDef<CR>
 autocmd FileType typescript nmap <buffer> <Leader>r :TSRefs<CR>
+autocmd FileType typescript nmap <buffer> <Leader>x :ALEFix<CR>
 
 " elm-vim
 " formatd elm on save
 let g:elm_jump_to_error = 1
 let g:elm_format_autosave = 1
 let g:elm_detailed_complete = 1
-let g:elm_setup_keybindings = 1
 " let g:elm_syntastic_show_warnings = 1
+autocmd FileType elm nmap <buffer> <Leader>x :ALEFix<CR>
+autocmd FileType elm nmap <buffer> <Leader>d :ElmBrowseDocs<CR>
+autocmd FileType elm nmap <buffer> <Leader>t :ElmShowDocs<CR>
+autocmd FileType elm nmap <buffer> <Leader>T :ElmTest<CR>
+autocmd FileType elm nmap <buffer> <Leader>e :ElmErrorDetail<CR>
+autocmd FileType elm nmap <buffer> <Leader>f :ElmFormat<CR>
+autocmd FileType elm nmap <buffer> <Leader>m :ElmMake<CR>
+autocmd FileType elm nmap <buffer> <Leader>M :ElmMakeMain<CR>
 
 " psc-ide-vim
-" syntastic support disabled - let neomake do its thing
 let g:psc_ide_syntastic_mode = 0
+let g:psc_ide_server_port = 4088
 " let g:psc_ide_log_level = 3
-"let g:neomake_purescript_enabled_makers = []
+let g:neomake_purescript_enabled_makers = []
 
 au FileType purescript nmap <leader>b :!pulp build<CR>
 " au FileType purescript nmap <leader>e :Neomake<CR>
@@ -281,6 +327,16 @@ au FileType purescript nmap <leader>c :PaddClause<CR>
 au FileType purescript nmap <leader>d :Pgoto<CR>
 au FileType purescript nmap <leader>m :Pimport<CR>
 
+function! WritingMode()
+  setlocal formatoptions=ant
+  setlocal textwidth=80
+  setlocal wrapmargin=0
+  set foldcolumn=10
+  set columns=100
+  set spell
+endfunc
+
+au BufNewFile,BufRead *.txt call WritingMode()
 " better whitespace
 " strip whitespace on save
 autocmd BufWritePre * StripWhitespace
@@ -297,6 +353,8 @@ set nottimeout
 nnoremap <Esc> <Esc>
 nnoremap - -
 
+" psc-ide-vim debugging
+"let g:psc_ide_log_level = 3
 
 " nvim-typescript debugging
 " let g:deoplete#enable_debug = 1
