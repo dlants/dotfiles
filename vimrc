@@ -5,13 +5,20 @@ set t_Co=256
 set shell=/bin/bash
 
 " ale and neomake aren't loaded together
-let g:ale_emit_conflict_warnings = 0
+" let g:ale_emit_conflict_warnings = 0
 
 " completion
 "Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
 " Plug 'Shougo/echodoc.vim'
 " Plug 'Shougo/neoinclude.vim' " <- deoplete source for relative / project files
-Plug 'roxma/nvim-completion-manager'
+" Plug 'roxma/nvim-completion-manager'
+ Plug 'ncm2/ncm2'
+ Plug 'roxma/nvim-yarp'
+
+ " some completion sources
+ Plug 'ncm2/ncm2-bufword'
+ Plug 'ncm2/ncm2-tmux'
+ Plug 'ncm2/ncm2-path'
 
 " files / navigation
 Plug 'jremmen/vim-ripgrep'
@@ -25,14 +32,16 @@ Plug 'christoomey/vim-tmux-navigator'
 " Plug 'benmills/vimux'
 
 " show errors
-Plug 'vim-syntastic/syntastic', {'for': ['purescript', 'idris']}
-Plug 'neomake/neomake'
+" Plug 'vim-syntastic/syntastic', {'for': ['purescript', 'idris']}
+" Plug 'neomake/neomake'
 
 " status line
 Plug 'bling/vim-airline'
 
 " pretty colors
 Plug 'nanotech/jellybeans.vim'
+" Plug 'dracula/vim', {'as': 'dracula'}
+" Plug 'NLKNguyen/papercolor-theme'
 
 " trim whitespace on save
 Plug 'ntpeters/vim-better-whitespace'
@@ -52,11 +61,11 @@ Plug 'tpope/vim-repeat'
 
 " extra objects
 Plug 'tpope/vim-surround' " work on surrounding parens, quotes, tags
-Plug 'michaeljsmith/vim-indent-object' " work with indentation levels
-Plug 'wellle/targets.vim' " separators, arguments
+" Plug 'michaeljsmith/vim-indent-object' " work with indentation levels
+" Plug 'wellle/targets.vim' " separators, arguments
 
 " jump around
-Plug 'easymotion/vim-easymotion'
+" Plug 'easymotion/vim-easymotion'
 
 " language support
 Plug 'dag/vim-fish'
@@ -76,23 +85,21 @@ Plug 'bitc/vim-hdevtools', {'for': 'haskell'}
 Plug 'itchyny/vim-haskell-indent', {'for': 'haskell'}
 Plug 'eagletmt/neco-ghc', {'for': 'haskell'}
 
-" language protocol support - covers typescript
-" Plug 'autozimu/LanguageClient-neovim', { 'do': ':UpdateRemotePlugins' }
-
 " typescript
-Plug 'leafgarland/typescript-vim', {'for': 'typescript'} " ts syntax highlighting
-" Plug 'HerringtonDarkholme/yats.vim'
-Plug 'ianks/vim-tsx' " tsx syntax highlighting
+" Plug 'leafgarland/typescript-vim', {'for': 'typescript'} " ts syntax highlighting
+Plug 'HerringtonDarkholme/yats.vim'
+" Plug 'ianks/vim-tsx' " tsx syntax highlighting
 " Plug 'Quramy/tsuquyomi'
-Plug 'Quramy/vim-js-pretty-template'
+" Plug 'Quramy/vim-js-pretty-template'
 " Plug 'jason0x43/vim-js-indent' " better indentation
-Plug 'mhartington/nvim-typescript', {'commit': 'b1d61b22d2459f1f62ab256f564b52d05626440a', 'for': 'typescript', 'do': ':UpdateRemotePlugins' }
-Plug 'w0rp/ale', {'for': ['typescript', 'elm']}
+Plug 'mhartington/nvim-typescript', {'do': './install.sh'}
+" Plug 'ncm2/nvim-typescript', {'for': 'typescript', 'do': './install.sh'}
+" Plug 'w0rp/ale', {'for': ['typescript', 'elm']}
 
 " post install (yarn install | npm install) then load plugin only for editing supported files
 Plug 'prettier/vim-prettier', {
   \ 'do': 'yarn install',
-  \ 'for': ['javascript', 'typescript', 'css', 'less', 'scss', 'json', 'graphql', 'markdown', 'vue'] }
+  \ 'for': ['javascript', 'typescript', 'typescriptreact', 'css', 'less', 'scss', 'json', 'graphql', 'markdown', 'vue'] }
 
 "Plug 'neovim/node-host', { 'branch': 'next'} " , 'do': 'npm install -g neovim@next' }
 "Plug 'neovim/node-host', {'do': 'npm install'}
@@ -110,6 +117,17 @@ Plug 'digitaltoad/vim-jade', {'for': 'pug'}
 
 " racket
 Plug 'wlangstroth/vim-racket', {'for': 'racket'}
+
+" reason
+Plug 'reasonml-editor/vim-reason-plus' , {'for': ['reasonml', 'ocaml']}
+
+" LanguageClient
+"Plug 'autozimu/LanguageClient-neovim', {
+"    \ 'branch': 'next',
+"    \ 'do': 'bash install.sh',
+"    \ 'for': ['reasonml', 'ocaml']
+"    \ }
+
 call plug#end()
 
 filetype plugin indent on " required
@@ -122,7 +140,6 @@ set synmaxcol=200
 
 "au BufNewFile,BufRead *.es6 setf javascript.jsx
 au BufNewFile,BufRead *.jade setf pug
-au BufNewFile,BufRead *.re setf reason
 
 set background=dark
 set nowrap
@@ -193,8 +210,17 @@ set hlsearch
 let g:python_host_prog = '/usr/bin/python2.7'
 let g:python3_host_prog = '/Library/Frameworks/Python.framework/Versions/3.5/bin/python3.5'
 
-" ncm
-set shortmess+=c " don't show completion messages
+" ncm2
+" enable for all buffers
+autocmd BufEnter * call ncm2#enable_for_buffer()
+
+set shortmess+=c " suppress 'x of y' messages
+set completeopt=noinsert,menuone,noselect
+
+" ctrl-c doesn't trigger the InsertLeave autocmd . map to <ESC> instead.
+inoremap <c-c> <ESC>
+
+" Tab selects popup
 inoremap <expr> <Tab> pumvisible() ? "\<C-n>" : "\<Tab>"
 inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
 
@@ -209,18 +235,24 @@ inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
 "         \ })
 
 " ale
-" let g:ale_linters = {
-" \ 'typescript': ['tslint']
-" \}
-let g:ale_fixers = {
-\ 'typescript': ['tslint', 'tsserver']
-\}
-let g:ale_lint_on_text_changed = 'never'
+"let g:ale_linters = {
+"  \ 'typescript': ['tslint']
+"  \ }
+"
+"let g:ale_fixers = {
+"  \ 'typescript': ['tslint']
+"  \}
+"
+"let g:ale_set_loclist=0
+"let g:ale_set_quickfix=0
+"
+"let g:ale_lint_on_text_changed = 'never'
 
 " Prettier async format on save
 let g:prettier#autoformat = 0
 let g:prettier#quickfix_enabled = 0
 nmap <Leader>` <Plug>(Prettier)
+
 " format on save
 " autocmd BufWritePre *.js,*.jsx,*.mjs,*.ts,*.tsx,*.css,*.less,*.scss,*.json,*.graphql,*.md,*.vue PrettierAsync
 
@@ -237,6 +269,33 @@ nmap <Leader>` <Plug>(Prettier)
 set completeopt-=preview
 "let g:deoplete#omni#input_patterns.purescript = '[^. *\t]'
 autocmd CompleteDone * pclose!
+
+" LanguageClient configuration
+let g:LanguageClient_serverCommands = {
+    \ 'reason': ['ocaml-language-server', '--stdio'],
+    \ 'ocaml': ['ocaml-language-server', '--stdio'],
+    \ }
+
+"    \ 'typescript': ['typescript-language-server', '--stdio'],
+let g:LanguageClient_diagnosticsList = "Location"
+
+" let g:LanguageClient_rootMarkers = {
+"   \ 'typescript': ['tsconfig.json']
+"   \ }
+
+autocmd FileType ocaml nnoremap <silent> <leader>t :call LanguageClient_textDocument_hover()<cr>
+autocmd FileType ocaml nnoremap <silent> <leader>d :call LanguageClient_textDocument_definition()<cr>
+autocmd FileType ocaml nnoremap <silent> <leader>D :call LanguageClient_textDocument_typeDefinition()<cr>
+autocmd FileType ocaml nnoremap <silent> <leader>r :call LanguageClient_textDocument_references()<cr>
+autocmd FileType ocaml nnoremap <silent> <leader>R :call LanguageClient_textDocument_rename()<cr>
+autocmd FileType ocaml nnoremap <silent> <leader>` :call LanguageClient_textDocument_formatting()<cr>
+
+autocmd FileType reason nnoremap <silent> <leader>t :call LanguageClient_textDocument_hover()<cr>
+autocmd FileType reason nnoremap <silent> <leader>d :call LanguageClient_textDocument_definition()<cr>
+autocmd FileType reason nnoremap <silent> <leader>D :call LanguageClient_textDocument_typeDefinition()<cr>
+autocmd FileType reason nnoremap <silent> <leader>r :call LanguageClient_textDocument_references()<cr>
+autocmd FileType reason nnoremap <silent> <leader>R :call LanguageClient_textDocument_rename()<cr>
+autocmd FileType reason nnoremap <silent> <leader>` :call LanguageClient_textDocument_formatting()<cr>
 
 " neomake
 " let g:neomake_verbose = 3
@@ -279,22 +338,24 @@ let g:jsx_ext_required = 0 " allow jsx in all files
 " disable maker for typescript -- we use nvim-typescript for this
 let g:neomake_typescript_enabled_makers = []
 " let g:typescript_indent_disable = 1
+" let g:nvim_typescript#diagnosticsEnable = 1
 
 " run TSSyncErr on write
-autocmd! BufWritePost *.ts,*.tsx TSSyncErr
-
-"autocmd FileType typescript nmap <buffer> <Leader>t :TssQuickInfo<CR>
+" autocmd! BufWritePost *.ts,*.tsx TSSyncErr
 autocmd FileType typescript nmap <buffer> <Leader>n :TSRename<CR>
-"autocmd FileType typescript nmap <buffer> <Leader>d :TssDefinition<CR>
-"autocmd FileType typescript nmap <buffer> <Leader>R :TssReferences<CR>
-"autocmd FileType typescript nmap <buffer> <Leader>f :TssFormat<CR>
-
 autocmd FileType typescript nmap <buffer> <Leader>t :TSType<CR>
 autocmd FileType typescript nmap <buffer> <Leader>T :TSDoc<CR>
 autocmd FileType typescript nmap <buffer> <Leader>d :TSDef<CR>
 autocmd FileType typescript nmap <buffer> <Leader>D :TSTypeDef<CR>
 autocmd FileType typescript nmap <buffer> <Leader>r :TSRefs<CR>
-autocmd FileType typescript nmap <buffer> <Leader>x :ALEFix<CR>
+
+autocmd FileType typescriptreact nmap <buffer> <Leader>n :TSRename<CR>
+autocmd FileType typescriptreact nmap <buffer> <Leader>t :TSType<CR>
+autocmd FileType typescriptreact nmap <buffer> <Leader>T :TSDoc<CR>
+autocmd FileType typescriptreact nmap <buffer> <Leader>d :TSDef<CR>
+autocmd FileType typescriptreact nmap <buffer> <Leader>D :TSTypeDef<CR>
+autocmd FileType typescriptreact nmap <buffer> <Leader>r :TSRefs<CR>
+
 
 " elm-vim
 " formatd elm on save
@@ -302,7 +363,7 @@ let g:elm_jump_to_error = 1
 let g:elm_format_autosave = 1
 let g:elm_detailed_complete = 1
 " let g:elm_syntastic_show_warnings = 1
-autocmd FileType elm nmap <buffer> <Leader>x :ALEFix<CR>
+" autocmd FileType elm nmap <buffer> <Leader>x :ALEFix<CR>
 autocmd FileType elm nmap <buffer> <Leader>d :ElmBrowseDocs<CR>
 autocmd FileType elm nmap <buffer> <Leader>t :ElmShowDocs<CR>
 autocmd FileType elm nmap <buffer> <Leader>T :ElmTest<CR>
@@ -335,19 +396,28 @@ function! WritingMode()
   set columns=100
   set spell
 endfunc
-
-au BufNewFile,BufRead *.txt call WritingMode()
+"
+"au BufNewFile,BufRead *.txt call WritingMode()
 " better whitespace
 " strip whitespace on save
 autocmd BufWritePre * StripWhitespace
 
 " load colorscheme last...
 colorscheme jellybeans
+" colorscheme dracula
+" colorscheme PaperColor
 
 " neovim stuff
 " faster esc
 " set esckeys
 set nottimeout
+
+" weird characters bug
+" https://github.com/neovim/neovim/issues/7002
+" https://github.com/neovim/neovim/wiki/FAQ#nvim-shows-weird-symbols-2-q-when-changing-modes
+set guicursor=
+" Workaround some broken plugins which set guicursor indiscriminately.
+autocmd OptionSet guicursor noautocmd set guicursor=
 
 " something was overriding escape ... wtf
 nnoremap <Esc> <Esc>
@@ -360,3 +430,11 @@ nnoremap - -
 " let g:deoplete#enable_debug = 1
 " let g:deoplete#enable_profile = 1
 " call deoplete#enable_logging('DEBUG', '/tmp/deoplete.log')
+
+" Syntax debugging
+function! SynStack()
+  if !exists("*synstack")
+    return
+  endif
+  echo map(synstack(line('.'), col('.')), 'synIDattr(v:val, "name")')
+endfunc
