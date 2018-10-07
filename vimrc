@@ -21,7 +21,11 @@ set shell=/bin/bash
  Plug 'ncm2/ncm2-path'
 
 " files / navigation
-Plug 'jremmen/vim-ripgrep'
+" commit because
+" https://github.com/jremmen/vim-ripgrep/issues/29
+" Plug 'jremmen/vim-ripgrep', {'commit': 'f7c1549c0ba6010a399023e95d86e6274526aeb4'}
+
+Plug 'mhinz/vim-grepper'
 
 " fzf installed through homebrew, to use it with shell commands as well
 set rtp+=/usr/local/opt/fzf
@@ -65,7 +69,7 @@ Plug 'tpope/vim-surround' " work on surrounding parens, quotes, tags
 " Plug 'wellle/targets.vim' " separators, arguments
 
 " jump around
-" Plug 'easymotion/vim-easymotion'
+Plug 'easymotion/vim-easymotion'
 
 " language support
 Plug 'dag/vim-fish'
@@ -99,7 +103,7 @@ Plug 'mhartington/nvim-typescript', {'do': './install.sh'}
 " post install (yarn install | npm install) then load plugin only for editing supported files
 Plug 'prettier/vim-prettier', {
   \ 'do': 'yarn install',
-  \ 'for': ['javascript', 'typescript', 'typescriptreact', 'css', 'less', 'scss', 'json', 'graphql', 'markdown', 'vue'] }
+  \ 'for': ['javascript', 'typescript', 'typescript.tsx', 'css', 'less', 'scss', 'json', 'graphql', 'markdown', 'vue'] }
 
 "Plug 'neovim/node-host', { 'branch': 'next'} " , 'do': 'npm install -g neovim@next' }
 "Plug 'neovim/node-host', {'do': 'npm install'}
@@ -144,7 +148,7 @@ au BufNewFile,BufRead *.jade setf pug
 set background=dark
 set nowrap
 set number
-set relativenumber
+" set relativenumber
 set cursorline
 set cursorcolumn
 set colorcolumn=120
@@ -223,6 +227,27 @@ inoremap <c-c> <ESC>
 " Tab selects popup
 inoremap <expr> <Tab> pumvisible() ? "\<C-n>" : "\<Tab>"
 inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
+
+" easymotion bindings
+map <Leader>f <Plug>(easymotion-f)
+map <Leader>F <Plug>(easymotion-F)
+map <Leader>t <Plug>(easymotion-t)
+map <Leader>T <Plug>(easymotion-T)
+map <Leader>w <Plug>(easymotion-w)
+map <Leader>W <Plug>(easymotion-W)
+map <Leader>b <Plug>(easymotion-b)
+map <Leader>B <Plug>(easymotion-B)
+map <Leader>j <Plug>(easymotion-j)
+map <Leader>k <Plug>(easymotion-k)
+map <Leader>n <Plug>(easymotion-n)
+map <Leader>N <Plug>(easymotion-N)
+map <Leader>/ <Plug>(easymotion-sn)
+omap <Leader>/ <Plug>(easymotion-tn)
+map s <Plug>(easymotion-bd-f)
+map S <Plug>(easymotion-bd-f2
+
+let g:EasyMotion_smartcase = 1
+let g:EasyMotion_use_smartsign_us = 1
 
 " au User CmSetup call cm#register_source({'name': 'cm-purescript',
 "         \ 'priority': 9,
@@ -327,9 +352,15 @@ imap <c-x><c-j> <plug>(fzf-complete-file-ag)
 imap <c-x><c-l> <plug>(fzf-complete-line)
 
 " Rg
-let g:rg_highlight = 1
-let g:rg_derive_root = 1
-cmap Gg Rg
+" let g:rg_highlight = 1
+" let g:rg_derive_root = 1
+" cmap Gg Rg
+
+" grepper
+runtime plugin/grepper.vim    " initialize g:grepper with default values
+let g:grepper.prompt_quote = 2
+let g:grepper.tools = ['rg']
+nnoremap <leader>g :Grepper<CR>
 
 " javascript
 let g:jsx_ext_required = 0 " allow jsx in all files
@@ -349,12 +380,12 @@ autocmd FileType typescript nmap <buffer> <Leader>d :TSDef<CR>
 autocmd FileType typescript nmap <buffer> <Leader>D :TSTypeDef<CR>
 autocmd FileType typescript nmap <buffer> <Leader>r :TSRefs<CR>
 
-autocmd FileType typescriptreact nmap <buffer> <Leader>n :TSRename<CR>
-autocmd FileType typescriptreact nmap <buffer> <Leader>t :TSType<CR>
-autocmd FileType typescriptreact nmap <buffer> <Leader>T :TSDoc<CR>
-autocmd FileType typescriptreact nmap <buffer> <Leader>d :TSDef<CR>
-autocmd FileType typescriptreact nmap <buffer> <Leader>D :TSTypeDef<CR>
-autocmd FileType typescriptreact nmap <buffer> <Leader>r :TSRefs<CR>
+autocmd FileType typescript.tsx nmap <buffer> <Leader>n :TSRename<CR>
+autocmd FileType typescript.tsx nmap <buffer> <Leader>t :TSType<CR>
+autocmd FileType typescript.tsx nmap <buffer> <Leader>T :TSDoc<CR>
+autocmd FileType typescript.tsx nmap <buffer> <Leader>d :TSDef<CR>
+autocmd FileType typescript.tsx nmap <buffer> <Leader>D :TSTypeDef<CR>
+autocmd FileType typescript.tsx nmap <buffer> <Leader>r :TSRefs<CR>
 
 
 " elm-vim
