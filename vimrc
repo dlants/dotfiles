@@ -7,18 +7,21 @@ set shell=/bin/bash
 " ale and neomake aren't loaded together
 " let g:ale_emit_conflict_warnings = 0
 
+Plug 'takac/vim-hardtime'
+
 " completion
 "Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
 " Plug 'Shougo/echodoc.vim'
 " Plug 'Shougo/neoinclude.vim' " <- deoplete source for relative / project files
 " Plug 'roxma/nvim-completion-manager'
- Plug 'ncm2/ncm2'
- Plug 'roxma/nvim-yarp'
+Plug 'ncm2/ncm2'
+Plug 'roxma/nvim-yarp'
 
- " some completion sources
- Plug 'ncm2/ncm2-bufword'
- Plug 'ncm2/ncm2-tmux'
- Plug 'ncm2/ncm2-path'
+" some completion sources
+Plug 'ncm2/ncm2-bufword'
+Plug 'fgrsnau/ncm2-otherbuf', {'branch': 'ncm2'}
+" Plug 'wellle/tmux-complete.vim'
+Plug 'ncm2/ncm2-path'
 
 " files / navigation
 " commit because
@@ -52,7 +55,8 @@ Plug 'ntpeters/vim-better-whitespace'
 "Plug 'Valloric/YouCompleteMe', {'do': './install.py'}
 
 " git
-Plug 'airblade/vim-gitgutter'
+Plug 'mhinz/vim-signify'
+" Plug 'airblade/vim-gitgutter'
 Plug 'tpope/vim-fugitive'
 Plug 'tpope/vim-rhubarb'
 
@@ -98,7 +102,7 @@ Plug 'HerringtonDarkholme/yats.vim'
 " Plug 'jason0x43/vim-js-indent' " better indentation
 Plug 'mhartington/nvim-typescript', {'do': './install.sh'}
 " Plug 'ncm2/nvim-typescript', {'for': 'typescript', 'do': './install.sh'}
-" Plug 'w0rp/ale', {'for': ['typescript', 'elm']}
+Plug 'w0rp/ale', {'for': ['typescript', 'typescript.tsx', 'elm']}
 
 " post install (yarn install | npm install) then load plugin only for editing supported files
 Plug 'prettier/vim-prettier', {
@@ -114,7 +118,7 @@ Plug 'prettier/vim-prettier', {
 " js
 Plug 'pangloss/vim-javascript'
 Plug 'mtscout6/vim-cjsx'
-Plug 'wavded/vim-stylus'
+Plug 'iloginow/vim-stylus'
 Plug 'kchmck/vim-coffee-script'
 Plug 'elzr/vim-json'
 Plug 'digitaltoad/vim-jade', {'for': 'pug'}
@@ -124,6 +128,9 @@ Plug 'wlangstroth/vim-racket', {'for': 'racket'}
 
 " reason
 Plug 'reasonml-editor/vim-reason-plus' , {'for': ['reasonml', 'ocaml']}
+
+" prose
+Plug 'reedes/vim-pencil'
 
 " LanguageClient
 "Plug 'autozimu/LanguageClient-neovim', {
@@ -141,6 +148,7 @@ let mapleader = " "
 let maplocalleader = "\\"
 syntax enable
 set synmaxcol=200
+
 
 "au BufNewFile,BufRead *.es6 setf javascript.jsx
 au BufNewFile,BufRead *.jade setf pug
@@ -165,6 +173,10 @@ set shiftwidth=2
 set softtabstop=0
 set expandtab
 
+" command line completion
+set wildmode=list:longest
+set wildmenu
+
 " faster pane resize
 " noshift resizes vertically
 nnoremap <leader>= :resize +5<CR>
@@ -178,6 +190,7 @@ nnoremap <leader>_ :vertical resize -5<CR>
 " let g:VimuxOrientation = "h"
 " let g:VimuxHeight = "50"
 
+let g:signify_vcs_list = [ 'git' ]
 
 " opens a tmux split and opens ranger (for manipulating files)
 " nnoremap <leader>tr :call VimuxRunCommandInDir("ranger", 0)<CR>
@@ -210,6 +223,11 @@ set smartcase
 set incsearch
 set hlsearch
 
+" hardtime
+let g:hardtime_default_on = 1
+let g:hardtime_ignore_quickfix = 1
+let g:hardtime_ignore_buffer_patterns= ["fzf"]
+
 " python support
 let g:python_host_prog = '/usr/bin/python2.7'
 let g:python3_host_prog = '/Library/Frameworks/Python.framework/Versions/3.5/bin/python3.5'
@@ -228,23 +246,38 @@ inoremap <c-c> <ESC>
 inoremap <expr> <Tab> pumvisible() ? "\<C-n>" : "\<Tab>"
 inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
 
+" pencil filetype detection
+augroup pencil
+  autocmd!
+  autocmd FileType markdown,mkd call pencil#init()
+  autocmd FileType text         call pencil#init()
+augroup END
+
+" complete stylus
+call ncm2#register_source({'name' : 'stylus',
+            \ 'priority': 9,
+            \ 'subscope_enable': 1,
+            \ 'scope': ['stylus'],
+            \ 'mark': 'styl',
+            \ 'word_pattern': '[\w\-]+',
+            \ 'complete_pattern': ':\s*',
+            \ 'on_complete': ['ncm2#on_complete#omni',
+            \               'stylcomplete#CompleteStyl'],
+            \ })
+
 " easymotion bindings
-map <Leader>f <Plug>(easymotion-f)
-map <Leader>F <Plug>(easymotion-F)
-map <Leader>t <Plug>(easymotion-t)
-map <Leader>T <Plug>(easymotion-T)
-map <Leader>w <Plug>(easymotion-w)
-map <Leader>W <Plug>(easymotion-W)
-map <Leader>b <Plug>(easymotion-b)
-map <Leader>B <Plug>(easymotion-B)
+map <Leader>f <Plug>(easymotion-bd-f)
+map <Leader>t <Plug>(easymotion-bd-t)
+map <Leader>w <Plug>(easymotion-bd-w)
+map <Leader>b <Plug>(easymotion-bd-w)
 map <Leader>j <Plug>(easymotion-j)
 map <Leader>k <Plug>(easymotion-k)
 map <Leader>n <Plug>(easymotion-n)
 map <Leader>N <Plug>(easymotion-N)
 map <Leader>/ <Plug>(easymotion-sn)
 omap <Leader>/ <Plug>(easymotion-tn)
-map s <Plug>(easymotion-bd-f)
-map S <Plug>(easymotion-bd-f2
+map s <Plug>(easymotion-s)
+map S <Plug>(easymotion-s2)
 
 let g:EasyMotion_smartcase = 1
 let g:EasyMotion_use_smartsign_us = 1
@@ -260,18 +293,18 @@ let g:EasyMotion_use_smartsign_us = 1
 "         \ })
 
 " ale
-"let g:ale_linters = {
-"  \ 'typescript': ['tslint']
-"  \ }
-"
-"let g:ale_fixers = {
-"  \ 'typescript': ['tslint']
-"  \}
-"
-"let g:ale_set_loclist=0
-"let g:ale_set_quickfix=0
-"
-"let g:ale_lint_on_text_changed = 'never'
+let g:ale_linters = {
+  \ 'typescript': ['tslint']
+  \ }
+
+let g:ale_fixers = {
+  \ 'typescript': ['tslint']
+  \}
+
+let g:ale_set_loclist=0
+let g:ale_set_quickfix=0
+
+let g:ale_lint_on_text_changed = 'never'
 
 " Prettier async format on save
 let g:prettier#autoformat = 0
@@ -370,6 +403,7 @@ let g:jsx_ext_required = 0 " allow jsx in all files
 let g:neomake_typescript_enabled_makers = []
 " let g:typescript_indent_disable = 1
 " let g:nvim_typescript#diagnosticsEnable = 1
+let g:nvim_typescript#refs_to_loc_list = 1
 
 " run TSSyncErr on write
 " autocmd! BufWritePost *.ts,*.tsx TSSyncErr
@@ -419,16 +453,6 @@ au FileType purescript nmap <leader>c :PaddClause<CR>
 au FileType purescript nmap <leader>d :Pgoto<CR>
 au FileType purescript nmap <leader>m :Pimport<CR>
 
-function! WritingMode()
-  setlocal formatoptions=ant
-  setlocal textwidth=80
-  setlocal wrapmargin=0
-  set foldcolumn=10
-  set columns=100
-  set spell
-endfunc
-"
-"au BufNewFile,BufRead *.txt call WritingMode()
 " better whitespace
 " strip whitespace on save
 autocmd BufWritePre * StripWhitespace
