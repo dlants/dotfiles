@@ -9,19 +9,23 @@ set shell=/bin/bash
 
 Plug 'takac/vim-hardtime'
 
+" language server / typescript
+Plug 'neoclide/coc.nvim', {'tag': '*', 'do': { -> coc#util#install()}}
+
 " completion
 "Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
 " Plug 'Shougo/echodoc.vim'
 " Plug 'Shougo/neoinclude.vim' " <- deoplete source for relative / project files
 " Plug 'roxma/nvim-completion-manager'
-Plug 'ncm2/ncm2'
-Plug 'roxma/nvim-yarp'
+
+"Plug 'ncm2/ncm2'
+" Plug 'roxma/nvim-yarp'
 
 " some completion sources
-Plug 'ncm2/ncm2-bufword'
-Plug 'fgrsnau/ncm2-otherbuf', {'branch': 'ncm2'}
+" Plug 'ncm2/ncm2-bufword'
+" Plug 'fgrsnau/ncm2-otherbuf', {'branch': 'ncm2'}
 " Plug 'wellle/tmux-complete.vim'
-Plug 'ncm2/ncm2-path'
+" Plug 'ncm2/ncm2-path'
 
 " files / navigation
 " commit because
@@ -43,7 +47,8 @@ Plug 'christoomey/vim-tmux-navigator'
 " Plug 'neomake/neomake'
 
 " status line
-Plug 'bling/vim-airline'
+" Plug 'bling/vim-airline'
+Plug 'itchyny/lightline.vim'
 
 " pretty colors
 Plug 'nanotech/jellybeans.vim'
@@ -78,7 +83,7 @@ Plug 'easymotion/vim-easymotion'
 " language support
 Plug 'dag/vim-fish'
 Plug 'ElmCast/elm-vim', {'for': 'elm'}
-Plug 'roxma/ncm-elm-oracle'
+" Plug 'roxma/ncm-elm-oracle'
 
 " idris
 Plug 'idris-hackers/idris-vim', {'for': 'idris'}
@@ -100,9 +105,9 @@ Plug 'HerringtonDarkholme/yats.vim'
 " Plug 'Quramy/tsuquyomi'
 " Plug 'Quramy/vim-js-pretty-template'
 " Plug 'jason0x43/vim-js-indent' " better indentation
-Plug 'mhartington/nvim-typescript', {'do': './install.sh'}
+" Plug 'mhartington/nvim-typescript', {'do': './install.sh'}
 " Plug 'ncm2/nvim-typescript', {'for': 'typescript', 'do': './install.sh'}
-Plug 'w0rp/ale', {'for': ['typescript', 'typescript.tsx', 'elm']}
+" Plug 'w0rp/ale', {'for': ['typescript', 'typescript.tsx', 'elm']}
 
 " post install (yarn install | npm install) then load plugin only for editing supported files
 Plug 'prettier/vim-prettier', {
@@ -234,7 +239,7 @@ let g:python3_host_prog = '/Library/Frameworks/Python.framework/Versions/3.5/bin
 
 " ncm2
 " enable for all buffers
-autocmd BufEnter * call ncm2#enable_for_buffer()
+" autocmd BufEnter * call ncm2#enable_for_buffer()
 
 set shortmess+=c " suppress 'x of y' messages
 set completeopt=noinsert,menuone,noselect
@@ -243,8 +248,8 @@ set completeopt=noinsert,menuone,noselect
 inoremap <c-c> <ESC>
 
 " Tab selects popup
-inoremap <expr> <Tab> pumvisible() ? "\<C-n>" : "\<Tab>"
-inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
+" inoremap <expr> <Tab> pumvisible() ? "\<C-n>" : "\<Tab>"
+" inoremap <expr> <S-Tab> pumvisible() ? "\<C-p>" : "\<S-Tab>"
 
 " pencil filetype detection
 augroup pencil
@@ -254,17 +259,17 @@ augroup pencil
 augroup END
 
 " complete stylus
-call ncm2#register_source({'name' : 'stylus',
-            \ 'priority': 9,
-            \ 'subscope_enable': 1,
-            \ 'scope': ['stylus'],
-            \ 'mark': 'styl',
-            \ 'word_pattern': '[\w\-]+',
-            \ 'complete_pattern': ':\s*',
-            \ 'on_complete': ['ncm2#on_complete#omni',
-            \               'stylcomplete#CompleteStyl'],
-            \ })
-
+" call ncm2#register_source({'name' : 'stylus',
+"             \ 'priority': 9,
+"             \ 'subscope_enable': 1,
+"             \ 'scope': ['stylus'],
+"             \ 'mark': 'styl',
+"             \ 'word_pattern': '[\w\-]+',
+"             \ 'complete_pattern': ':\s*',
+"             \ 'on_complete': ['ncm2#on_complete#omni',
+"             \               'stylcomplete#CompleteStyl'],
+"             \ })
+"
 " easymotion bindings
 map <Leader>f <Plug>(easymotion-bd-f)
 map <Leader>t <Plug>(easymotion-bd-t)
@@ -293,18 +298,18 @@ let g:EasyMotion_use_smartsign_us = 1
 "         \ })
 
 " ale
-let g:ale_linters = {
-  \ 'typescript': ['tslint']
-  \ }
-
-let g:ale_fixers = {
-  \ 'typescript': ['tslint']
-  \}
-
-let g:ale_set_loclist=0
-let g:ale_set_quickfix=0
-
-let g:ale_lint_on_text_changed = 'never'
+" let g:ale_linters = {
+"   \ 'typescript': ['tslint']
+"   \ }
+"
+" let g:ale_fixers = {
+"   \ 'typescript': ['tslint']
+"   \}
+"
+" let g:ale_set_loclist=0
+" let g:ale_set_quickfix=0
+"
+" let g:ale_lint_on_text_changed = 'never'
 
 " Prettier async format on save
 let g:prettier#autoformat = 0
@@ -359,8 +364,6 @@ autocmd FileType reason nnoremap <silent> <leader>` :call LanguageClient_textDoc
 " let g:neomake_verbose = 3
 " autocmd! BufWritePost * Neomake
 
-inoremap <expr><TAB>  pumvisible() ? "\<C-n>" : "\<TAB>"
-
 " syntastic recommended
 let g:syntastic_always_populate_loc_list = 1
 let g:syntastic_auto_loc_list = 2
@@ -400,28 +403,104 @@ let g:jsx_ext_required = 0 " allow jsx in all files
 
 " typescript
 " disable maker for typescript -- we use nvim-typescript for this
-let g:neomake_typescript_enabled_makers = []
+" let g:neomake_typescript_enabled_makers = []
 " let g:typescript_indent_disable = 1
 " let g:nvim_typescript#diagnosticsEnable = 1
-let g:nvim_typescript#refs_to_loc_list = 1
+" let g:nvim_typescript#refs_to_loc_list = 1
 
 " run TSSyncErr on write
 " autocmd! BufWritePost *.ts,*.tsx TSSyncErr
-autocmd FileType typescript nmap <buffer> <Leader>n :TSRename<CR>
-autocmd FileType typescript nmap <buffer> <Leader>t :TSType<CR>
-autocmd FileType typescript nmap <buffer> <Leader>T :TSDoc<CR>
-autocmd FileType typescript nmap <buffer> <Leader>d :TSDef<CR>
-autocmd FileType typescript nmap <buffer> <Leader>D :TSTypeDef<CR>
-autocmd FileType typescript nmap <buffer> <Leader>r :TSRefs<CR>
+" autocmd FileType typescript nmap <buffer> <Leader>n :TSRename<CR>
+" autocmd FileType typescript nmap <buffer> <Leader>t :TSType<CR>
+" autocmd FileType typescript nmap <buffer> <Leader>T :TSDoc<CR>
+" autocmd FileType typescript nmap <buffer> <Leader>d :TSDef<CR>
+" autocmd FileType typescript nmap <buffer> <Leader>D :TSTypeDef<CR>
+" autocmd FileType typescript nmap <buffer> <Leader>r :TSRefs<CR>
+"
+" autocmd FileType typescript.tsx nmap <buffer> <Leader>n :TSRename<CR>
+" autocmd FileType typescript.tsx nmap <buffer> <Leader>t :TSType<CR>
+" autocmd FileType typescript.tsx nmap <buffer> <Leader>T :TSDoc<CR>
+" autocmd FileType typescript.tsx nmap <buffer> <Leader>d :TSDef<CR>
+" autocmd FileType typescript.tsx nmap <buffer> <Leader>D :TSTypeDef<CR>
+" autocmd FileType typescript.tsx nmap <buffer> <Leader>r :TSRefs<CR>
 
-autocmd FileType typescript.tsx nmap <buffer> <Leader>n :TSRename<CR>
-autocmd FileType typescript.tsx nmap <buffer> <Leader>t :TSType<CR>
-autocmd FileType typescript.tsx nmap <buffer> <Leader>T :TSDoc<CR>
-autocmd FileType typescript.tsx nmap <buffer> <Leader>d :TSDef<CR>
-autocmd FileType typescript.tsx nmap <buffer> <Leader>D :TSTypeDef<CR>
-autocmd FileType typescript.tsx nmap <buffer> <Leader>r :TSRefs<CR>
+" coc
+" Use tab for trigger completion with characters ahead and navigate.
+" Use command ':verbose imap <tab>' to make sure tab is not mapped by other plugin.
+inoremap <expr> <TAB> pumvisible() ? "\<C-n>" : "\<Tab>"
+inoremap <expr> <S-TAB> pumvisible() ? "\<C-p>" : "\<C-h>"
 
 
+
+function! s:check_back_space() abort
+  let col = col('.') - 1
+  return !col || getline('.')[col - 1]  =~# '\s'
+endfunction
+
+" Use <cr> for confirm completion, `<C-g>u` means break undo chain at current position.
+" Coc only does snippet and additional edit on confirm.
+" inoremap <expr> <cr> pumvisible() ? "\<C-y>" : "\<C-g>u\<CR>"
+
+" Use `[c` and `]c` for navigate diagnostics
+nmap <silent> <Leader>e <Plug>(coc-diagnostic-info)
+nmap <silent> [c <Plug>(coc-diagnostic-prev)
+nmap <silent> ]c <Plug>(coc-diagnostic-next)
+
+" Remap keys for gotos
+nmap <silent> <Leader>d <Plug>(coc-definition)
+nmap <silent> <Leader>D <Plug>(coc-type-definition)
+nmap <silent> <Leader>i <Plug>(coc-implementation)
+nmap <silent> <Leader>r <Plug>(coc-references)
+
+" Use K for show documentation in preview window
+nnoremap <silent> <Leader>t :call <SID>show_documentation()<CR>
+
+function! s:show_documentation()
+  if &filetype == 'vim'
+    execute 'h '.expand('<cword>')
+  else
+    call CocAction('doHover')
+  endif
+endfunction
+
+" Highlight symbol under cursor on CursorHold
+autocmd CursorHold * silent call CocActionAsync('highlight')
+
+" Remap for rename current word
+nmap <leader>rn <Plug>(coc-rename)
+
+" Add diagnostic info for https://github.com/itchyny/lightline.vim
+let g:lightline = {
+      \ 'colorscheme': 'jellybeans',
+      \ 'active': {
+      \   'left': [ [ 'mode', 'paste' ],
+      \             [ 'gitbranch', 'cocstatus', 'readonly', 'relativepath', 'modified' ] ]
+      \ },
+      \ 'component_function': {
+      \   'cocstatus': 'coc#status',
+      \   'gitbranch': 'fugitive#head'
+      \ },
+      \ }
+
+" Using CocList
+" Show all diagnostics
+"nnoremap <silent> <space>a  :<C-u>CocList diagnostics<cr>
+"" Manage extensions
+"nnoremap <silent> <space>e  :<C-u>CocList extensions<cr>
+"" Show commands
+"nnoremap <silent> <space>c  :<C-u>CocList commands<cr>
+"" Find symbol of current document
+"nnoremap <silent> <space>o  :<C-u>CocList outline<cr>
+"" Search workspace symbols
+"nnoremap <silent> <space>s  :<C-u>CocList -I symbols<cr>
+"" Do default action for next item.
+"nnoremap <silent> <space>j  :<C-u>CocNext<CR>
+"" Do default action for previous item.
+"nnoremap <silent> <space>k  :<C-u>CocPrev<CR>
+"" Resume latest coc list
+"nnoremap <silent> <space>p  :<C-u>CocListResume<CR>
+"" end coc
+"
 " elm-vim
 " formatd elm on save
 let g:elm_jump_to_error = 1
