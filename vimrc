@@ -474,7 +474,12 @@ let g:lightline = {
       \ 'colorscheme': 'jellybeans',
       \ 'active': {
       \   'left': [ [ 'mode', 'paste' ],
-      \             [ 'gitbranch', 'cocstatus', 'readonly', 'relativepath', 'modified' ] ]
+      \             [ 'cocstatus', 'readonly', 'relativepath', 'modified' ] ],
+      \   'right': [ [ 'gitbranch' ], [ 'filetype' ] ]
+      \ },
+      \ 'inactive': {
+      \   'left': [ [ 'relativepath'] ],
+      \   'right': [ [ 'gitbranch' ], [ 'filetype' ] ]
       \ },
       \ 'component_function': {
       \   'cocstatus': 'coc#status',
