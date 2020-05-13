@@ -10,7 +10,7 @@ set shell=/bin/bash
 Plug 'takac/vim-hardtime'
 
 " language server / typescript
-Plug 'neoclide/coc.nvim', {'tag': '*', 'do': { -> coc#util#install()}}
+Plug 'neoclide/coc.nvim', {'branch': 'release'}
 
 " completion
 "Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' }
@@ -100,6 +100,7 @@ Plug 'eagletmt/neco-ghc', {'for': 'haskell'}
 
 " typescript
 " Plug 'leafgarland/typescript-vim', {'for': 'typescript'} " ts syntax highlighting
+" Plug 'peitalin/vim-jsx-typescript', {'for': 'typescript'}
 Plug 'HerringtonDarkholme/yats.vim'
 " Plug 'ianks/vim-tsx' " tsx syntax highlighting
 " Plug 'Quramy/tsuquyomi'
@@ -110,9 +111,9 @@ Plug 'HerringtonDarkholme/yats.vim'
 " Plug 'w0rp/ale', {'for': ['typescript', 'typescript.tsx', 'elm']}
 
 " post install (yarn install | npm install) then load plugin only for editing supported files
-Plug 'prettier/vim-prettier', {
-  \ 'do': 'yarn install',
-  \ 'for': ['javascript', 'typescript', 'typescript.tsx', 'css', 'less', 'scss', 'json', 'graphql', 'markdown', 'vue'] }
+" Plug 'prettier/vim-prettier', {
+"   \ 'do': 'yarn install',
+"   \ 'for': ['javascript', 'typescript', 'typescript.tsx', 'css', 'less', 'scss', 'json', 'graphql', 'markdown', 'vue'] }
 
 "Plug 'neovim/node-host', { 'branch': 'next'} " , 'do': 'npm install -g neovim@next' }
 "Plug 'neovim/node-host', {'do': 'npm install'}
@@ -125,7 +126,6 @@ Plug 'pangloss/vim-javascript'
 Plug 'mtscout6/vim-cjsx'
 Plug 'iloginow/vim-stylus'
 Plug 'kchmck/vim-coffee-script'
-Plug 'elzr/vim-json'
 Plug 'digitaltoad/vim-jade', {'for': 'pug'}
 
 " racket
@@ -166,6 +166,7 @@ set cursorline
 set cursorcolumn
 set colorcolumn=120
 set noshowmode
+set cmdheight=2
 
 " change highlight colors
 
@@ -181,6 +182,9 @@ set expandtab
 " command line completion
 set wildmode=list:longest
 set wildmenu
+
+" shell
+set shell=/usr/local/bin/zsh
 
 " faster pane resize
 " noshift resizes vertically
@@ -312,9 +316,9 @@ let g:EasyMotion_use_smartsign_us = 1
 " let g:ale_lint_on_text_changed = 'never'
 
 " Prettier async format on save
-let g:prettier#autoformat = 0
-let g:prettier#quickfix_enabled = 0
-nmap <Leader>` <Plug>(Prettier)
+" let g:prettier#autoformat = 0
+" let g:prettier#quickfix_enabled = 0
+" nmap <Leader>` <Plug>(Prettier)
 
 " format on save
 " autocmd BufWritePre *.js,*.jsx,*.mjs,*.ts,*.tsx,*.css,*.less,*.scss,*.json,*.graphql,*.md,*.vue PrettierAsync
@@ -425,6 +429,13 @@ let g:jsx_ext_required = 0 " allow jsx in all files
 " autocmd FileType typescript.tsx nmap <buffer> <Leader>r :TSRefs<CR>
 
 " coc
+
+" build and populate errors on change
+" autocmd User CocNvimInit call CocAction('runCommand', 'tsserver.watchBuild')
+" formatting
+command! -nargs=0 Prettier :CocCommand prettier.formatFile
+nmap <silent> <Leader>` :Prettier<CR>
+
 " Use tab for trigger completion with characters ahead and navigate.
 " Use command ':verbose imap <tab>' to make sure tab is not mapped by other plugin.
 inoremap <expr> <TAB> pumvisible() ? "\<C-n>" : "\<Tab>"
@@ -443,14 +454,16 @@ endfunction
 
 " Use `[c` and `]c` for navigate diagnostics
 nmap <silent> <Leader>e <Plug>(coc-diagnostic-info)
-nmap <silent> [c <Plug>(coc-diagnostic-prev)
-nmap <silent> ]c <Plug>(coc-diagnostic-next)
+nmap <silent> <Leader>c :CocListResume<CR>
+nmap <silent> [c :CocPrev<CR>
+nmap <silent> ]c :CocNext<CR>
 
 " Remap keys for gotos
 nmap <silent> <Leader>d <Plug>(coc-definition)
 nmap <silent> <Leader>D <Plug>(coc-type-definition)
 nmap <silent> <Leader>i <Plug>(coc-implementation)
 nmap <silent> <Leader>r <Plug>(coc-references)
+nmap <silent> <leader>R <Plug>(coc-rename)
 
 " Use K for show documentation in preview window
 nnoremap <silent> <Leader>t :call <SID>show_documentation()<CR>
@@ -466,8 +479,6 @@ endfunction
 " Highlight symbol under cursor on CursorHold
 autocmd CursorHold * silent call CocActionAsync('highlight')
 
-" Remap for rename current word
-nmap <leader>rn <Plug>(coc-rename)
 
 " Add diagnostic info for https://github.com/itchyny/lightline.vim
 let g:lightline = {
