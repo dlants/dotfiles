@@ -7,7 +7,7 @@ set shell=/bin/bash
 " ale and neomake aren't loaded together
 " let g:ale_emit_conflict_warnings = 0
 
-Plug 'takac/vim-hardtime'
+" Plug 'takac/vim-hardtime'
 
 " language server / typescript
 Plug 'neoclide/coc.nvim', {'branch': 'release'}
@@ -186,6 +186,11 @@ set wildmenu
 " shell
 set shell=/usr/local/bin/zsh
 
+" prevent highlighting from getting out of sync
+" https://thoughtbot.com/blog/modern-typescript-and-react-development-in-vim
+" autocmd BufEnter *.{js,jsx,ts,tsx} :syntax sync fromstart
+" autocmd BufLeave *.{js,jsx,ts,tsx} :syntax sync clear
+
 " faster pane resize
 " noshift resizes vertically
 nnoremap <leader>= :resize +5<CR>
@@ -291,6 +296,21 @@ map S <Plug>(easymotion-s2)
 let g:EasyMotion_smartcase = 1
 let g:EasyMotion_use_smartsign_us = 1
 
+" make easymotion play nice w/ COC
+" let g:easymotion#is_active = 0
+" function! EasyMotionCoc() abort
+"   if EasyMotion#is_active()
+"     let g:easymotion#is_active = 1
+"     CocDisable
+"   else
+"     if g:easymotion#is_active == 1
+"       let g:easymotion#is_active = 0
+"       CocEnable
+"     endif
+"   endif
+" endfunction
+"
+" autocmd TextChanged,CursorMoved * call EasyMotionCoc()
 " au User CmSetup call cm#register_source({'name': 'cm-purescript',
 "         \ 'priority': 9,
 "         \ 'scoping': 1,
@@ -398,7 +418,7 @@ imap <c-x><c-l> <plug>(fzf-complete-line)
 
 " grepper
 runtime plugin/grepper.vim    " initialize g:grepper with default values
-let g:grepper.prompt_quote = 2
+let g:grepper.prompt_quote = 0
 let g:grepper.tools = ['rg']
 nnoremap <leader>g :Grepper<CR>
 
@@ -452,18 +472,20 @@ endfunction
 " Coc only does snippet and additional edit on confirm.
 " inoremap <expr> <cr> pumvisible() ? "\<C-y>" : "\<C-g>u\<CR>"
 
-" Use `[c` and `]c` for navigate diagnostics
 nmap <silent> <Leader>e <Plug>(coc-diagnostic-info)
 nmap <silent> <Leader>c :CocListResume<CR>
+nmap <silent> <Leader>i :CocDiagnostics<CR>
+
+" Use `[c` and `]c` for navigate diagnostics
 nmap <silent> [c :CocPrev<CR>
 nmap <silent> ]c :CocNext<CR>
 
 " Remap keys for gotos
 nmap <silent> <Leader>d <Plug>(coc-definition)
 nmap <silent> <Leader>D <Plug>(coc-type-definition)
-nmap <silent> <Leader>i <Plug>(coc-implementation)
 nmap <silent> <Leader>r <Plug>(coc-references)
 nmap <silent> <leader>R <Plug>(coc-rename)
+nmap <silent> <leader>h <Plug>(coc-float-hide)
 
 " Use K for show documentation in preview window
 nnoremap <silent> <Leader>t :call <SID>show_documentation()<CR>
