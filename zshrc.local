@@ -1,0 +1,6 @@
+alias vi='nvim'
+alias vim='nvim'
+alias timeout='gtimeout'
+
+eval "$(tmuxifier init -)"
+export FIREBASE_AUTH="/Users/dlants/.firebase.auth"
