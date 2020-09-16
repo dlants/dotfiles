@@ -1,4 +1,4 @@
-call plug#begin('~/.vim/plugged')
+call plug#begin('~/.config/nvim')
 set nocompatible " be iMproved, required
 filetype off     " required
 set t_Co=256
