@@ -1,0 +1,8 @@
+vim.api.nvim_set_keymap('', '<Space>f', [[:HopChar1AC<CR>]], {noremap = true, silent = true})
+vim.api.nvim_set_keymap('', '<Space>F', [[:HopChar1BC<CR>]], {noremap = true, silent = true})
+vim.api.nvim_set_keymap('', '<Space>w', [[:HopWordAC<CR>]], {noremap = true, silent = true})
+vim.api.nvim_set_keymap('', '<Space>b', [[:HopWordBC<CR>]], {noremap = true, silent = true})
+vim.api.nvim_set_keymap('', '<Space>j', [[:HopLineAC<CR>]], {noremap = true, silent = true})
+vim.api.nvim_set_keymap('', '<Space>k', [[:HopLineBC<CR>]], {noremap = true, silent = true})
+vim.api.nvim_set_keymap('', '<Space>/', [[:HopPattern<CR>]], {noremap = true, silent = true})
+vim.api.nvim_set_keymap('', '<Space>s', [[:HopPattern<CR>]], {noremap = true, silent = true})
