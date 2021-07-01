@@ -14,7 +14,7 @@ require "lualine".setup {
     lualine_a = {"mode"},
     lualine_b = {"diagnostics"},
     lualine_c = {relative_path},
-    lualine_x = {},
+    lualine_x = {"filetype"},
     lualine_y = {"branch"},
     lualine_z = {"diff"}
   },
