@@ -1,5 +1,7 @@
+vim.o.completeopt = "menuone,noselect,noinsert"
+
 require'compe'.setup {
-  preselect = "always",
+  preselect = "enable",
   source = {
     path = true,
     buffer = true,
