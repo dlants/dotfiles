@@ -14,7 +14,11 @@ vim.o.shiftwidth = 2
 vim.o.softtabstop = 0
 vim.o.expandtab = true
 vim.o.shell = "/usr/local/bin/zsh"
-vim.o.timeout = false
+
+vim.o.ignorecase = true
+vim.o.smartcase = true
+vim.o.incsearch = true
+vim.o.hlsearch = true
 
 vim.wo.wrap = false
 vim.wo.cursorline = true
