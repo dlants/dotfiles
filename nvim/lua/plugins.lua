@@ -20,8 +20,12 @@ require("packer").startup(
       -- Trim whitespace on save
       use "ntpeters/vim-better-whitespace"
 
-      -- fzf
+      -- navigation / grep
       use "junegunn/fzf.vim"
+      -- use {
+      --   'nvim-telescope/telescope.nvim',
+      --   requires = {{'nvim-lua/popup.nvim'}, {'nvim-lua/plenary.nvim'}}
+      -- }
 
       -- grep
       use "mhinz/vim-grepper"
@@ -97,6 +101,7 @@ require("packer").startup(
 
       -- Neovim Completion
       use "hrsh7th/nvim-compe"
+      use "L3MON4D3/LuaSnip"
 
       -- Treesitter config
       use {

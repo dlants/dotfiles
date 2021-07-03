@@ -37,10 +37,12 @@ vim.api.nvim_set_keymap("n", "<leader>_", ":vertical resize -5<CR>", {noremap = 
 
 require "config/hop"
 require "config/lsp"
-require "config/compe"
+require "config/completion-and-snippets"
 require "config/lualine"
 require "config/formatter"
 require "config/treesitter"
+-- not ready to use telescope yet... seems a bit clunky compared to fzf
+-- require "config/telescope"
 
 -- fzf
 vim.cmd "set rtp+=/usr/local/opt/fzf"
