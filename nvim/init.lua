@@ -29,6 +29,8 @@ vim.cmd "autocmd BufWritePre * StripWhitespace"
 
 vim.api.nvim_set_keymap("n", "[j", "<C-O>", {noremap = true})
 vim.api.nvim_set_keymap("n", "]j", "<C-I>", {noremap = true})
+vim.api.nvim_set_keymap("n", "[<space>", "O<Esc>j", {noremap = true})
+vim.api.nvim_set_keymap("n", "]<space>", "o<Esc>k", {noremap = true})
 
 vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", {noremap = true})
 vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", {noremap = true})
