@@ -40,14 +40,7 @@ require "config/lsp"
 require "config/compe"
 require "config/lualine"
 require "config/formatter"
-
--- Treesitter
-require "nvim-treesitter.configs".setup {
-  ensure_installed = "maintained",
-  highlight = {
-    enable = true
-  }
-}
+require "config/treesitter"
 
 -- fzf
 vim.cmd "set rtp+=/usr/local/opt/fzf"

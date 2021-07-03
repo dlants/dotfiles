@@ -61,7 +61,7 @@ require("packer").startup(
 
       -- vim enhancements (motion, repeatability)
       use "tpope/vim-commentary"
-      use "tpope/vim-unimpaired"
+      -- use "tpope/vim-unimpaired"
       use "tpope/vim-abolish"
 
       -- incompatible w/ compe
@@ -87,6 +87,11 @@ require("packer").startup(
       -- Neovim LSP
       use "neovim/nvim-lspconfig"
 
+      -- show signatures of functions as you type
+      use {
+        "ray-x/lsp_signature.nvim",
+      }
+
       -- for using prettier / eslint
       use "mhartington/formatter.nvim"
 
@@ -101,6 +106,8 @@ require("packer").startup(
 
       -- Treesitter for movement / selection
       use "nvim-treesitter/nvim-treesitter-textobjects"
+
+      use "nvim-treesitter/playground"
     end
   }
 )
