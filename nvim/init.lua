@@ -27,8 +27,13 @@ vim.wo.colorcolumn = "120"
 
 vim.cmd "autocmd BufWritePre * StripWhitespace"
 
+-- replace unimpaired bindings
 vim.api.nvim_set_keymap("n", "[j", "<C-O>", {noremap = true})
 vim.api.nvim_set_keymap("n", "]j", "<C-I>", {noremap = true})
+vim.api.nvim_set_keymap("n", "[q", ":cp<CR>", {noremap = true})
+vim.api.nvim_set_keymap("n", "]q", ":cn<CR>", {noremap = true})
+vim.api.nvim_set_keymap("n", "[l", ":lp<CR>", {noremap = true})
+vim.api.nvim_set_keymap("n", "]l", ":lne<CR>", {noremap = true})
 vim.api.nvim_set_keymap("n", "[<space>", "O<Esc>j", {noremap = true})
 vim.api.nvim_set_keymap("n", "]<space>", "o<Esc>k", {noremap = true})
 

@@ -14,6 +14,10 @@ local on_attach = function(client, bufnr)
   buf_set_keymap("n", "<leader>R", [[<Cmd>lua vim.lsp.buf.rename()<CR>]], opts)
   -- buf_set_keymap('n', '<leader>`', [[<Cmd>lua vim.lsp.buf.formatting_sync()<CR>]], opts)
 
+  buf_set_keymap("n", "<leader>i", [[<Cmd>lua vim.lsp.diagnostic.set_loclist()<CR>]], opts)
+  buf_set_keymap("n", "[e", [[<Cmd>lua vim.lsp.diagnostic.goto_prev()<CR>]], opts)
+  buf_set_keymap("n", "]e", [[<Cmd>lua vim.lsp.diagnostic.goto_next()<CR>]], opts)
+
   require "lsp_signature".on_attach {
     bind=true,
     hint_prefix="",

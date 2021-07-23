@@ -75,7 +75,8 @@ require("packer").startup(
 
       -- Neovim motions on speed!
       use {
-        "phaazon/hop.nvim",
+        -- "/phaazon/hop.nvim",
+        "~/src/hop.nvim",
         as = "hop",
         config = function()
           require("hop").setup {}
@@ -93,7 +94,7 @@ require("packer").startup(
 
       -- show signatures of functions as you type
       use {
-        "ray-x/lsp_signature.nvim",
+        "ray-x/lsp_signature.nvim"
       }
 
       -- for using prettier / eslint
@@ -110,7 +111,11 @@ require("packer").startup(
       }
 
       -- Treesitter for movement / selection
-      use "nvim-treesitter/nvim-treesitter-textobjects"
+      use {
+        "~/src/nvim-treesitter-textobjects",
+        as = "nvim-treesitter/nvim-treesitter-textobjects"
+      }
+      --use "nvim-treesitter/nvim-treesitter-textobjects"
 
       use "nvim-treesitter/playground"
     end

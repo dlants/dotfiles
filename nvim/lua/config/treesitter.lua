@@ -31,24 +31,32 @@ require "nvim-treesitter.configs".setup {
         ["ic"] = "@class.inner",
         ["af"] = "@function.outer",
         ["if"] = "@function.inner",
+        ["ip"] = "@parameter.inner",
+        ["ap"] = "@parameter.inner",
+        ["as"] = "@statement.outer",
+        ["ab"] = "@block.outer",
       }
     },
     move = {
       enable = true,
       set_jumps = true,
       goto_next_start = {
-        ["]b"] = "@function.inner", -- "body"
         ["]c"] = "@class.outer",
         ["]f"] = "@function.outer",
+        ["]p"] = "@parameter.inner",
+        ["]s"] = "@statement.outer",
+        ["]b"] = "@block.outer"
       },
       goto_next_end = {
         ["]F"] = "@function.outer",
         ["]C"] = "@class.outer"
       },
       goto_previous_start = {
-        ["[b"] = "@function.inner", -- "body"
         ["[c"] = "@class.outer",
         ["[f"] = "@function.outer",
+        ["[p"] = "@parameter.inner",
+        ["[s"] = "@statement.outer",
+        ["[b"] = "@block.outer"
       },
       goto_previous_end = {
         ["[F"] = "@function.outer",
