@@ -101,7 +101,17 @@ require("packer").startup(
       use "mhartington/formatter.nvim"
 
       -- Neovim Completion
-      use "hrsh7th/nvim-compe"
+      use {
+        "hrsh7th/nvim-cmp",
+        requires = {
+          "hrsh7th/vim-vsnip",
+          "hrsh7th/cmp-buffer"
+        }
+      }
+
+      use "hrsh7th/cmp-nvim-lsp"
+      use "hrsh7th/cmp-buffer"
+      use "hrsh7th/cmp-path"
       use "L3MON4D3/LuaSnip"
 
       -- Treesitter config

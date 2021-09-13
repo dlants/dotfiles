@@ -5,7 +5,7 @@ config windowHintsIgnoreHiddenWindows false
 config windowHintsSpread true
 
 # Cmd+E brings up window chooser based on alphabet
-# bind e:cmd hint asdfghjklqwertyuiopzxcvbnm
+bind e:cmd hint asdfghjklqwertyuiopzxcvbnm
 
 alias full move screenOriginX;screenOriginY screenSizeX;screenSizeY
 alias lefthalf move screenOriginX;screenOriginY screenSizeX/2;screenSizeY
