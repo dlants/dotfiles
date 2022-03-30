@@ -1,13 +1,61 @@
+-- vim.g.coq_settings = {
+--   ['auto_start'] = 'shut-up',
+--   ['display.ghost_text.enabled'] = false
+-- }
+
+-- nvim-cmp supports additional completion capabilities
+-- local capabilities = vim.lsp.protocol.make_client_capabilities()
+-- capabilities = require('cmp_nvim_lsp').update_capabilities(capabilities)
+
+-- luasnip setup
 local luasnip = require "luasnip"
-local types = require "cmp.types"
-local compare = require "cmp.config.compare"
+
+-- nvim-cmp setup
+local cmp = require "cmp"
+vim.o.completeopt = "menu,menuone,noselect"
+cmp.setup {
+  snippet = {
+    expand = function(args)
+      require("luasnip").lsp_expand(args.body)
+    end
+  },
+  mapping = {
+    ["<C-p>"] = cmp.mapping.select_prev_item(),
+    ["<C-n>"] = cmp.mapping.select_next_item(),
+    ["<C-d>"] = cmp.mapping.scroll_docs(-4),
+    ["<C-f>"] = cmp.mapping.scroll_docs(4),
+    ["<C-Space>"] = cmp.mapping.complete(),
+    ["<C-e>"] = cmp.mapping.close(),
+    ["<CR>"] = cmp.mapping.confirm {
+      behavior = cmp.ConfirmBehavior.Replace,
+      select = true
+    },
+    ["<Tab>"] = function(fallback)
+      if cmp.visible() then
+        cmp.select_next_item()
+      else
+        fallback()
+      end
+    end,
+    ["<S-Tab>"] = function(fallback)
+      if cmp.visible() then
+        cmp.select_prev_item()
+      else
+        fallback()
+      end
+    end
+  },
+  sources = {
+    {name = "nvim_lsp"},
+    {name = "luasnip"},
+    {name = "buffer"},
+    {name = "path"}
+  }
+}
+
+--[[
 local cmp = require "cmp"
 
-vim.o.completeopt = "menuone,noselect,noinsert"
-
-local WIDE_HEIGHT = 40
-
--- borrows from luasnip example https://github.com/hrsh7th/nvim-cmp/wiki/Example-mappings
 local has_words_before = function()
   if vim.api.nvim_buf_get_option(0, "buftype") == "prompt" then
     return false
@@ -16,63 +64,33 @@ local has_words_before = function()
   return col ~= 0 and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
 end
 
-local feedkey = function(key)
-  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(key, true, true, true), "n", true)
+local feedkey = function(key, mode)
+  vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes(key, true, true, true), mode, true)
 end
 
 cmp.setup {
-  enabled = function()
-    return vim.api.nvim_buf_get_option(0, "buftype") ~= "prompt"
-  end,
-  completion = {
-    autocomplete = {
-      types.cmp.TriggerEvent.TextChanged
-    },
-    completeopt = "menu,menuone,noselect",
-    keyword_pattern = [[\%(-\?\d\+\%(\.\d\+\)\?\|\h\w*\%(-\w*\)*\)]],
-    keyword_length = 1,
-    get_trigger_characters = function(trigger_characters)
-      return trigger_characters
-    end
-  },
   snippet = {
-    expand = function()
-      error("snippet engine is not configured.")
+    expand = function(args)
+      vim.fn["vsnip#anonymous"](args.body)
     end
   },
-  preselect = types.cmp.PreselectMode.Item,
-  documentation = {
-    border = {"", "", "", " ", "", "", "", " "},
-    winhighlight = "NormalFloat:CmpDocumentation,FloatBorder:CmpDocumentationBorder",
-    maxwidth = math.floor((WIDE_HEIGHT * 2) * (vim.o.columns / (WIDE_HEIGHT * 2 * 16 / 9))),
-    maxheight = math.floor(WIDE_HEIGHT * (WIDE_HEIGHT / vim.o.lines))
-  },
-  confirmation = {
-    default_behavior = types.cmp.ConfirmBehavior.Insert,
-    get_commit_characters = function(commit_characters)
-      return commit_characters
-    end
-  },
-  sorting = {
-    priority_weight = 2,
-    comparators = {
-      compare.offset,
-      compare.exact,
-      compare.score,
-      compare.kind,
-      compare.sort_text,
-      compare.length,
-      compare.order
-    }
-  },
-  event = {},
   mapping = {
+    ["<C-p>"] = cmp.mapping.select_prev_item(),
+    ["<C-n>"] = cmp.mapping.select_next_item(),
+    ["<C-d>"] = cmp.mapping.scroll_docs(-4),
+    ["<C-f>"] = cmp.mapping.scroll_docs(4),
+    ["<C-Space>"] = cmp.mapping.complete(),
+    ["<C-e>"] = cmp.mapping.close(),
+    ["<CR>"] = cmp.mapping.confirm {
+      behavior = cmp.ConfirmBehavior.Replace,
+      select = true
+    },
     ["<Tab>"] = cmp.mapping(
       function(fallback)
         if vim.fn.pumvisible() == 1 then
-          feedkey("<C-n>")
-        elseif luasnip.expand_or_jumpable() then
-          luasnip.expand_or_jump()
+          feedkey("<C-n>", "n")
+        elseif vim.fn["vsnip#available"]() == 1 then
+          feedkey("<Plug>(vsnip-expand-or-jump)", "")
         elseif has_words_before() then
           cmp.complete()
         else
@@ -82,30 +100,21 @@ cmp.setup {
       {"i", "s"}
     ),
     ["<S-Tab>"] = cmp.mapping(
-      function(fallback)
+      function()
         if vim.fn.pumvisible() == 1 then
-          feedkey("<C-p>")
-        elseif luasnip.jumpable(-1) then
-          luasnip.jump(-1)
-        else
-          fallback()
+          feedkey("<C-p>", "n")
+        elseif vim.fn["vsnip#jumpable"](-1) == 1 then
+          feedkey("<Plug>(vsnip-jump-prev)", "")
         end
       end,
       {"i", "s"}
     )
   },
-  formatting = {
-    deprecated = true,
-    format = function(_, vim_item)
-      return vim_item
-    end
-  },
-  experimental = {
-    ghost_text = false
-  },
   sources = {
-    {name = 'nvim_lsp'},
-    {name = 'buffer'},
-    {name = 'path'},
+    {name = "nvim_lsp"},
+    {name = "buffer"},
+    {name = "path"},
+    {name = "vsnip"}
   }
 }
+]] --

@@ -28,8 +28,18 @@ export ANDROID_SDK="$HOME/Library/Android/sdk"
 export PATH="$ANDROID_SDK/emulator:$ANDROID_SDK/tools:$ANDROID_SDK/platform-tools:$PATH"
 export PATH="/usr/local/opt/postgresql@12/bin:$PATH"
 
-# export NVM_DIR="$HOME/.nvm"
-# [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-# @ [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-
 alias luamake=/Users/dlants/src/lua-language-server/3rd/luamake/luamake
+
+alias timeout='gtimeout'
+
+# export FIREBASE_AUTH="/Users/dlants/.firebase.auth"
+export PATH="/usr/local/bin/aws_completer:$PATH"
+
+autoload bashcompinit && bashcompinit
+autoload -Uz compinit && compinit
+complete -C '/usr/local/bin/aws_completer' aws
+export PATH="/usr/local/opt/openssl@3/bin:$PATH"
+
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion

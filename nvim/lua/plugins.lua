@@ -104,15 +104,32 @@ require("packer").startup(
       use {
         "hrsh7th/nvim-cmp",
         requires = {
-          "hrsh7th/vim-vsnip",
-          "hrsh7th/cmp-buffer"
+          "hrsh7th/cmp-nvim-lsp",
+          "hrsh7th/cmp-buffer",
+          "hrsh7th/cmp-path",
+          "saadparwaiz1/cmp_luasnip",
+          "L3MON4D3/LuaSnip"
+          -- "hrsh7th/vim-vsnip",
+          -- "hrsh7th/vim-vsnip-integ",
+          -- "hrsh7th/cmp-nvim-lua",
+          -- "hrsh7th/cmp-vsnip",
         }
       }
 
-      use "hrsh7th/cmp-nvim-lsp"
-      use "hrsh7th/cmp-buffer"
-      use "hrsh7th/cmp-path"
-      use "L3MON4D3/LuaSnip"
+      -- use {
+      --   "ms-jpq/coq_nvim",
+      --   branch = "coq"
+      -- }
+
+      -- use {
+      --   "ms-jpq/coq.artifacts",
+      --   branch = "artifacts"
+      -- }
+
+      -- use {
+      --   "ms-jpq/coq.thirdparty",
+      --   branch = "3p"
+      -- }
 
       -- Treesitter config
       use {
@@ -121,13 +138,16 @@ require("packer").startup(
       }
 
       -- Treesitter for movement / selection
-      use {
-        "~/src/nvim-treesitter-textobjects",
-        as = "nvim-treesitter/nvim-treesitter-textobjects"
-      }
+      -- use {
+      --   "~/src/nvim-treesitter-textobjects",
+      --   as = "nvim-treesitter/nvim-treesitter-textobjects"
+      -- }
+      use "nvim-treesitter/nvim-treesitter-textobjects"
       --use "nvim-treesitter/nvim-treesitter-textobjects"
 
       use "nvim-treesitter/playground"
+
+      -- use "folke/lua-dev.nvim"
     end
   }
 )
