@@ -26,6 +26,7 @@ require("packer").startup(
       --   'nvim-telescope/telescope.nvim',
       --   requires = {{'nvim-lua/popup.nvim'}, {'nvim-lua/plenary.nvim'}}
       -- }
+      use 'ThePrimeagen/harpoon'
 
       -- grep
       use "mhinz/vim-grepper"
