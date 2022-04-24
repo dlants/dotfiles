@@ -11,9 +11,10 @@ vim.api.nvim_set_keymap(
   {noremap = true, silent = true}
 )
 
+-- s to match the session selector window in tmux
 vim.api.nvim_set_keymap(
   "",
-  "<leader>m",
+  "<leader>s",
   [[<Cmd>lua require('harpoon.ui').toggle_quick_menu()<CR>]],
   {noremap = true, silent = true}
 )
