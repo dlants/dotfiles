@@ -63,3 +63,8 @@ vim.cmd "runtime plugin/grepper.vim"
 vim.cmd "let g:grepper.prompt_quote = 0"
 vim.cmd "let g:grepper.tools = ['rg']"
 vim.api.nvim_set_keymap("n", "<leader>g", ":Grepper<CR>", {noremap = true, silent = true})
+
+vim.cmd "augroup lsp"
+vim.cmd "  au!"
+vim.cmd "  au FileType java lua print('hello'); require('config/lsp').start_jdt()"
+vim.cmd "augroup end"

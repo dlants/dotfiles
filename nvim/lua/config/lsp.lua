@@ -19,10 +19,10 @@ local on_attach = function(client, bufnr)
   buf_set_keymap("n", "]e", [[<Cmd>lua vim.lsp.diagnostic.goto_next()<CR>]], opts)
 
   require "lsp_signature".on_attach {
-    bind=true,
-    hint_prefix="",
-    handler_opts={
-      border="none"
+    bind = true,
+    hint_prefix = "",
+    handler_opts = {
+      border = "none"
     }
   }
 end
@@ -34,9 +34,27 @@ for _, server in ipairs(servers) do
     flags = {
       debounce_text_changes = 150
     },
-    capabilities = require('cmp_nvim_lsp').update_capabilities(vim.lsp.protocol.make_client_capabilities())
+    capabilities = require("cmp_nvim_lsp").update_capabilities(vim.lsp.protocol.make_client_capabilities())
   }
 end
+
+lsp.rust_analyzer.setup({
+  on_attach = on_attach,
+  settings = {
+    ["rust-analyzer"] = {
+      assist = {
+        importGranularity = "module",
+        importPrefix = "self"
+      },
+      cargo = {
+        loadOutDirsFromCheck = true
+      },
+      procMacro = {
+        enable = true
+      }
+    }
+  }
+})
 
 local system_name
 if vim.fn.has("mac") == 1 then
@@ -83,3 +101,77 @@ lsp.sumneko_lua.setup {
     }
   }
 }
+
+local M = {}
+
+-- on_attach only maps when the language server attaches to the current buffer
+local on_attach_jdt = function(client, bufnr)
+  local opts = {noremap = true, silent = true}
+  local function buf_set_keymap(...)
+    vim.api.nvim_buf_set_keymap(bufnr, ...)
+  end
+
+  buf_set_keymap("n", "<leader>t", [[<Cmd>lua vim.lsp.buf.hover()<CR>]], opts)
+  buf_set_keymap("n", "<leader>d", [[<Cmd>lua vim.lsp.buf.definition()<CR>]], opts)
+  buf_set_keymap("n", "<leader>D", [[<Cmd>lua vim.lsp.buf.declaration()<CR>]], opts)
+  buf_set_keymap("n", "<leader>r", [[<Cmd>lua vim.lsp.buf.references()<CR>]], opts)
+  buf_set_keymap("n", "<leader>R", [[<Cmd>lua vim.lsp.buf.rename()<CR>]], opts)
+  -- buf_set_keymap('n', '<leader>`', [[<Cmd>lua vim.lsp.buf.formatting_sync()<CR>]], opts)
+
+  buf_set_keymap("n", "<leader>i", [[<Cmd>lua vim.lsp.diagnostic.set_loclist()<CR>]], opts)
+  buf_set_keymap("n", "[e", [[<Cmd>lua vim.lsp.diagnostic.goto_prev()<CR>]], opts)
+  buf_set_keymap("n", "]e", [[<Cmd>lua vim.lsp.diagnostic.goto_next()<CR>]], opts)
+
+  require "lsp_signature".on_attach {
+    bind = true,
+    hint_prefix = "",
+    handler_opts = {
+      border = "none"
+    }
+  }
+end
+
+
+-- borrows from https://github.com/mfussenegger/dotfiles/blob/89a0acc43ac1d8c2ee475a00b8a448a23b8c1c26/vim/.config/nvim/lua/lsp-config.lua#L126-L196
+function M.start_jdt()
+  print("start_jdt")
+  local root_markers = {"gradlew", ".git"}
+  local root_dir = require("jdtls.setup").find_root(root_markers)
+  local home = os.getenv("HOME")
+  local workspace_folder = home .. "/.local/share/eclipse/" .. vim.fn.fnamemodify(root_dir, ":p:h:t")
+
+  -- from https://github.com/mfussenegger/nvim-jdtls readme
+  local config = {
+    cmd = {
+      "java",
+      "-Declipse.application=org.eclipse.jdt.ls.core.id1",
+      "-Dosgi.bundles.defaultStartLevel=4",
+      "-Declipse.product=org.eclipse.jdt.ls.core.product",
+      "-Dlog.protocol=true",
+      "-Dlog.level=ALL",
+      "-Xms1g",
+      "--add-modules=ALL-SYSTEM",
+      "--add-opens",
+      "java.base/java.util=ALL-UNNAMED",
+      "--add-opens",
+      "java.base/java.lang=ALL-UNNAMED",
+      "-jar",
+      "/usr/local/Cellar/jdtls/1.9.0-202203031534/libexec/plugins/org.eclipse.equinox.launcher_1.6.400.v20210924-0641.jar",
+      "-configuration",
+      "/usr/local/Cellar/jdtls/1.9.0-202203031534/libexec/config_mac",
+      "-data",
+      workspace_folder
+    },
+    root_dir = require("jdtls.setup").find_root({".git", "mvnw", "gradlew"}),
+    settings = {
+      java = {}
+    },
+    on_attach = on_attach_jdt
+  }
+
+  -- This starts a new client & server,
+  -- or attaches to an existing client & server depending on the `root_dir`.
+  require("jdtls").start_or_attach(config)
+end
+
+return M

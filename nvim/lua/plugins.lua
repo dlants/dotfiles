@@ -116,6 +116,8 @@ require("packer").startup(
         }
       }
 
+      use 'mfussenegger/nvim-jdtls'
+
       -- use {
       --   "ms-jpq/coq_nvim",
       --   branch = "coq"

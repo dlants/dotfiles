@@ -1,0 +1,47 @@
+#!/bin/sh
+
+tmux start-server
+
+cd ~/src/logan
+tmux new-session -d -s logan
+# 0 is for vim
+tmux send-keys "vi" C-m
+# 1 is for terminal
+tmux new-window -t logan:1
+# 7 runs the server
+tmux new-window -t logan:7
+tmux send-keys "npm start" C-m
+# 8 is build
+tmux new-window -t logan:8
+tmux send-keys "make dev" C-m
+# 9 is for tsc
+tmux new-window -t logan:9
+
+cd ~/src/classroom
+tmux new-session -d -s classroom
+# 0 is for vim
+tmux send-keys "vi" C-m
+# 1 is for terminal
+tmux new-window -t classroom:1
+# 7 is for server
+tmux new-window -t classroom:7
+tmux send-keys "sleep 5; nodemon app.js | ./node_modules/.bin/bunyan" C-m
+# 8 is for build
+tmux new-window -t classroom:8
+tmux send-keys "make dev" C-m
+# 9 is for tsc
+tmux new-window -t classroom:9
+
+
+cd ~/src/infra-tools
+tmux new-session -d -s infratools
+# 0 is for vim
+tmux send-keys "vi" C-m
+# 1 is for terminal
+tmux new-window -t infratools:1
+
+cd ~/src/dotfiles
+tmux new-session -d -s dotfiles
+# 0 is for vim
+# 1 is for terminal
+tmux new-window -t dotfiles:1
