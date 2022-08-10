@@ -44,3 +44,17 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 export PATH="/usr/local/opt/openjdk/bin:$PATH"
+
+export PATH="$(pyenv root)/shims:$(pyenv root)/bin:$PATH"
+eval "$(pyenv init --path)"
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
+
+# if we're not in tmux, enter a tmux session
+if [ -z "$TMUX" ]
+then
+  ta
+fi
+
+# Created by `pipx` on 2022-08-09 17:54:32
+export PATH="$PATH:/Users/dlants/.local/bin"

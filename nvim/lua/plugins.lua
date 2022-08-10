@@ -26,7 +26,7 @@ require("packer").startup(
       --   'nvim-telescope/telescope.nvim',
       --   requires = {{'nvim-lua/popup.nvim'}, {'nvim-lua/plenary.nvim'}}
       -- }
-      use 'ThePrimeagen/harpoon'
+      use "ThePrimeagen/harpoon"
 
       -- grep
       use "mhinz/vim-grepper"
@@ -76,8 +76,7 @@ require("packer").startup(
 
       -- Neovim motions on speed!
       use {
-        -- "/phaazon/hop.nvim",
-        "~/src/hop.nvim",
+        "/phaazon/hop.nvim",
         as = "hop",
         config = function()
           require("hop").setup {}
@@ -98,6 +97,12 @@ require("packer").startup(
         "ray-x/lsp_signature.nvim"
       }
 
+      -- better display of reference lists, etc.
+      -- use {
+      --   "folke/trouble.nvim",
+      --   requires = "kyazdani42/nvim-web-devicons",
+      -- }
+
       -- for using prettier / eslint
       use "mhartington/formatter.nvim"
 
@@ -117,7 +122,7 @@ require("packer").startup(
         }
       }
 
-      use 'mfussenegger/nvim-jdtls'
+      use "mfussenegger/nvim-jdtls"
 
       -- use {
       --   "ms-jpq/coq_nvim",

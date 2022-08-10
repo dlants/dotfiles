@@ -36,6 +36,9 @@ vim.api.nvim_set_keymap("n", "[l", ":lp<CR>", {noremap = true})
 vim.api.nvim_set_keymap("n", "]l", ":lne<CR>", {noremap = true})
 vim.api.nvim_set_keymap("n", "[<space>", "O<Esc>j", {noremap = true})
 vim.api.nvim_set_keymap("n", "]<space>", "o<Esc>k", {noremap = true})
+vim.api.nvim_set_keymap("n", "[f", ":colder<CR>", {noremap = true})
+vim.api.nvim_set_keymap("n", "]f", ":cnewer<CR>", {noremap = true})
+
 
 vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", {noremap = true})
 vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", {noremap = true})
@@ -49,6 +52,7 @@ require "config/lualine"
 require "config/formatter"
 require "config/treesitter"
 require "config/harpoon"
+-- require "config/trouble"
 -- require "config/lua-dev"
 -- not ready to use telescope yet... seems a bit clunky compared to fzf
 -- require "config/telescope"
