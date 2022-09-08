@@ -1,8 +1,0 @@
-gh
-zsh
-nvm
-fzf
-rg
-tmux
-jq
-
