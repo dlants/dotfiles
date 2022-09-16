@@ -22,6 +22,7 @@ require("packer").startup(
 
       -- navigation / grep
       -- use "junegunn/fzf.vim"
+      use {'nvim-telescope/telescope-fzf-native.nvim', run = 'make' }
       use {
         'nvim-telescope/telescope.nvim', tag = '0.1.0',
       -- or                            , branch = '0.1.x',
@@ -81,10 +82,11 @@ require("packer").startup(
 
       -- Neovim motions on speed!
       use {
-        "/phaazon/hop.nvim",
-        as = "hop",
+        'phaazon/hop.nvim',
+        branch = 'v2', -- optional but strongly recommended
         config = function()
-          require("hop").setup {}
+          -- you can configure Hop the way you like here; see :h hop-config
+          require'hop'.setup { keys = 'etovxqpdygfblzhckisuran' }
         end
       }
 
