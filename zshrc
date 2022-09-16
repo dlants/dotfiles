@@ -59,3 +59,7 @@ export PATH="/usr/local/opt/postgresql@12/bin:$PATH"
  eval "$(pyenv init --path)"
  eval "$(pyenv init -)"
 #  eval "$(pyenv virtualenv-init -)"
+
+# installing this through prezto does not work w/ alacritty!
+# to make this line work, brew install zsh-syntax-highlighting
+source /Users/denislantsman/src/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh

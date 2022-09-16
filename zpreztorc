@@ -29,14 +29,14 @@ zstyle ':prezto:load' pmodule \
   'editor' \
   'git' \
   'tmux' \
-  'history' \
-  'directory' \
-  'spectrum' \
-  'utility' \
-  'completion' \
-  'syntax-highlighting' \
-  'history-substring-search' \
-  'prompt'
+  'history'  \
+   'directory' \
+   'spectrum' \
+   'utility' \
+   'completion' \
+   'history-substring-search' \
+   'prompt'
+#   'syntax-highlighting'
 
 #
 # Autosuggestions
