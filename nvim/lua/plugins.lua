@@ -21,10 +21,15 @@ require("packer").startup(
       use "ntpeters/vim-better-whitespace"
 
       -- navigation / grep
-      use "junegunn/fzf.vim"
-      -- use {
-      --   'nvim-telescope/telescope.nvim',
-      --   requires = {{'nvim-lua/popup.nvim'}, {'nvim-lua/plenary.nvim'}}
+      -- use "junegunn/fzf.vim"
+      use {
+        'nvim-telescope/telescope.nvim', tag = '0.1.0',
+      -- or                            , branch = '0.1.x',
+        requires = { {'nvim-lua/plenary.nvim'} }
+      }
+      -- use { 'ibhagwan/fzf-lua',
+      --   -- optional for icon support
+      --   requires = { 'kyazdani42/nvim-web-devicons' }
       -- }
       use "ThePrimeagen/harpoon"
 
@@ -88,6 +93,15 @@ require("packer").startup(
 
       -- Themes
       use "nanotech/jellybeans.vim"
+
+      -- vim.cmd "let g:doom_one_terminal_colors = v:true"
+      -- use "romgrk/doom-one.vim"
+      use "tomasr/molokai"
+      use "rafamadriz/neon"
+      use 'Mofiqul/vscode.nvim'
+      use 'marko-cerovac/material.nvim'
+      use 'ray-x/aurora'
+      use 'mhartington/oceanic-next'
 
       -- Neovim LSP
       use "neovim/nvim-lspconfig"

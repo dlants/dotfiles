@@ -1,6 +1,6 @@
 require "plugins"
 
-vim.cmd "colorscheme jellybeans"
+vim.cmd "colorscheme OceanicNext"
 vim.cmd "filetype plugin indent on"
 
 vim.g.mapleader = " "
@@ -13,7 +13,7 @@ vim.o.tabstop = 2
 vim.o.shiftwidth = 2
 vim.o.softtabstop = 0
 vim.o.expandtab = true
-vim.o.shell = "/usr/local/bin/zsh"
+vim.o.shell = "/opt/homebrew/bin/zsh"
 
 vim.o.ignorecase = true
 vim.o.smartcase = true
@@ -55,13 +55,13 @@ require "config/harpoon"
 -- require "config/trouble"
 -- require "config/lua-dev"
 -- not ready to use telescope yet... seems a bit clunky compared to fzf
--- require "config/telescope"
+require "config/telescope"
 
 -- fzf
-vim.cmd "set rtp+=/usr/local/opt/fzf"
-vim.cmd "let g:fzf_layout = {'up': '~50%'}"
-vim.api.nvim_set_keymap("n", "<leader>p", ":GFiles<CR>", {noremap = true, silent = true})
-vim.api.nvim_set_keymap("n", "<leader>o", ":Files<CR>", {noremap = true, silent = true})
+-- vim.cmd "set rtp+=/opt/homebrew/opt/fzf"
+-- vim.cmd "let g:fzf_layout = {'up': '~50%'}"
+-- vim.api.nvim_set_keymap("n", "<leader>p", ":GFiles<CR>", {noremap = true, silent = true})
+-- vim.api.nvim_set_keymap("n", "<leader>o", ":Files<CR>", {noremap = true, silent = true})
 
 -- grepper
 vim.cmd "runtime plugin/grepper.vim"

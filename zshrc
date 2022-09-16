@@ -55,7 +55,7 @@ fi
 export PATH="$PATH:/Users/dlants/.local/bin"
 export PATH="/usr/local/opt/postgresql@12/bin:$PATH"
 
-#  export PATH="$(pyenv root)/shims:$(pyenv root)/bin:$PATH"
-#  eval "$(pyenv init --path)"
-#  eval "$(pyenv init -)"
+ export PATH="$(pyenv root)/shims:$(pyenv root)/bin:$PATH"
+ eval "$(pyenv init --path)"
+ eval "$(pyenv init -)"
 #  eval "$(pyenv virtualenv-init -)"

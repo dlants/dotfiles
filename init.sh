@@ -1,6 +1,7 @@
 #! /bin/bash
 ln -sf ~/src/dotfiles/tmux.conf ~/.tmux.conf
 ln -sf ~/src/dotfiles/zshrc ~/.zshrc
+ln -sf ~/src/dotfiles/zpreztorc ~/.zpreztorc
 ln -sf ~/src/dotfiles/nvim/init.lua ~/.config/nvim/init.lua
 ln -sf ~/src/dotfiles/nvim/lua ~/.config/nvim/lua
 
