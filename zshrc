@@ -55,11 +55,17 @@ fi
 export PATH="$PATH:/Users/dlants/.local/bin"
 export PATH="/usr/local/opt/postgresql@12/bin:$PATH"
 
- export PATH="$(pyenv root)/shims:$(pyenv root)/bin:$PATH"
- eval "$(pyenv init --path)"
- eval "$(pyenv init -)"
-#  eval "$(pyenv virtualenv-init -)"
+export PATH="$(pyenv root)/shims:$(pyenv root)/bin:$PATH"
+eval "$(pyenv init --path)"
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
 
 # installing this through prezto does not work w/ alacritty!
 # to make this line work, brew install zsh-syntax-highlighting
 source /Users/denislantsman/src/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+export PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+export PUPPETEER_EXECUTABLE_PATH=`which chromium`
+
+# Created by `pipx` on 2022-11-16 21:25:09
+export PATH="$PATH:/Users/denislantsman/.local/bin"

@@ -27,16 +27,22 @@ local on_attach = function(client, bufnr)
   }
 end
 
-local servers = {"tsserver", "dockerls", "bashls", "jsonls"}
+local servers = {"tsserver", "dockerls", "bashls", "jsonls", "terraformls"}
 for _, server in ipairs(servers) do
   lsp[server].setup {
     on_attach = on_attach,
     flags = {
       debounce_text_changes = 150
     },
-    capabilities = require("cmp_nvim_lsp").update_capabilities(vim.lsp.protocol.make_client_capabilities())
+    capabilities = require("cmp_nvim_lsp").default_capabilities(vim.lsp.protocol.make_client_capabilities())
   }
 end
+
+lsp.tflint.setup{}
+vim.api.nvim_create_autocmd({"BufWritePre"}, {
+  pattern = {"*.tf", "*.tfvars"},
+  callback = vim.lsp.buf.formatting_sync,
+})
 
 lsp.rust_analyzer.setup({
   on_attach = on_attach,

@@ -67,6 +67,7 @@ require "config/telescope"
 vim.cmd "runtime plugin/grepper.vim"
 vim.cmd "let g:grepper.prompt_quote = 0"
 vim.cmd "let g:grepper.tools = ['rg']"
+-- vim.cmd "let g:grepper.rg.grepprg .= ' --hidden'"
 vim.api.nvim_set_keymap("n", "<leader>g", ":Grepper<CR>", {noremap = true, silent = true})
 
 vim.cmd "augroup lsp"
