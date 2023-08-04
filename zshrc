@@ -10,6 +10,11 @@ if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
 fi
 
+if [[ -s "${ZDOTDIR:-$HOME}/.zshsecret" ]]; then
+  source "${ZDOTDIR:-$HOME}/.zshsecret"
+fi
+
+
 # Customize to your needs...
 alias vi='nvim'
 alias vim='nvim'
@@ -55,10 +60,12 @@ fi
 export PATH="$PATH:/Users/dlants/.local/bin"
 export PATH="/usr/local/opt/postgresql@12/bin:$PATH"
 
-export PATH="$(pyenv root)/shims:$(pyenv root)/bin:$PATH"
-eval "$(pyenv init --path)"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
+pyenv_setup() {
+  export PATH="$(pyenv root)/shims:$(pyenv root)/bin:$PATH"
+  eval "$(pyenv init --path)"
+  eval "$(pyenv init -)"
+  eval "$(pyenv virtualenv-init -)"
+}
 
 # installing this through prezto does not work w/ alacritty!
 # to make this line work, brew install zsh-syntax-highlighting
@@ -69,3 +76,7 @@ export PUPPETEER_EXECUTABLE_PATH=`which chromium`
 
 # Created by `pipx` on 2022-11-16 21:25:09
 export PATH="$PATH:/Users/denislantsman/.local/bin"
+
+autoload -U +X bashcompinit && bashcompinit
+complete -o nospace -C /opt/homebrew/Cellar/tfenv/3.0.0/versions/1.2.9/terraform terraform
+alias git-clean-branches='git branch --merged | egrep -v "(^\*|master|main|dev)" | xargs git branch -d'

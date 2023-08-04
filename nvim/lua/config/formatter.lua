@@ -60,6 +60,15 @@ require "formatter".setup {
         }
       end
     },
+    yaml = {
+      function()
+        return {
+          exe = "npx prettier",
+          args = {"--stdin-filepath", vim.api.nvim_buf_get_name(0)},
+          stdin = true
+        }
+      end
+    },
     html = {
       function()
         return {
@@ -71,6 +80,7 @@ require "formatter".setup {
     },
     lua = {
       -- luafmt
+      -- npm install -g lua-fmt
       function()
         return {
           exe = "luafmt",
@@ -94,6 +104,15 @@ require "formatter".setup {
         return {
           exe = "prettier",
           args = {"--stdin-filepath", vim.api.nvim_buf_get_name(0)},
+          stdin = true
+        }
+      end
+    },
+    terraform = {
+      function()
+        return {
+          exe = "terraform",
+          args = {"fmt", "-"},
           stdin = true
         }
       end

@@ -17,18 +17,8 @@ if [ -z "$DIR" ]; then
    fi
 fi
 
-# If --start was passed in immediately start a new session based on the current directory
-if [ "$DIR" == "--start" ]; then
-    echo "starting"
-    path_name="$(basename "$PWD" | tr . -)"
-    session_name=${path_name//./_}
-else
-    # ask the user which directory to start in
-    _session_name=$(cd $DIR && ls -d */ | sed  "s|/||g" | fzf --reverse --header="Select project from $(basename $DIR) >")
-    _escaped_name=${_session_name//./_}
-    session_name=$(basename $DIR)/$_escaped_name
-    path_name=$DIR/$_escaped_name
-fi
+session_name=$(basename $DIR)
+path_name=$DIR
 
 echo session name is \"$session_name\"
 echo path name is $path_name
@@ -47,22 +37,22 @@ maybe_init_classroom_session() {
     tmux new-window -t "$session_name:1" -c "$path_name"
 
     # 2 is for cdk
-    tmux new-window -t "$session_name:2" -n cdk -c "$path_name"
-    tmux send-keys -t "$session_name:2" "cd cdk" C-m
-    tmux send-keys -t "$session_name:2" "npm install" C-m
+    # tmux new-window -t "$session_name:2" -n cdk -c "$path_name"
+    # tmux send-keys -t "$session_name:2" "cd cdk" C-m
+    # tmux send-keys -t "$session_name:2" "npm install" C-m
 
     # 6 for test
     tmux new-window -t "$session_name:6" -n test -c "$path_name"
     # production-quick needed for the analysis bundle, static commit file
-    tmux send-keys -t "$session_name:6" "yarn; make production-quick" C-m
+    # tmux send-keys -t "$session_name:6" "yarn; make production-quick" C-m
 
     # 7 is for server
     tmux new-window -t "$session_name:7" -n server -c "$path_name"
-    tmux send-keys -t "$session_name:7" "yarn; make download-environment; nodemon app.js | ./node_modules/.bin/bunyan" C-m
+    # tmux send-keys -t "$session_name:7" "yarn; make download-environment; nodemon app.js | ./node_modules/.bin/bunyan" C-m
 
     # 8 is for build
     tmux new-window -t "$session_name:8" -n build -c "$path_name"
-    tmux send-keys -t "$session_name:8" "make download-environment; make dev" C-m
+    # tmux send-keys -t "$session_name:8" "make download-environment; make dev" C-m
 
     # 9 is for tsc
     tmux new-window -t "$session_name:9" -n tsc -c "$path_name"

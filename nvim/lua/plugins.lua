@@ -21,21 +21,31 @@ require("packer").startup(
       use "ntpeters/vim-better-whitespace"
 
       -- navigation / grep
-      -- use "junegunn/fzf.vim"
-      use {'nvim-telescope/telescope-fzf-native.nvim', run = 'make' }
-      use {
-        'nvim-telescope/telescope.nvim', tag = '0.1.0',
-      -- or                            , branch = '0.1.x',
-        requires = { {'nvim-lua/plenary.nvim'} }
-      }
-      -- use { 'ibhagwan/fzf-lua',
-      --   -- optional for icon support
-      --   requires = { 'kyazdani42/nvim-web-devicons' }
+      -- use {"junegunn/fzf.vim", requires = {"junegunn/fzf", run = ":call fzf#install()"}}
+      -- required by fzf-lua
+      use {"junegunn/fzf", run = "./install --bin"}
+      -- use {"nvim-telescope/telescope-fzf-native.nvim", run = "make"}
+      -- use {
+      --   "nvim-telescope/telescope.nvim",
+      --   tag = "0.1.0",
+      --   -- or                            , branch = '0.1.x',
+      --   requires = {{"nvim-lua/plenary.nvim"}}
       -- }
+      use {
+        "ibhagwan/fzf-lua",
+        -- optional for icon support
+        requires = {"nvim-tree/nvim-web-devicons"}
+      }
       use "ThePrimeagen/harpoon"
 
       -- grep
       use "mhinz/vim-grepper"
+
+      -- navigation
+      use {
+        "nvim-tree/nvim-tree.lua",
+        requires = {"nvim-tree/nvim-web-devicons"}
+      }
 
       -- For statusline
       use {
@@ -68,6 +78,25 @@ require("packer").startup(
         end
       }
       use "tpope/vim-fugitive"
+      use {
+        "pwntester/octo.nvim",
+        requires = {
+          "nvim-lua/plenary.nvim",
+          'nvim-telescope/telescope.nvim',
+          "nvim-tree/nvim-web-devicons"
+        },
+        config = function()
+          require "octo".setup(
+            {
+              picker = "fzf-lua"
+            }
+          )
+        end
+      }
+
+      -- quickly jump to file in github from nvim
+      use "almo7aya/openingh.nvim"
+
       use "tpope/vim-rhubarb"
 
       -- vim enhancements (motion, repeatability)
@@ -82,11 +111,11 @@ require("packer").startup(
 
       -- Neovim motions on speed!
       use {
-        'phaazon/hop.nvim',
-        branch = 'v2', -- optional but strongly recommended
+        "phaazon/hop.nvim",
+        branch = "v2", -- optional but strongly recommended
         config = function()
           -- you can configure Hop the way you like here; see :h hop-config
-          require'hop'.setup { keys = 'etovxqpdygfblzhckisuran' }
+          require "hop".setup {keys = "etovxqpdygfblzhckisuran"}
         end
       }
 
@@ -100,10 +129,10 @@ require("packer").startup(
       -- use "romgrk/doom-one.vim"
       use "tomasr/molokai"
       use "rafamadriz/neon"
-      use 'Mofiqul/vscode.nvim'
-      use 'marko-cerovac/material.nvim'
-      use 'ray-x/aurora'
-      use 'mhartington/oceanic-next'
+      use "Mofiqul/vscode.nvim"
+      use "marko-cerovac/material.nvim"
+      use "ray-x/aurora"
+      use "mhartington/oceanic-next"
 
       -- Neovim LSP
       use "neovim/nvim-lspconfig"
@@ -160,6 +189,12 @@ require("packer").startup(
         "nvim-treesitter/nvim-treesitter",
         run = ":TSUpdate"
       }
+      use {
+        "nvim-treesitter/nvim-treesitter-context"
+      }
+      -- use {
+      --   "hashivim/vim-terraform"
+      -- }
 
       -- Treesitter for movement / selection
       -- use {
