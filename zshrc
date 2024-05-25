@@ -59,13 +59,7 @@ fi
 # Created by `pipx` on 2022-08-09 17:54:32
 export PATH="$PATH:/Users/dlants/.local/bin"
 export PATH="/usr/local/opt/postgresql@12/bin:$PATH"
-
-pyenv_setup() {
-  export PATH="$(pyenv root)/shims:$(pyenv root)/bin:$PATH"
-  eval "$(pyenv init --path)"
-  eval "$(pyenv init -)"
-  eval "$(pyenv virtualenv-init -)"
-}
+export PATH="$(pyenv root)/shims:$PATH"
 
 # installing this through prezto does not work w/ alacritty!
 # to make this line work, brew install zsh-syntax-highlighting

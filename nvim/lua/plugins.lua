@@ -34,7 +34,10 @@ require("packer").startup(
       use {
         "ibhagwan/fzf-lua",
         -- optional for icon support
-        requires = {"nvim-tree/nvim-web-devicons"}
+        requires = {"nvim-tree/nvim-web-devicons"},
+        config = function()
+          require "fzf-lua".setup({"default"})
+        end
       }
       use "ThePrimeagen/harpoon"
 
@@ -42,8 +45,12 @@ require("packer").startup(
       use "mhinz/vim-grepper"
 
       -- navigation
+      -- use {
+      --   "nvim-tree/nvim-tree.lua",
+      --   requires = {"nvim-tree/nvim-web-devicons"}
+      -- }
       use {
-        "nvim-tree/nvim-tree.lua",
+        "stevearc/oil.nvim",
         requires = {"nvim-tree/nvim-web-devicons"}
       }
 
@@ -82,7 +89,7 @@ require("packer").startup(
         "pwntester/octo.nvim",
         requires = {
           "nvim-lua/plenary.nvim",
-          'nvim-telescope/telescope.nvim',
+          "nvim-telescope/telescope.nvim",
           "nvim-tree/nvim-web-devicons"
         },
         config = function()
@@ -100,7 +107,13 @@ require("packer").startup(
       use "tpope/vim-rhubarb"
 
       -- vim enhancements (motion, repeatability)
-      use "tpope/vim-commentary"
+      -- use "tpope/vim-commentary"
+      use {
+        "numToStr/Comment.nvim",
+        config = function()
+          require("Comment").setup()
+        end
+      }
       -- use "tpope/vim-unimpaired"
       use "tpope/vim-abolish"
 
@@ -111,8 +124,8 @@ require("packer").startup(
 
       -- Neovim motions on speed!
       use {
-        "phaazon/hop.nvim",
-        branch = "v2", -- optional but strongly recommended
+        "smoka7/hop.nvim",
+        tag = "*", -- optional but strongly recommended
         config = function()
           -- you can configure Hop the way you like here; see :h hop-config
           require "hop".setup {keys = "etovxqpdygfblzhckisuran"}
@@ -152,6 +165,7 @@ require("packer").startup(
       use "mhartington/formatter.nvim"
 
       -- Neovim Completion
+      use "onsails/lspkind.nvim"
       use {
         "hrsh7th/nvim-cmp",
         requires = {
@@ -165,6 +179,18 @@ require("packer").startup(
           -- "hrsh7th/cmp-nvim-lua",
           -- "hrsh7th/cmp-vsnip",
         }
+      }
+
+      use {
+        "zbirenbaum/copilot.lua",
+        requires = {
+          "nvim-lua/plenary.nvim"
+        }
+      }
+
+      use {
+        "CopilotC-Nvim/CopilotChat.nvim",
+        branch = "canary"
       }
 
       use "mfussenegger/nvim-jdtls"

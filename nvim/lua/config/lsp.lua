@@ -28,7 +28,7 @@ local on_attach = function(client, bufnr)
   }
 end
 
-local servers = {"dockerls", "bashls", "jsonls", "terraformls", "tflint"}
+local servers = {"dockerls", "bashls", "jsonls", "terraformls", "tflint", "eslint", "yamlls"}
 for _, server in ipairs(servers) do
   lsp[server].setup {
     on_attach = on_attach,

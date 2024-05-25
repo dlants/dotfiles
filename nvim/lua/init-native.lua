@@ -61,7 +61,8 @@ require "config/harpoon"
 -- require "config/lua-dev"
 -- require "config/telescope"
 require "config/terraform"
-require "config/nvimtree"
+-- require "config/nvimtree"
+require "config/oil"
 
 -- fzf
 -- vim.cmd "set rtp+=/opt/homebrew/opt/fzf"
