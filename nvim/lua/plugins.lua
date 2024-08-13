@@ -68,20 +68,7 @@ require("packer").startup(
           "nvim-lua/plenary.nvim"
         },
         config = function()
-          require("gitsigns").setup {
-            signs = {
-              add = {hl = "GitSignsAdd", text = "+", numhl = "GitSignsAddNr", linehl = "GitSignsAddLn"},
-              change = {hl = "GitSignsChange", text = "|", numhl = "GitSignsChangeNr", linehl = "GitSignsChangeLn"},
-              delete = {hl = "GitSignsDelete", text = "_", numhl = "GitSignsDeleteNr", linehl = "GitSignsDeleteLn"},
-              topdelete = {hl = "GitSignsDelete", text = "‾", numhl = "GitSignsDeleteNr", linehl = "GitSignsDeleteLn"},
-              changedelete = {
-                hl = "GitSignsChange",
-                text = "~",
-                numhl = "GitSignsChangeNr",
-                linehl = "GitSignsChangeLn"
-              }
-            }
-          }
+          require("gitsigns").setup()
         end
       }
       use "tpope/vim-fugitive"
@@ -119,7 +106,7 @@ require("packer").startup(
 
       -- incompatible w/ compe
       -- use { 'tpope/vim-endwise' }
-      use "tpope/vim-repeat"
+      -- use "tpope/vim-repeat"
       use "tpope/vim-surround"
 
       -- Neovim motions on speed!
@@ -181,16 +168,31 @@ require("packer").startup(
         }
       }
 
-      use {
-        "zbirenbaum/copilot.lua",
-        requires = {
-          "nvim-lua/plenary.nvim"
-        }
-      }
+      -- use {
+      --   "zbirenbaum/copilot.lua",
+      --   requires = {
+      --     "nvim-lua/plenary.nvim"
+      --   }
+      -- }
+      --
+      -- use {
+      --   "CopilotC-Nvim/CopilotChat.nvim",
+      --   branch = "canary"
+      -- }
 
       use {
-        "CopilotC-Nvim/CopilotChat.nvim",
-        branch = "canary"
+        "frankroeder/parrot.nvim",
+        dependencies = {"ibhagwan/fzf-lua", "nvim-lua/plenary.nvim", "rcarriga/nvim-notify"},
+        -- optionally include "rcarriga/nvim-notify" for beautiful notifications
+        config = function()
+          require("parrot").setup {
+            providers = {
+              anthropic = {
+                api_key = os.getenv "ANTHROPIC_API_KEY"
+              }
+            }
+          }
+        end
       }
 
       use "mfussenegger/nvim-jdtls"
