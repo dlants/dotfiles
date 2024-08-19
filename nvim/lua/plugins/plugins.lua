@@ -17,16 +17,48 @@ return {
   -- }
   {
     "ibhagwan/fzf-lua",
-    -- optional for icon support
     dependencies = {"nvim-tree/nvim-web-devicons"},
+    keys = {
+      {
+        "<leader>p",
+        function()
+          require("fzf-lua").git_files()
+        end,
+        desc = "FZF Git Files",
+        silent = true
+      },
+      {
+        "<leader>o",
+        function()
+          require("fzf-lua").files()
+        end,
+        desc = "FZF Git Files",
+        silent = true
+      }
+    },
+    lazy = true,
     config = function()
-      require "fzf-lua".setup({"default"})
+      require("fzf-lua").setup({"default"})
     end
   },
   -- "ThePrimeagen/harpoon"
 
   -- grep
-  {"mhinz/vim-grepper"},
+  {
+    "mhinz/vim-grepper",
+    config = function()
+      -- Configure grepper
+      vim.g.grepper = {
+        prompt_quote = 0,
+        tools = {"rg"}
+      }
+    end,
+    cmd = "Grepper", -- Load the plugin when the Grepper command is used
+    keys = {
+      {"<leader>g", ":Grepper<CR>", desc = "Open Grepper", noremap = true, silent = true}
+    },
+    lazy = true
+  },
   -- navigation
   -- {
   --   "nvim-tree/nvim-tree.lua",
@@ -35,6 +67,10 @@ return {
   {
     "stevearc/oil.nvim",
     dependencies = {"nvim-tree/nvim-web-devicons"},
+    keys = {
+      {"-", "<CMD>Oil<CR>", desc = "oil"}
+    },
+    lazy = true,
     config = function()
       -- from https://github.com/stevearc/oil.nvim?tab=readme-ov-file#quick-start
       require("oil").setup(
@@ -49,8 +85,6 @@ return {
           }
         }
       )
-
-      vim.keymap.set("n", "-", "<CMD>Oil<CR>", {desc = "Open parent directory"})
     end
   },
   -- For statusline
@@ -65,7 +99,7 @@ return {
       require "lualine".setup {
         options = {
           icons_enabled = true,
-          theme = "jellybeans",
+          -- theme = "jellybeans",
           component_separators = {"", ""},
           section_separators = {"", ""},
           disabled_filetypes = {}
@@ -115,14 +149,15 @@ return {
       "nvim-telescope/telescope.nvim",
       "nvim-tree/nvim-web-devicons"
     },
+    keys = {
+      {"<leader>h", "<cmd>OpenInGHFileLines<cr>", mode = {"n", "v"}, desc = "Open file in github"}
+    },
     config = function()
       require "octo".setup(
         {
           picker = "fzf-lua"
         }
       )
-
-      vim.keymap.set({"n", "v"}, "<leader>h", "<cmd>OpenInGHFileLines<cr>", {desc = "Open file in github"})
     end
   },
   -- quickly jump to file in github from nvim
@@ -259,9 +294,10 @@ return {
   -- for using prettier / eslint
   {
     "mhartington/formatter.nvim",
+    keys = {
+      {"<leader>`", ":Format<CR>", desc = "Format", mode = "n"}
+    },
     config = function()
-      -- note, requires prettier to be installed globally
-      -- npm install -g prettier
       require "formatter".setup {
         filetype = {
           typescriptreact = {
@@ -281,19 +317,6 @@ return {
                 stdin = true
               }
             end
-            -- linter
-            -- function()
-            --   return {
-            --     exe = "eslint",
-            --     args = {
-            --       "--stdin-filename",
-            --       vim.api.nvim_buf_get_name(0),
-            --       "--fix",
-            --       "--cache"
-            --     },
-            --     stdin = false
-            --   }
-            -- end
           },
           javascript = {
             function()
@@ -341,8 +364,6 @@ return {
             end
           },
           lua = {
-            -- luafmt
-            -- npm install -g lua-fmt
             function()
               return {
                 exe = "luafmt",
@@ -352,7 +373,6 @@ return {
             end
           },
           rust = {
-            -- rustfmt
             function()
               return {
                 exe = "rustfmt",
@@ -370,19 +390,8 @@ return {
               }
             end
           }
-          -- terraform = {
-          --   function()
-          --     return {
-          --       exe = "terraform",
-          --       args = {"fmt", "-"},
-          --       stdin = true
-          --     }
-          --   end
-          -- }
         }
       }
-
-      vim.api.nvim_set_keymap("n", "<leader>`", ":Format<CR>", {noremap = true})
     end
   },
   -- Neovim Completion
@@ -516,7 +525,8 @@ return {
         chat_shortcut_respond = {modes = {"n"}, shortcut = "<CR>"},
         chat_shortcut_delete = {modes = {"n"}, shortcut = "<leader>d"},
         chat_shortcut_stop = {modes = {"n"}, shortcut = "<leader>s"},
-        chat_shortcut_new = {modes = {"n"}, shortcut = "<leader>n"}
+        chat_shortcut_new = {modes = {"n"}, shortcut = "<leader>n"},
+        user_input_ui = "buffer"
       }
 
       vim.keymap.set({"n", "v"}, "<leader>cc", "<cmd>PrtChatToggle vsplit<cr>", {desc = "Toggle Parrot Chat"})

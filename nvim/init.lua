@@ -49,25 +49,3 @@ vim.api.nvim_set_keymap("n", "]f", ":cnewer<CR>", {noremap = true})
 
 vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", {noremap = true})
 vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", {noremap = true})
-
--- fzf
--- vim.cmd "set rtp+=/opt/homebrew/opt/fzf"
--- vim.cmd "let g:fzf_layout = {'up': '~50%'}"
--- vim.api.nvim_set_keymap("n", "<leader>p", ":GFiles<CR>", {noremap = true, silent = true})
--- vim.api.nvim_set_keymap("n", "<leader>o", ":Files<CR>", {noremap = true, silent = true})
-
--- fzf-lua
-vim.keymap.set("n", "<leader>p", "<cmd>lua require('fzf-lua').git_files()<CR>", { silent = true })
-vim.keymap.set("n", "<leader>o", "<cmd>lua require('fzf-lua').files()<CR>", { silent = true })
-
--- grepper
-vim.cmd "runtime plugin/grepper.vim"
-vim.cmd "let g:grepper.prompt_quote = 0"
-vim.cmd "let g:grepper.tools = ['rg']"
--- vim.cmd "let g:grepper.rg.grepprg .= ' --hidden'"
-vim.api.nvim_set_keymap("n", "<leader>g", ":Grepper<CR>", {noremap = true, silent = true})
-
--- vim.cmd "augroup lsp"
--- vim.cmd "  au!"
--- vim.cmd "  au FileType java lua print('hello'); require('config/lsp').start_jdt()"
--- vim.cmd "augroup end"
