@@ -5,10 +5,10 @@ vim.g.loaded_netrwPlugin = 1
 -- set termguicolors to enable highlight groups
 vim.opt.termguicolors = true
 
-require "plugins"
+require "config.lazy"
 
-vim.cmd "colorscheme OceanicNext"
 vim.cmd "filetype plugin indent on"
+vim.cmd "colorscheme OceanicNext"
 
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
@@ -34,7 +34,7 @@ vim.wo.colorcolumn = "120"
 
 vim.cmd "autocmd BufWritePre * StripWhitespace"
 
--- replace unimpaired bindings
+-- replicate unimpaired bindings
 vim.api.nvim_set_keymap("n", "[j", "<C-O>", {noremap = true})
 vim.api.nvim_set_keymap("n", "]j", "<C-I>", {noremap = true})
 vim.api.nvim_set_keymap("n", "[q", ":cp<CR>", {noremap = true})
@@ -49,20 +49,6 @@ vim.api.nvim_set_keymap("n", "]f", ":cnewer<CR>", {noremap = true})
 
 vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", {noremap = true})
 vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", {noremap = true})
-
-require "config/hop"
-require "config/lsp"
-require "config/completion-and-snippets"
-require "config/lualine"
-require "config/formatter"
-require "config/treesitter"
-require "config/harpoon"
--- require "config/trouble"
--- require "config/lua-dev"
--- require "config/telescope"
-require "config/terraform"
--- require "config/nvimtree"
-require "config/oil"
 
 -- fzf
 -- vim.cmd "set rtp+=/opt/homebrew/opt/fzf"
