@@ -70,7 +70,8 @@ export PUPPETEER_EXECUTABLE_PATH=`which chromium`
 
 # Created by `pipx` on 2022-11-16 21:25:09
 export PATH="$PATH:/Users/denislantsman/.local/bin"
-
 autoload -U +X bashcompinit && bashcompinit
 complete -o nospace -C /opt/homebrew/Cellar/tfenv/3.0.0/versions/1.2.9/terraform terraform
 alias git-clean-branches='git branch --merged | egrep -v "(^\*|master|main|dev)" | xargs git branch -d'
+
+export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"

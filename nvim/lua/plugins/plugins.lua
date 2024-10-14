@@ -1,20 +1,21 @@
+function read_file_to_string(file_path)
+  if vim.fn.filereadable(file_path) == 0 then
+    print("File not found: " .. file_path)
+    return nil
+  end
+
+  local lines = vim.fn.readfile(file_path)
+  return table.concat(lines, "\n")
+end
+
+local llm_default_prompt =
+  [[You are a coding assistant to a principal software engineer. Please be concise.
+When you're not sure about something, say so but also take a guess. Prefer code samples to written explanations.]]
+
 return {
-  -- {"wbthomason/packer.nvim", opt = true},
-  -- Make it easier to navigate between tmux and vim panes
   {"christoomey/vim-tmux-navigator"},
-  -- Trim whitespace on save
   {"ntpeters/vim-better-whitespace"},
-  -- navigation / grep
-  -- {"junegunn/fzf.vim", dependencies = {"junegunn/fzf", build = ":call fzf#install()"
-  -- required by fzf-lua
   {"junegunn/fzf", build = "./install --bin"},
-  -- {"nvim-telescope/telescope-fzf-native.nvim", build = "make"}
-  -- {
-  --   "nvim-telescope/telescope.nvim",
-  --   tag = "0.1.0",
-  --   -- or                            , branch = '0.1.x',
-  --   dependencies = {{"nvim-lua/plenary.nvim"}}
-  -- }
   {
     "ibhagwan/fzf-lua",
     dependencies = {"nvim-tree/nvim-web-devicons"},
@@ -34,15 +35,22 @@ return {
         end,
         desc = "FZF Git Files",
         silent = true
+      },
+      {
+        "<leader>fH",
+        function()
+          require("fzf-lua").helptags_grep()
+        end,
+        desc = "FZF grep help",
+        silent = true
       }
-    },
-    lazy = true,
-    config = function()
-      require("fzf-lua").setup({"default"})
-    end
+    }
+    -- opts = {
+    --   winopts = {
+    --     preview = {default = "bat"}
+    --   }
+    -- }
   },
-  -- "ThePrimeagen/harpoon"
-
   -- grep
   {
     "mhinz/vim-grepper",
@@ -59,11 +67,6 @@ return {
     },
     lazy = true
   },
-  -- navigation
-  -- {
-  --   "nvim-tree/nvim-tree.lua",
-  --   dependencies = {"nvim-tree/nvim-web-devicons"}
-  -- }
   {
     "stevearc/oil.nvim",
     dependencies = {"nvim-tree/nvim-web-devicons"},
@@ -87,7 +90,6 @@ return {
       )
     end
   },
-  -- For statusline
   {
     "hoob3rt/lualine.nvim",
     dependencies = {"kyazdani42/nvim-web-devicons", lazy = true},
@@ -130,6 +132,8 @@ return {
       }
     end
   },
+  -- nice notifications for lazy.nvim
+  -- { "rcarriga/nvim-notify"},
   -- Git
   -- "mhinz/vim-signify"
   {
@@ -142,59 +146,35 @@ return {
     end
   },
   {"tpope/vim-fugitive"},
-  {
-    "pwntester/octo.nvim",
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-      "nvim-telescope/telescope.nvim",
-      "nvim-tree/nvim-web-devicons"
-    },
-    keys = {
-      {"<leader>h", "<cmd>OpenInGHFileLines<cr>", mode = {"n", "v"}, desc = "Open file in github"}
-    },
-    config = function()
-      require "octo".setup(
-        {
-          picker = "fzf-lua"
-        }
-      )
-    end
-  },
-  -- quickly jump to file in github from nvim
+  -- {
+  --   "pwntester/octo.nvim",
+  --   dependencies = {
+  --     "nvim-lua/plenary.nvim",
+  --     "nvim-telescope/telescope.nvim",
+  --     "nvim-tree/nvim-web-devicons"
+  --   },
+  --   keys = {
+  --     {"<leader>h", "<cmd>openinghfilelines<cr>", mode = {"n", "v"}, desc = "open file in github"}
+  --   },
+  --   config = function()
+  --     require "octo".setup(
+  --       {
+  --         picker = "fzf-lua"
+  --       }
+  --     )
+  --   end
+  -- },
   {"almo7aya/openingh.nvim"},
   {"tpope/vim-rhubarb"},
-  -- vim enhancements (motion, repeatability)
-  -- "tpope/vim-commentary"
   {
-    "numToStr/Comment.nvim",
-    config = function()
-      require("Comment").setup()
-    end
+    "numtostr/comment.nvim",
+    opts = {}
   },
-  -- "tpope/vim-unimpaired"
+  {"tpope/vim-surround"},
   {"tpope/vim-abolish"},
-  -- incompatible w/ compe
-  -- { 'tpope/vim-endwise' }
-  -- "tpope/vim-repeat"
-  -- {"tpope/vim-surround"},
-  -- Neovim motions on speed!
-  -- {
-  --   "smoka7/hop.nvim",
-  --   tag = "*", -- optional but strongly recommended
-  --   config = function()
-  --     -- you can configure Hop the way you like here; see :h hop-config
-  --     require "hop".setup {keys = "etovxqpdygfblzhckisuran"}
-  --   end
-  -- }
-  {
-    "ggandor/leap.nvim",
-    config = function()
-      require("leap").create_default_mappings()
-    end
-  },
-  -- For showing the actual color of the hex value
+  -- for showing the actual color of the hex value
   {"norcalli/nvim-colorizer.lua"},
-  -- Themes
+  -- themes
   {"nanotech/jellybeans.vim", lazy = true},
   -- vim.cmd "let g:doom_one_terminal_colors = v:true"
   -- "romgrk/doom-one.vim"
@@ -203,7 +183,7 @@ return {
   {"marko-cerovac/material.nvim", lazy = true},
   {"ray-x/aurora", lazy = true},
   {"mhartington/oceanic-next", lazy = true},
-  -- Neovim LSP
+  -- neovim lsp
   {
     "neovim/nvim-lspconfig",
     config = function()
@@ -237,7 +217,15 @@ return {
         }
       end
 
-      local servers = {"dockerls", "bashls", "jsonls", "eslint", "yamlls"} -- "terraformls", "tflint",
+      local servers = {
+        "bashls",
+        "dockerls",
+        "eslint",
+        "jsonls",
+        "terraformls",
+        "tflint",
+        "yamlls"
+      }
       for _, server in ipairs(servers) do
         lsp[server].setup {
           on_attach = on_attach,
@@ -248,10 +236,9 @@ return {
         }
       end
 
-      lsp.tsserver.setup {
+      lsp.ts_ls.setup {
         init_options = {
-          hostInfo = "neovim",
-          maxTsServerMemory = 4096
+          hostInfo = "neovim"
         },
         on_attach = on_attach,
         flags = {
@@ -285,13 +272,6 @@ return {
   {
     "ray-x/lsp_signature.nvim"
   },
-  -- better display of reference lists, etc.
-  -- {
-  --   "folke/trouble.nvim",
-  --   dependencies = "kyazdani42/nvim-web-devicons",
-  -- }
-
-  -- for using prettier / eslint
   {
     "mhartington/formatter.nvim",
     keys = {
@@ -394,7 +374,104 @@ return {
       }
     end
   },
-  -- Neovim Completion
+  {
+    "mfussenegger/nvim-jdtls",
+    ft = {"java"},
+    config = function()
+      local project_name = vim.fn.fnamemodify(vim.fn.getcwd(), ":p:h:t")
+      local workspace_dir = "/users/denislantsman/src/" .. project_name
+      local config = {
+        -- the command that starts the language server
+        -- see: https://github.com/eclipse/eclipse.jdt.ls#running-from-the-command-line
+        cmd = {
+          "/opt/homebrew/opt/openjdk/bin/java",
+          "-declipse.application=org.eclipse.jdt.ls.core.id1",
+          "-dosgi.bundles.defaultstartlevel=4",
+          "-declipse.product=org.eclipse.jdt.ls.core.product",
+          "-dlog.protocol=true",
+          "-dlog.level=all",
+          "-xmx1g",
+          "--add-modules=all-system",
+          "--add-opens",
+          "java.base/java.util=all-unnamed",
+          "--add-opens",
+          "java.base/java.lang=all-unnamed",
+          -- 💀
+          "-jar",
+          "/opt/homebrew/cellar/jdtls/1.38.0/libexec/plugins/org.eclipse.equinox.launcher_1.6.900.v20240613-2009.jar",
+          -- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                       ^^^^^^^^^^^^^^
+          -- must point to the                                                     change this to
+          -- eclipse.jdt.ls installation                                           the actual version
+
+          -- 💀
+          "-configuration",
+          "/opt/homebrew/cellar/jdtls/1.38.0/libexec/config_mac",
+          -- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^        ^^^^^^
+          -- must point to the                      change to one of `linux`, `win` or `mac`
+          -- eclipse.jdt.ls installation            depending on your system.
+
+          -- 💀
+          -- see `data directory configuration` section in the readme
+          "-data",
+          workspace_dir
+        },
+        -- 💀
+        -- this is the default if not provided, you can remove it. or adjust as needed.
+        -- one dedicated lsp server & client will be started per unique root_dir
+        root_dir = require("jdtls.setup").find_root({".git", "mvnw", "gradlew"}),
+        -- here you can configure eclipse.jdt.ls specific settings
+        -- see https://github.com/eclipse/eclipse.jdt.ls/wiki/running-the-java-ls-server-from-the-command-line#initialize-request
+        -- for a list of options
+        settings = {
+          java = {}
+        },
+        -- language server `initializationoptions`
+        -- you need to extend the `bundles` with paths to jar files
+        -- if you want to use additional eclipse.jdt.ls plugins.
+        --
+        -- see https://github.com/mfussenegger/nvim-jdtls#java-debug-installation
+        --
+        -- if you don't plan on using the debugger or other eclipse.jdt.ls plugins you can remove this
+        init_options = {
+          bundles = {}
+        },
+        on_attach = function(client, bufnr)
+          -- enable completion triggered by <c-x><c-o>
+          vim.api.nvim_buf_set_option(bufnr, "omnifunc", "v:lua.vim.lsp.omnifunc")
+          local opts = {noremap = true, silent = true}
+
+          vim.keymap.set("n", "<leader>t", vim.lsp.buf.hover, opts)
+          vim.keymap.set("n", "<leader>d", vim.lsp.buf.definition, opts)
+          vim.keymap.set("n", "<leader>d", vim.lsp.buf.declaration, opts)
+          vim.keymap.set("n", "<leader>r", vim.lsp.buf.references, opts)
+          vim.keymap.set("n", "<leader>r", vim.lsp.buf.rename, opts)
+
+          vim.keymap.set("n", "<leader>i", vim.diagnostic.setloclist, opts)
+          vim.keymap.set("n", "[e", vim.diagnostic.goto_prev, opts)
+          vim.keymap.set("n", "]e", vim.diagnostic.goto_next, opts)
+          vim.keymap.set(
+            "n",
+            "<leader>f",
+            function()
+              vim.lsp.buf.format({async = true})
+            end,
+            opts
+          )
+
+          require "lsp_signature".on_attach {
+            bind = true,
+            hint_prefix = "",
+            handler_opts = {
+              border = "none"
+            }
+          }
+        end
+      }
+      -- this starts a new client & server,
+      -- or attaches to an existing client & server depending on the `root_dir`.
+      require("jdtls").start_or_attach(config)
+    end
+  },
   {"onsails/lspkind.nvim"},
   {
     "hrsh7th/nvim-cmp",
@@ -442,34 +519,25 @@ return {
             ["<C-Space>"] = cmp.mapping(cmp.mapping.complete(), {"i", "c"}),
             ["<Tab>"] = cmp.mapping(
               function(fallback)
-                -- if require("copilot.suggestion").is_visible() then
-                --   require("copilot.suggestion").accept()
-                -- elseif
                 if cmp.visible() then
-                  -- elseif luasnip.expandable() then
-                  --   luasnip.expand()
-                  cmp.select_next_item({behavior = cmp.SelectBehavior.Insert})
+                  cmp.select_next_item()
                 elseif has_words_before() then
                   cmp.complete()
                 else
                   fallback()
                 end
               end,
-              {
-                "i",
-                "s"
-              }
+              {"i", "s"}
             ),
             ["<S-Tab>"] = cmp.mapping(
               function()
                 if cmp.visible() then
-                  cmp.select_prev_item({behavior = cmp.SelectBehavior.Insert})
+                  cmp.select_prev_item()
+                else
+                  fallback()
                 end
               end,
-              {
-                "i",
-                "s"
-              }
+              {"i", "s"}
             ),
             ["<CR>"] = cmp.mapping(cmp.mapping.confirm({select = true}), {"i", "c"}),
             -- ["<Esc>"] = cmp.mapping.abort(),
@@ -488,72 +556,204 @@ return {
           )
         }
       )
+    end
+  },
+  {
+    "olimorris/codecompanion.nvim",
+    dependencies = {
+      "nvim-lua/plenary.nvim",
+      "nvim-treesitter/nvim-treesitter",
+      "hrsh7th/nvim-cmp", -- Optional: For using slash commands and variables in the chat buffer
+      "nvim-telescope/telescope.nvim", -- Optional: For using slash commands
+      {"stevearc/dressing.nvim", opts = {}} -- Optional: Improves the default Neovim UI
+    },
+    config = function()
+      require("codecompanion").setup(
+        {
+          opts = {
+            ---@param adapter CodeCompanion.Adapter
+            ---@return string
+            system_prompt = function(adapter)
+              -- if adapter.schema.model.default == "llama3.1:latest" then
+              --   return "My custom system prompt"
+              -- end
+              return llm_default_prompt
+            end
+          },
+          strategies = {
+            chat = {
+              adapter = "copilot"
+            },
+            inline = {
+              adapter = "copilot"
+            },
+            agent = {
+              adapter = "copilot"
+            }
+          },
+          display = {
+            chat = {
+              show_settings = true
+            }
+          },
+          prompt_library = {
+            ["dcgview"] = {
+              strategy = "chat",
+              description = "Teach the LLM about DCGView",
+              opts = {
+                slash_cmd = "dcgview"
+              },
+              prompts = {
+                {
+                  role = "user",
+                  content = function()
+                    return read_file_to_string("/Users/denislantsman/dcgview_prompt")
+                  end
+                }
+              },
+              contains_code = true
+            }
+          }
+        }
+      )
 
-      function set_keymap(mode, lhs, rhs, desc_or_opts, opts)
-        if not opts then
-          opts = type(desc_or_opts) == "table" and desc_or_opts or {desc = desc_or_opts}
-        else
-          opts.desc = desc_or_opts
-        end
-        vim.keymap.set(mode, lhs, rhs, opts)
-      end
+      vim.api.nvim_set_keymap("n", "<leader>ca", "<cmd>CodeCompanionActions<cr>", {noremap = true, silent = true})
+      vim.api.nvim_set_keymap("v", "<leader>ca", "<cmd>CodeCompanionActions<cr>", {noremap = true, silent = true})
+      vim.api.nvim_set_keymap("n", "<leader>cc", "<cmd>CodeCompanionChat Toggle<cr>", {noremap = true, silent = true})
+      vim.api.nvim_set_keymap("v", "<leader>cc", "<cmd>CodeCompanionChat Toggle<cr>", {noremap = true, silent = true})
+      vim.api.nvim_set_keymap("v", "<leader>cp", "<cmd>CodeCompanionChat Add<cr>", {noremap = true, silent = true})
+
+      -- Expand 'cc' into 'CodeCompanion' in the command line
+      vim.cmd([[cab cc CodeCompanion]])
     end
   },
   -- {
-  --   "zbirenbaum/copilot.lua",
-  --   dependencies = {
-  --     "nvim-lua/plenary.nvim"
-  --   }
-  -- }
-  --
+  --   "frankroeder/parrot.nvim",
+  --   dependencies = {"ibhagwan/fzf-lua", "nvim-lua/plenary.nvim", "rcarriga/nvim-notify"},
+  --   keys = {
+  --     {"<leader>cn", "<cmd>PrtChatNew<cr>", mode = {"n", "v"}, desc = "New Chat"},
+  --     {"<leader>cn", ":<C-u>'<,'>PrtChatNew<cr>", mode = {"v"}, desc = "Visual Chat New"},
+  --     {"<leader>cp", ":<C-u>'<,'>PrtChatPaste vsplit<cr>", mode = {"v"}, desc = "paste stuff into parrot chat"},
+  --     {"<leader>cc", "<cmd>PrtChatToggle<cr>", mode = {"n"}, desc = "Toggle Popup Chat"},
+  --     {"<leader>cr", "<cmd>PrtRewrite<cr>", mode = {"n"}, desc = "Inline Rewrite"},
+  --     {"<leader>cr", ":<C-u>'<,'>PrtRewrite<cr>", mode = {"v"}, desc = "Visual Rewrite"},
+  --     {"<leader>co", "<cmd>PrtAppend<cr>", mode = {"n"}, desc = "Append"},
+  --     {"<leader>co", ":<C-u>'<,'>PrtAppend<cr>", mode = {"v"}, desc = "Visual Append"},
+  --     {"<leader>cO", "<cmd>PrtPrepend<cr>", mode = {"n"}, desc = "Prepend"},
+  --     {"<leader>cO", ":<C-u>'<,'>PrtPrepend<cr>", mode = {"v"}, desc = "Visual Prepend"},
+  --     {"<leader>cs", "<cmd>PrtStop<cr>", mode = {"n", "v", "x"}, desc = "Stop"},
+  --     {"<leader>cx", "<cmd>PrtContext<cr>", mode = {"n"}, desc = "Open context file"},
+  --     {"<leader>cm", "<cmd>PrtModel<cr>", mode = {"n"}, desc = "Select model"},
+  --     {"<leader>cP", "<cmd>PrtProvider<cr>", mode = {"n"}, desc = "Select provider"}
+  --   },
+  --   -- optionally include "rcarriga/nvim-notify" for beautiful notifications
+  --   config = function()
+  --     require("parrot").setup {
+  --       providers = {
+  --         anthropic = {
+  --           api_key = os.getenv "ANTHROPIC_API_KEY"
+  --         }
+  --         -- ollama = {}
+  --       },
+  --       chat_shortcut_respond = {modes = {"n"}, shortcut = "<cr>"},
+  --       chat_shortcut_delete = {modes = {"n"}, shortcut = "<leader>d"},
+  --       chat_shortcut_stop = {modes = {"n"}, shortcut = "<leader>s"},
+  --       chat_shortcut_new = {modes = {"n"}, shortcut = "<leader>n"},
+  --       user_input_ui = "buffer"
+  --     }
+  --   end
+  -- },
   -- {
-  --   "CopilotC-Nvim/CopilotChat.nvim",
-  --   branch = "canary"
-  -- }
-
+  --   "magicalne/nvim.ai",
+  --   dependencies = {
+  --     "nvim-lua/plenary.nvim",
+  --     "nvim-treesitter/nvim-treesitter"
+  --   },
+  --   opts = {
+  --     provider = "anthropic", -- you can configure your provider, model or keymaps here.
+  --     ollama = {
+  --       endpoint = "http://localhost:11434",
+  --       model = "llama3.1",
+  --       temperature = 0,
+  --       max_tokens = 128000,
+  --       ["local"] = true
+  --     },
+  --     -- keymaps
+  --     keymaps = {
+  --       toggle = "<leader>c", -- toggle chat dialog
+  --       send = "<cr>", -- send message in normal mode
+  --       close = "q", -- close chat dialog
+  --       clear = "<c-l>", -- clear chat history
+  --       previous_chat = "[c", -- open previous chat from history
+  --       next_chat = "]c", -- open next chat from history
+  --       inline_assist = "<leader>i" -- run inlineassist command with prompt
+  --     }
+  --   }
+  -- },
+  -- {
+  --   "yetone/avante.nvim",
+  --   event = "VeryLazy",
+  --   lazy = false,
+  --   version = false, -- set this if you want to always pull the latest change
+  --   opts = {},
+  --   -- if you want to build from source then do `make BUILD_FROM_SOURCE=true`
+  --   build = "make",
+  --   -- build = "powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false" -- for windows
+  --   dependencies = {
+  --     "nvim-treesitter/nvim-treesitter",
+  --     "stevearc/dressing.nvim",
+  --     "nvim-lua/plenary.nvim",
+  --     "MunifTanjim/nui.nvim",
+  --     "nvim-tree/nvim-web-devicons", -- or echasnovski/mini.icons
+  --     "zbirenbaum/copilot.lua", -- for providers='copilot'
+  --     -- {
+  --     --   -- support for image pasting
+  --     --   "HakonHarnes/img-clip.nvim",
+  --     --   event = "VeryLazy",
+  --     --   opts = {
+  --     --     -- recommended settings
+  --     --     default = {
+  --     --       embed_image_as_base64 = false,
+  --     --       prompt_for_file_name = false,
+  --     --       drag_and_drop = {
+  --     --         insert_mode = true
+  --     --       },
+  --     --       -- required for Windows users
+  --     --       use_absolute_path = true
+  --     --     }
+  --     --   }
+  --     -- },
+  --     {
+  --       -- Make sure to set this up properly if you have lazy=true
+  --       "MeanderingProgrammer/render-markdown.nvim",
+  --       opts = {
+  --         file_types = {"markdown", "Avante"}
+  --       },
+  --       ft = {"markdown", "Avante"}
+  --     }
+  --   },
+  --   opts = {
+  --     provider = "copilot",
+  --     auto_suggestions_provider = "copilot",
+  --     system_prompt = llm_default_prompt
+  --   }
+  -- },
   {
-    "frankroeder/parrot.nvim",
-    dependencies = {"ibhagwan/fzf-lua", "nvim-lua/plenary.nvim", "rcarriga/nvim-notify"},
-    -- optionally include "rcarriga/nvim-notify" for beautiful notifications
+    "ggandor/leap.nvim",
     config = function()
-      require("parrot").setup {
-        providers = {
-          anthropic = {
-            api_key = os.getenv "ANTHROPIC_API_KEY"
-          }
-        },
-        chat_shortcut_respond = {modes = {"n"}, shortcut = "<CR>"},
-        chat_shortcut_delete = {modes = {"n"}, shortcut = "<leader>d"},
-        chat_shortcut_stop = {modes = {"n"}, shortcut = "<leader>s"},
-        chat_shortcut_new = {modes = {"n"}, shortcut = "<leader>n"},
-        user_input_ui = "buffer"
-      }
+      local leap = require("leap")
 
-      vim.keymap.set({"n", "v"}, "<leader>cc", "<cmd>PrtChatToggle vsplit<cr>", {desc = "Toggle Parrot Chat"})
-      vim.keymap.set({"n", "v"}, "<leader>cn", "<cmd>PrtChatNew vsplit<cr>", {desc = "New Parrot Chat"})
-      vim.keymap.set("v", "<leader>cp", ":<C-u>'<,'>PrtChatPaste vsplit<cr>", {desc = "Paste to Parrot Chat"})
-      vim.keymap.set("v", "<leader>cr", ":<C-u>'<,'>PrtRewrite<cr>", {desc = "Rewrite with Parrot"})
-      vim.keymap.set("v", "<leader>cA", ":<C-u>'<,'>PrtAppend<cr>", {desc = "Append with Parrot"})
-      vim.keymap.set("v", "<leader>cI", ":<C-u>'<,'>PrtPrepend<cr>", {desc = "Prepend with Parrot"})
+      -- custom function to leap in both directions
+      local function leap_bidirectional()
+        local current_window = vim.fn.win_getid()
+        leap.leap {target_windows = {current_window}}
+      end
+
+      -- set up the keybinding
+      vim.keymap.set({"n", "x", "o"}, "s", leap_bidirectional, {silent = true, desc = "leap forward or backward"})
     end
   },
   {"mfussenegger/nvim-jdtls"},
-  -- {
-  --   "ms-jpq/coq_nvim",
-  --   branch = "coq"
-  -- }
-
-  -- {
-  --   "ms-jpq/coq.artifacts",
-  --   branch = "artifacts"
-  -- }
-
-  -- {
-  --   "ms-jpq/coq.thirdparty",
-  --   branch = "3p"
-  -- }
-
-  -- Treesitter config
   {
     "nvim-treesitter/nvim-treesitter",
     build = ":TSUpdate",
@@ -571,19 +771,68 @@ return {
   {
     "nvim-treesitter/nvim-treesitter-context"
   },
-  -- {
-  --   "hashivim/vim-terraform"
-  -- }
-
-  -- Treesitter for movement / selection
-  -- {
-  --   "~/src/nvim-treesitter-textobjects",
-  --   as = "nvim-treesitter/nvim-treesitter-textobjects"
-  -- }
-  {"nvim-treesitter/nvim-treesitter-textobjects"},
-  --"nvim-treesitter/nvim-treesitter-textobjects"
-
-  {"nvim-treesitter/playground"}
-
-  -- "folke/lua-dev.nvim"
+  {
+    "hashivim/vim-terraform"
+  },
+  {
+    "nvim-treesitter/nvim-treesitter-textobjects",
+    config = function()
+      require("nvim-treesitter.configs").setup(
+        {
+          textobjects = {
+            select = {
+              enable = true,
+              lookahead = true,
+              keymaps = {
+                ["af"] = "@function.outer",
+                ["if"] = "@function.inner",
+                ["ac"] = "@class.outer",
+                ["ic"] = "@class.inner",
+                ["aa"] = "@parameter.outer",
+                ["ia"] = "@parameter.inner"
+              }
+            },
+            move = {
+              enable = true,
+              set_jumps = true,
+              goto_next_start = {
+                ["]m"] = "@function.outer",
+                ["]]"] = "@class.outer"
+              },
+              goto_next_end = {
+                ["]m"] = "@function.outer",
+                ["]["] = "@class.outer"
+              },
+              goto_previous_start = {
+                ["[m"] = "@function.outer",
+                ["[["] = "@class.outer"
+              },
+              goto_previous_end = {
+                ["[m"] = "@function.outer",
+                ["[]"] = "@class.outer"
+              }
+            },
+            swap = {
+              enable = true,
+              swap_next = {
+                ["<leader>a"] = "@parameter.inner"
+              },
+              swap_previous = {
+                ["<leader>a"] = "@parameter.inner"
+              }
+            }
+          },
+          incremental_selection = {
+            enable = true,
+            keymaps = {
+              init_selection = "<cr>",
+              node_incremental = "<cr>",
+              scope_incremental = "<s-cr>",
+              node_decremental = "<bs>"
+            }
+          }
+        }
+      )
+    end
+  }
 }
