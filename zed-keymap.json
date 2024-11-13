@@ -1,0 +1,122 @@
+[
+  {
+    "context": "Workspace",
+    "bindings": {
+      "ctrl-b o": "projects::OpenRecent"
+    }
+  },
+  {
+    "context": "FileFinder",
+    "bindings": {}
+  },
+  {
+    "context": "EmptyPane || SharedScreen",
+    "bindings": {
+      "space f": "file_finder::Toggle",
+      "cmd-t": "workspace::OpenTerminal",
+      "space g": "workspace::NewSearch",
+      "ctrl-h": ["workspace::ActivatePaneInDirection", "Left"],
+      "ctrl-j": ["workspace::ActivatePaneInDirection", "Down"],
+      "ctrl-k": ["workspace::ActivatePaneInDirection", "Up"],
+      "ctrl-l": ["workspace::ActivatePaneInDirection", "Right"]
+    }
+  },
+  {
+    "context": "Editor && vim_mode == normal",
+    "bindings": {
+      "ctrl-h": ["workspace::ActivatePaneInDirection", "Left"],
+      "ctrl-j": ["workspace::ActivatePaneInDirection", "Down"],
+      "ctrl-k": ["workspace::ActivatePaneInDirection", "Up"],
+      "ctrl-l": ["workspace::ActivatePaneInDirection", "Right"],
+      "space k": "editor::Hover",
+      "g y": "editor::GoToTypeDefinition",
+      "g r": "editor::FindAllReferences",
+      "g i": "editor::GoToImplementation",
+      "g a": "pane::AlternateFile",
+      "g m": "pane::AlternateFile",
+      "g n": "pane::ActivateNextItem",
+      "g p": "pane::ActivatePrevItem",
+      "m m": "vim::Matching",
+      "space f": "file_finder::Toggle",
+      "space s": "project_symbols::Toggle",
+      "space c": "vim::ToggleComments",
+      "space d": ["workspace::SendKeystrokes", "shift-cmd-m"],
+      "space /": "workspace::NewSearch",
+      "space r": "editor::Rename",
+      "space x": "editor::ToggleCodeActions",
+      "space q": "pane::CloseAllItems",
+      "cmd-t": "terminal_panel::ToggleFocus",
+      "space `": "editor::Format",
+      "[ j": "pane::GoBack",
+      "] j": "pane::GoForward",
+      "] d": "editor::GoToDiagnostic",
+      "[ d": "editor::GoToPrevDiagnostic",
+      "[ space": "vim::InsertLineAbove",
+      "] space": "vim::InsertLineBelow",
+      "-": "pane::RevealInProjectPanel"
+    }
+  },
+
+  {
+    "context": "Editor && vim_mode == visual",
+    "bindings": {
+      "space c": "vim::ToggleComments"
+    }
+  },
+  {
+    "context": "AssistantPanel",
+    "bindings": {
+      "ctrl-h": ["workspace::ActivatePaneInDirection", "Left"],
+      "ctrl-j": ["workspace::ActivatePaneInDirection", "Down"],
+      "ctrl-k": ["workspace::ActivatePaneInDirection", "Up"],
+      "ctrl-l": ["workspace::ActivatePaneInDirection", "Right"]
+    }
+  },
+  {
+    "context": "Editor && vim_mode == insert && !inline_completion",
+    "bindings": {
+      "ctrl-l": "editor::ShowInlineCompletion"
+    }
+  },
+  {
+    "context": "Editor && vim_mode == insert && inline_completion",
+    "bindings": {
+      "ctrl-j": "editor::NextInlineCompletion",
+      "ctrl-k": "editor::PreviousInlineCompletion",
+      "ctrl-l": "editor::AcceptInlineCompletion"
+    }
+  },
+  {
+    "context": "Editor && showing_completions",
+    "bindings": {
+      "ctrl-j": "editor::ContextMenuNext",
+      "ctrl-k": "editor::ContextMenuPrev",
+      "ctrl-l": "editor::ConfirmCompletion"
+    }
+  },
+  {
+    "context": "Editor && showing_code_actions",
+    "bindings": {
+      "ctrl-j": "editor::ContextMenuNext",
+      "ctrl-k": "editor::ContextMenuPrev",
+      "ctrl-l": ["workspace.SendKeystrokes", "Enter"]
+    }
+  },
+  {
+    "context": "ProjectPanel && not_editing",
+    "bindings": {
+      "-": "workspace::ToggleLeftDock"
+    }
+  },
+  {
+    "context": "Terminal",
+    "bindings": {
+      "ctrl-h": "pane::ActivatePrevItem",
+      "ctrl-l": "pane::ActivateNextItem",
+      "cmd-t": "workspace::ToggleBottomDock",
+      "cmd-n": "workspace::NewTerminal",
+      "ctrl-j": ["workspace::ActivatePaneInDirection", "Down"],
+      "ctrl-k": ["workspace::ActivatePaneInDirection", "Up"]
+    }
+  }
+]
