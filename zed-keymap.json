@@ -6,23 +6,14 @@
     }
   },
   {
-    "context": "FileFinder",
-    "bindings": {}
-  },
-  {
-    "context": "EmptyPane || SharedScreen",
+    "context": "Editor && mode == single_line",
     "bindings": {
-      "space f": "file_finder::Toggle",
-      "cmd-t": "workspace::OpenTerminal",
-      "space g": "workspace::NewSearch",
-      "ctrl-h": ["workspace::ActivatePaneInDirection", "Left"],
-      "ctrl-j": ["workspace::ActivatePaneInDirection", "Down"],
-      "ctrl-k": ["workspace::ActivatePaneInDirection", "Up"],
-      "ctrl-l": ["workspace::ActivatePaneInDirection", "Right"]
+      "ctrl-j": ["workspace::SendKeystrokes", "down"],
+      "ctrl-k": ["workspace::SendKeystrokes", "up"]
     }
   },
   {
-    "context": "Editor && vim_mode == normal",
+    "context": "EmptyPane || SharedScreen || (Editor && vim_mode == normal)",
     "bindings": {
       "ctrl-h": ["workspace::ActivatePaneInDirection", "Left"],
       "ctrl-j": ["workspace::ActivatePaneInDirection", "Down"],
@@ -51,8 +42,8 @@
       "] j": "pane::GoForward",
       "] d": "editor::GoToDiagnostic",
       "[ d": "editor::GoToPrevDiagnostic",
-      "[ space": "vim::InsertLineAbove",
-      "] space": "vim::InsertLineBelow",
+      "[ space": ["workspace::SendKeystrokes", "cmd-shift-enter"],
+      "] space": ["workspace::SendKeystrokes", "cmd-enter"],
       "-": "pane::RevealInProjectPanel"
     }
   },
@@ -115,6 +106,7 @@
       "ctrl-l": "pane::ActivateNextItem",
       "cmd-t": "workspace::ToggleBottomDock",
       "cmd-n": "workspace::NewTerminal",
+      "ctrl-b n": "workspace::NewTerminal",
       "ctrl-j": ["workspace::ActivatePaneInDirection", "Down"],
       "ctrl-k": ["workspace::ActivatePaneInDirection", "Up"]
     }
