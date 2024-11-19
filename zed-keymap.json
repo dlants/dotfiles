@@ -47,7 +47,12 @@
       "-": "pane::RevealInProjectPanel"
     }
   },
-
+  {
+    "context": "Editor && mode == full && VimControl && vim_mode == normal",
+    "bindings": {
+      "enter": "editor::OpenExcerpts"
+    }
+  },
   {
     "context": "Editor && vim_mode == visual",
     "bindings": {
@@ -96,7 +101,12 @@
   {
     "context": "ProjectPanel && not_editing",
     "bindings": {
-      "-": "workspace::ToggleLeftDock"
+      "-": "workspace::ToggleLeftDock",
+      "ctrl-l": ["workspace::ActivatePaneInDirection", "Right"],
+      "d d": "project_panel::Cut",
+      "y y": "project_panel::Copy",
+      "p": "project_panel::Paste",
+      "r": "project_panel::Rename"
     }
   },
   {
@@ -106,9 +116,18 @@
       "ctrl-l": "pane::ActivateNextItem",
       "cmd-t": "workspace::ToggleBottomDock",
       "cmd-n": "workspace::NewTerminal",
-      "ctrl-b n": "workspace::NewTerminal",
       "ctrl-j": ["workspace::ActivatePaneInDirection", "Down"],
       "ctrl-k": ["workspace::ActivatePaneInDirection", "Up"]
+    }
+  },
+  {
+    "context": "ProjectSearchBar",
+    "bindings": {
+      "escape": "pane::CloseActiveItem",
+      "ctrl-h": ["workspace::ActivatePaneInDirection", "Left"],
+      "ctrl-j": ["workspace::ActivatePaneInDirection", "Down"],
+      "ctrl-k": ["workspace::ActivatePaneInDirection", "Up"],
+      "ctrl-l": ["workspace::ActivatePaneInDirection", "Right"]
     }
   }
 ]
