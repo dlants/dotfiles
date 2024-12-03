@@ -6,7 +6,7 @@ ln -sf ~/src/dotfiles/zpreztorc ~/.zpreztorc
 ln -sf ~/src/dotfiles/nvim/init.lua ~/.config/nvim/init.lua
 ln -sf ~/src/dotfiles/nvim/lua ~/.config/nvim/lua
 mkdir -p ~/.config/alacritty
-ln -sf ~/src/dotfiles/alacritty.yml  ~/.config/alacritty/
+ln -sf ~/src/dotfiles/alacritty.toml  ~/.config/alacritty/
 mkdir -p ~/.config/helix
 ln -sf ~/src/dotfiles/helix.yml  ~/.config/helix/config.toml
 

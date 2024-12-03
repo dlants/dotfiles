@@ -7,3 +7,5 @@ npm install -g \
   typescript-language-server \
   yaml-language-server \
   vscode-langservers-extracted
+
+brew install lua-language-server alacritty

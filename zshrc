@@ -5,7 +5,7 @@ fi
 
 alias vi='nvim'
 alias vim='nvim'
-export EDITOR='zed'
+export EDITOR='nvim'
 
 # work stuff
 export DUMMY_SENDMAIL='yes'
@@ -68,3 +68,6 @@ else
 
   export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"
 fi
+
+# Added by Windsurf
+export PATH="/Users/denislantsman/.codeium/windsurf/bin:$PATH"

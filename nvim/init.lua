@@ -6,9 +6,9 @@ vim.g.loaded_netrwPlugin = 1
 vim.opt.termguicolors = true
 
 require "config.lazy"
+require "dev"
 
 vim.cmd "filetype plugin indent on"
-vim.cmd "colorscheme OceanicNext"
 
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
@@ -27,6 +27,7 @@ vim.o.smartcase = true
 vim.o.incsearch = true
 vim.o.hlsearch = true
 
+vim.wo.relativenumber = true
 vim.wo.wrap = false
 vim.wo.cursorline = true
 vim.wo.cursorcolumn = true
@@ -35,17 +36,17 @@ vim.wo.colorcolumn = "120"
 vim.cmd "autocmd BufWritePre * StripWhitespace"
 
 -- replicate unimpaired bindings
-vim.api.nvim_set_keymap("n", "[j", "<C-O>", {noremap = true})
-vim.api.nvim_set_keymap("n", "]j", "<C-I>", {noremap = true})
-vim.api.nvim_set_keymap("n", "[q", ":cp<CR>", {noremap = true})
-vim.api.nvim_set_keymap("n", "]q", ":cn<CR>", {noremap = true})
-vim.api.nvim_set_keymap("n", "[l", ":lp<CR>", {noremap = true})
-vim.api.nvim_set_keymap("n", "]l", ":lne<CR>", {noremap = true})
-vim.api.nvim_set_keymap("n", "[<space>", "O<Esc>j", {noremap = true})
-vim.api.nvim_set_keymap("n", "]<space>", "o<Esc>k", {noremap = true})
-vim.api.nvim_set_keymap("n", "[f", ":colder<CR>", {noremap = true})
-vim.api.nvim_set_keymap("n", "]f", ":cnewer<CR>", {noremap = true})
+vim.api.nvim_set_keymap("n", "[j", "<C-O>", { noremap = true })
+vim.api.nvim_set_keymap("n", "]j", "<C-I>", { noremap = true })
+vim.api.nvim_set_keymap("n", "[q", ":cp<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "]q", ":cn<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "[l", ":lp<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "]l", ":lne<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "[<space>", "O<Esc>j", { noremap = true })
+vim.api.nvim_set_keymap("n", "]<space>", "o<Esc>k", { noremap = true })
+vim.api.nvim_set_keymap("n", "[f", ":colder<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "]f", ":cnewer<CR>", { noremap = true })
 
 
-vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", {noremap = true})
-vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", {noremap = true})
+vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", { noremap = true })
