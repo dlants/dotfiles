@@ -1,7 +1,6 @@
 vim.keymap.set('n', '<leader>pr', function()
-  require("lazy.core.loader").reload("magenta.nvim")
-  require("magenta").setup()
-  print 'magenta reloaded'
+  vim.cmd('UpdateRemotePlugins')
+  vim.cmd('runtime plugin/magenta.vim')
 end, { desc = 'Reload magenta plugin' })
 
 _G.P = function(v)

@@ -55,3 +55,10 @@ fi
 
 # Added by Windsurf
 export PATH="/Users/denislantsman/.codeium/windsurf/bin:$PATH"
+
+# bun completions
+[ -s "/Users/denislantsman/.bun/_bun" ] && source "/Users/denislantsman/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
