@@ -9,7 +9,7 @@ local function read_file_to_string(file_path)
 end
 
 local llm_default_prompt =
-[[You are a coding assistant to a principal software engineer. Please be concise.
+  [[You are a coding assistant to a principal software engineer. Please be concise.
 When you're not sure about something, say so but also take a guess. Prefer code samples to written explanations.]]
 
 return {
@@ -19,79 +19,82 @@ return {
     build = ":UpdateRemotePlugins",
     lazy = false,
     config = function()
-      vim.api.nvim_set_keymap("n", "<leader>m", ":Magenta toggle<CR>", { silent = true, noremap = true })
+      vim.api.nvim_set_keymap("n", "<leader>m", ":Magenta toggle<CR>", {silent = true, noremap = true})
     end
   },
-
-  { "christoomey/vim-tmux-navigator" },
-  { "ntpeters/vim-better-whitespace" },
-  { "junegunn/fzf",                  build = "./install --bin" },
   {
-    "ibhagwan/fzf-lua",
-    dependencies = { "nvim-tree/nvim-web-devicons" },
-    opts = {
-      winopts = {
-        height = 0.5,
-        width = 1.0,
-        row = 0,
-        border = "none"
-      }
-    },
-    keys = {
-      {
-        "<leader>f",
-        function()
-          require("fzf-lua").git_files()
-        end,
-        desc = "FZF Git Files",
-        silent = true
-      },
-      {
-        "<leader>F",
-        function()
-          require("fzf-lua").files()
-        end,
-        desc = "FZF Git Files",
-        silent = true
-      }
-      -- {
-      --   "<leader>fH",
-      --   function()
-      --     require("fzf-lua").helptags_grep()
-      --   end,
-      --   desc = "FZF grep help",
-      --   silent = true
-      -- }
-    }
-    -- opts = {
-    --   winopts = {
-    --     preview = {default = "bat"}
-    --   }
-    -- }
+    "sphamba/smear-cursor.nvim",
+    opts = {}
   },
+  {"christoomey/vim-tmux-navigator"},
+  {"ntpeters/vim-better-whitespace"},
+  -- { "junegunn/fzf",                  build = "./install --bin" },
+  -- {
+  --   "ibhagwan/fzf-lua",
+  --   dependencies = { "nvim-tree/nvim-web-devicons" },
+  --   opts = {
+  --     winopts = {
+  --       height = 0.5,
+  --       width = 1.0,
+  --       row = 0,
+  --       border = "none"
+  --     }
+  --   },
+  --   keys = {
+  --     {
+  --       "<leader>f",
+  --       function()
+  --         require("fzf-lua").git_files()
+  --       end,
+  --       desc = "FZF Git Files",
+  --       silent = true
+  --     },
+  --     {
+  --       "<leader>F",
+  --       function()
+  --         require("fzf-lua").files()
+  --       end,
+  --       desc = "FZF Git Files",
+  --       silent = true
+  --     }
+  --     -- {
+  --     --   "<leader>fH",
+  --     --   function()
+  --     --     require("fzf-lua").helptags_grep()
+  --     --   end,
+  --     --   desc = "FZF grep help",
+  --     --   silent = true
+  --     -- }
+  --   }
+  --   -- opts = {
+  --   --   winopts = {
+  --   --     preview = {default = "bat"}
+  --   --   }
+  --   -- }
+  -- },
   {
     "nvim-telescope/telescope.nvim",
     tag = "0.1.5",
     dependencies = {
       "nvim-lua/plenary.nvim",
       "nvim-tree/nvim-web-devicons",
-      { "nvim-telescope/telescope-fzf-native.nvim", build = "make" }
+      {"nvim-telescope/telescope-fzf-native.nvim", build = "make"}
     },
     keys = {
-      -- {
-      --   "<leader>f",
-      --   function()
-      --     require("telescope.builtin").git_files()
-      --   end,
-      --   desc = "Find Git Files",
-      -- },
-      -- {
-      --   "<leader>F",
-      --   function()
-      --     require("telescope.builtin").find_files()
-      --   end,
-      --   desc = "Find Files",
-      -- },
+      {
+        "<leader>f",
+        function()
+          require("telescope.builtin").git_files({show_untracked = true})
+        end,
+        desc = "Find Git Files"
+      },
+      {
+        "<leader>F",
+        function()
+          require("telescope.builtin").find_files({hidden = true})
+        end,
+        desc = "Find Files"
+      },
       {
         "<leader>/",
         function()
@@ -121,13 +124,13 @@ return {
       telescope.setup(
         {
           defaults = {
-            path_display = { "truncate" },
-            sorting_strategy = "ascending",
-            layout_config = {
-              horizontal = {
-                prompt_position = "top"
-              }
-            },
+            path_display = {"truncate"},
+            -- sorting_strategy = "ascending",
+            -- layout_config = {
+            --   horizontal = {
+            --     prompt_position = "top"
+            --   }
+            -- },
             mappings = {
               i = {
                 ["<C-h>"] = "which_key",
@@ -163,7 +166,7 @@ return {
               theme = "dropdown"
             },
             find_files = {
-              find_command = { "rg", "--files", "--hidden", "--glob", "!**/.git/*" }
+              find_command = {"rg", "--files", "--hidden", "--glob", "!**/.git/*"}
             }
           }
         }
@@ -178,20 +181,20 @@ return {
       -- Configure grepper
       vim.g.grepper = {
         prompt_quote = 0,
-        tools = { "rg" }
+        tools = {"rg"}
       }
     end,
     cmd = "Grepper", -- Load the plugin when the Grepper command is used
     keys = {
-      { "<leader>g", ":Grepper<CR>", desc = "Open Grepper", noremap = true, silent = true }
+      {"<leader>g", ":Grepper<CR>", desc = "Open Grepper", noremap = true, silent = true}
     },
     lazy = true
   },
   {
     "stevearc/oil.nvim",
-    dependencies = { "nvim-tree/nvim-web-devicons" },
+    dependencies = {"nvim-tree/nvim-web-devicons"},
     keys = {
-      { "-", "<CMD>Oil<CR>", desc = "oil" }
+      {"-", "<CMD>Oil<CR>", desc = "oil"}
     },
     lazy = true,
     config = function()
@@ -199,7 +202,7 @@ return {
       require("oil").setup(
         {
           default_file_explorer = true,
-          columns = { "icon" },
+          columns = {"icon"},
           keymaps = {
             ["<C-h>"] = false
           },
@@ -212,7 +215,7 @@ return {
   },
   {
     "hoob3rt/lualine.nvim",
-    dependencies = { "kyazdani42/nvim-web-devicons", lazy = true },
+    dependencies = {"kyazdani42/nvim-web-devicons", lazy = true},
     config = function()
       local function relative_path()
         return vim.api.nvim_exec("echo @%", true)
@@ -221,28 +224,28 @@ return {
       require "lualine".setup {
         options = {
           icons_enabled = true,
-          -- theme = "jellybeans",
-          component_separators = { "", "" },
-          section_separators = { "", "" },
+          theme = "github_dark_colorblind",
+          component_separators = {"", ""},
+          section_separators = {"", ""},
           disabled_filetypes = {}
         },
         sections = {
-          lualine_a = { "mode" },
+          lualine_a = {"mode"},
           lualine_b = {
             {
               "diagnostics",
-              sources = { "nvim_lsp" }
+              sources = {"nvim_lsp"}
             }
           },
-          lualine_c = { relative_path },
-          lualine_x = { "filetype" },
-          lualine_y = { "branch" },
-          lualine_z = { "diff" }
+          lualine_c = {relative_path},
+          lualine_x = {"filetype"},
+          lualine_y = {"branch"},
+          lualine_z = {"diff"}
         },
         inactive_sections = {
           lualine_a = {},
           lualine_b = {},
-          lualine_c = { relative_path },
+          lualine_c = {relative_path},
           lualine_x = {},
           lualine_y = {},
           lualine_z = {}
@@ -265,7 +268,7 @@ return {
       require("gitsigns").setup()
     end
   },
-  { "tpope/vim-fugitive" },
+  {"tpope/vim-fugitive"},
   -- {
   --   "pwntester/octo.nvim",
   --   dependencies = {
@@ -284,16 +287,16 @@ return {
   --     )
   --   end
   -- },
-  { "almo7aya/openingh.nvim" },
-  { "tpope/vim-rhubarb" },
+  {"almo7aya/openingh.nvim"},
+  {"tpope/vim-rhubarb"},
   {
     "numtostr/comment.nvim",
     opts = {}
   },
-  { "tpope/vim-surround" },
-  { "tpope/vim-abolish" },
+  {"tpope/vim-surround"},
+  {"tpope/vim-abolish"},
   -- for showing the actual color of the hex value
-  { "norcalli/nvim-colorizer.lua" },
+  {"norcalli/nvim-colorizer.lua"},
   -- Better quickfix window
   {
     "kevinhwang91/nvim-bqf",
@@ -305,8 +308,8 @@ return {
     "lukas-reineke/indent-blankline.nvim",
     main = "ibl",
     opts = {
-      indent = { char = "│" },
-      scope = { enabled = true }
+      indent = {char = "│"},
+      scope = {enabled = true}
     }
   },
   -- Show LSP progress
@@ -326,7 +329,7 @@ return {
   -- Treesitter textobjects for better code navigation
   {
     "nvim-treesitter/nvim-treesitter-textobjects",
-    dependencies = { "nvim-treesitter/nvim-treesitter" },
+    dependencies = {"nvim-treesitter/nvim-treesitter"},
     config = function()
       require("nvim-treesitter.configs").setup(
         {
@@ -361,26 +364,42 @@ return {
     end
   },
   -- themes
-  { "nanotech/jellybeans.vim",     lazy = true },
   {
-    "Shatur/neovim-ayu",
+    "nanotech/jellybeans.vim",
     config = function()
-      require("ayu").setup({})
-      vim.cmd.colorscheme "ayu"
+      -- vim.cmd.colorscheme "jellybeans"
     end
   },
+  {
+    "projekt0n/github-nvim-theme",
+    name = "github-theme",
+    lazy = false, -- make sure we load this during startup if it is your main colorscheme
+    priority = 1000, -- make sure to load this before all the other start plugins
+    config = function()
+      require("github-theme").setup({})
+
+      vim.cmd("colorscheme github_dark_colorblind")
+    end
+  },
+  -- {
+  --   "Shatur/neovim-ayu",
+  --   config = function()
+  --     require("ayu").setup({})
+  --     vim.cmd.colorscheme "ayu"
+  --   end
+  -- },
   -- vim.cmd "let g:doom_one_terminal_/colors = v:true"
   -- "romgrk/doom-one.vim"
-  { "tomasr/molokai",              lazy = true },
-  { "rafamadriz/neon",             lazy = true },
-  { "marko-cerovac/material.nvim", lazy = true },
-  { "ray-x/aurora",                lazy = true },
-  { "mhartington/oceanic-next",    lazy = true },
+  {"tomasr/molokai", lazy = true},
+  {"rafamadriz/neon", lazy = true},
+  {"marko-cerovac/material.nvim", lazy = true},
+  {"ray-x/aurora", lazy = true},
+  {"mhartington/oceanic-next", lazy = true},
   -- neovim lsp
   {
     "neovim/nvim-lspconfig",
     dependencies = {
-      "hrsh7th/cmp-nvim-lsp",
+      "hrsh7th/cmp-nvim-lsp"
     },
     config = function()
       local lspkind = require "lspconfig"
@@ -403,7 +422,7 @@ return {
       -- on_attach only maps when the language server attaches to the current buffer
       local on_attach = function(client, bufnr)
         local function buf_set_keymap(mode, lhs, rhs)
-          vim.keymap.set(mode, lhs, rhs, { buffer = bufnr, noremap = true, silent = true })
+          vim.keymap.set(mode, lhs, rhs, {buffer = bufnr, noremap = true, silent = true})
         end
 
         -- LSP actions
@@ -434,14 +453,14 @@ return {
         )
 
         -- Formatting
-        buf_set_keymap(
-          "n",
-          "<leader>`",
-          function()
-            vim.lsp.buf.format({ async = true })
-          end
-        )
-
+        -- buf_set_keymap(
+        --   "n",
+        --   "<leader>`",
+        --   function()
+        --     vim.lsp.buf.format({ async = true })
+        --   end
+        -- )
+        --
         -- Auto format on save if the LSP supports it
         -- if client.server_capabilities.documentFormattingProvider then
         --   vim.api.nvim_create_autocmd(
@@ -532,37 +551,41 @@ return {
         )
       )
 
-
       lspkind.lua_ls.setup {
         on_attach = on_attach,
         capabilities = capabilities,
         on_init = function(client)
           if client.workspace_folders then
             local path = client.workspace_folders[1].name
-            if vim.fn.filereadable(path .. '/.luarc.json') or vim.fn.filereadable(path .. '/.luarc.jsonc') then
+            if vim.fn.filereadable(path .. "/.luarc.json") or vim.fn.filereadable(path .. "/.luarc.jsonc") then
               return
             end
           end
 
-          client.config.settings.Lua = vim.tbl_deep_extend('force', client.config.settings.Lua, {
-            runtime = {
-              -- Tell the language server which version of Lua you're using
-              -- (most likely LuaJIT in the case of Neovim)
-              version = 'LuaJIT'
-            },
-            -- Make the server aware of Neovim runtime files
-            workspace = {
-              checkThirdParty = false,
-              library = {
-                vim.env.VIMRUNTIME
-                -- Depending on the usage, you might want to add additional paths here.
-                -- "${3rd}/luv/library"
-                -- "${3rd}/busted/library",
+          client.config.settings.Lua =
+            vim.tbl_deep_extend(
+            "force",
+            client.config.settings.Lua,
+            {
+              runtime = {
+                -- Tell the language server which version of Lua you're using
+                -- (most likely LuaJIT in the case of Neovim)
+                version = "LuaJIT"
+              },
+              -- Make the server aware of Neovim runtime files
+              workspace = {
+                checkThirdParty = false,
+                library = {
+                  vim.env.VIMRUNTIME
+                  -- Depending on the usage, you might want to add additional paths here.
+                  -- "${3rd}/luv/library"
+                  -- "${3rd}/busted/library",
+                }
+                -- or pull in all of 'runtimepath'. NOTE: this is a lot slower and will cause issues when working on your own configuration (see https://github.com/neovim/nvim-lspconfig/issues/3189)
+                -- library = vim.api.nvim_get_runtime_file("", true)
               }
-              -- or pull in all of 'runtimepath'. NOTE: this is a lot slower and will cause issues when working on your own configuration (see https://github.com/neovim/nvim-lspconfig/issues/3189)
-              -- library = vim.api.nvim_get_runtime_file("", true)
             }
-          })
+          )
         end,
         settings = {
           Lua = {}
@@ -587,14 +610,14 @@ return {
   {
     "mhartington/formatter.nvim",
     keys = {
-      { "<leader>`", ":Format<CR>", desc = "Format", mode = "n" }
+      {"<leader>`", ":Format<CR>", desc = "Format", mode = "n"}
     },
     config = function()
       -- Define common formatters
       local prettier = function()
         return {
           exe = "npx prettier",
-          args = { "--stdin-filepath", vim.api.nvim_buf_get_name(0) },
+          args = {"--stdin-filepath", vim.api.nvim_buf_get_name(0)},
           stdin = true
         }
       end
@@ -602,7 +625,7 @@ return {
       local rustfmt = function()
         return {
           exe = "rustfmt",
-          args = { "--emit=stdout" },
+          args = {"--emit=stdout"},
           stdin = true
         }
       end
@@ -610,7 +633,7 @@ return {
       local luafmt = function()
         return {
           exe = "luafmt",
-          args = { "--indent-count", 2, "--stdin" },
+          args = {"--indent-count", 2, "--stdin"},
           stdin = true
         }
       end
@@ -620,25 +643,25 @@ return {
         {
           logging = false,
           filetype = {
-            javascript = { prettier },
-            typescript = { prettier },
-            javascriptreact = { prettier },
-            typescriptreact = { prettier },
-            json = { prettier },
-            yaml = { prettier },
-            html = { prettier },
-            css = { prettier },
-            scss = { prettier },
-            markdown = { prettier },
-            rust = { rustfmt },
-            lua = { luafmt }
+            javascript = {prettier},
+            typescript = {prettier},
+            javascriptreact = {prettier},
+            typescriptreact = {prettier},
+            json = {prettier},
+            yaml = {prettier},
+            html = {prettier},
+            css = {prettier},
+            scss = {prettier},
+            markdown = {prettier},
+            rust = {rustfmt},
+            lua = {luafmt}
             -- Add more file types and their formatters here
           }
         }
       )
 
       -- Format on save
-      local augroup = vim.api.nvim_create_augroup("Format", { clear = true })
+      local augroup = vim.api.nvim_create_augroup("Format", {clear = true})
       vim.api.nvim_create_autocmd(
         "BufWritePost",
         {
@@ -652,7 +675,7 @@ return {
   },
   {
     "mfussenegger/nvim-jdtls",
-    ft = { "java" },
+    ft = {"java"},
     config = function()
       local project_name = vim.fn.fnamemodify(vim.fn.getcwd(), ":p:h:t")
       local workspace_dir = "/users/denislantsman/src/" .. project_name
@@ -694,7 +717,7 @@ return {
         -- 💀
         -- this is the default if not provided, you can remove it. or adjust as needed.
         -- one dedicated lsp server & client will be started per unique root_dir
-        root_dir = require("jdtls.setup").find_root({ ".git", "mvnw", "gradlew" }),
+        root_dir = require("jdtls.setup").find_root({".git", "mvnw", "gradlew"}),
         -- here you can configure eclipse.jdt.ls specific settings
         -- see https://github.com/eclipse/eclipse.jdt.ls/wiki/running-the-java-ls-server-from-the-command-line#initialize-request
         -- for a list of options
@@ -712,7 +735,7 @@ return {
           bundles = {}
         },
         on_attach = function()
-          local opts = { noremap = true, silent = true }
+          local opts = {noremap = true, silent = true}
 
           vim.keymap.set("n", "<leader>t", vim.lsp.buf.hover, opts)
           vim.keymap.set("n", "<leader>d", vim.lsp.buf.definition, opts)
@@ -723,14 +746,14 @@ return {
           vim.keymap.set("n", "<leader>i", vim.diagnostic.setloclist, opts)
           vim.keymap.set("n", "[e", vim.diagnostic.goto_prev, opts)
           vim.keymap.set("n", "]e", vim.diagnostic.goto_next, opts)
-          vim.keymap.set(
-            "n",
-            "<leader>`",
-            function()
-              vim.lsp.buf.format({ async = true })
-            end,
-            opts
-          )
+          -- vim.keymap.set(
+          --   "n",
+          --   "<leader>`",
+          --   function()
+          --     vim.lsp.buf.format({ async = true })
+          --   end,
+          --   opts
+          -- )
 
           require "lsp_signature".on_attach {
             bind = true,
@@ -746,7 +769,7 @@ return {
       require("jdtls").start_or_attach(config)
     end
   },
-  { "onsails/lspkind.nvim" },
+  {"onsails/lspkind.nvim"},
   {
     "hrsh7th/nvim-cmp",
     dependencies = {
@@ -754,7 +777,7 @@ return {
       "hrsh7th/cmp-buffer",
       "hrsh7th/cmp-path",
       "saadparwaiz1/cmp_luasnip",
-      "L3MON4D3/LuaSnip",
+      "L3MON4D3/LuaSnip"
       -- "zbirenbaum/copilot.lua",
       -- "zbirenbaum/copilot-cmp",
     },
@@ -775,38 +798,39 @@ return {
       --   local line, col = unpack(vim.api.nvim_win_get_cursor(0))
       --   return col ~= 0 and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
       -- end
-      vim.opt.completeopt = { "menu", "menuone", "noselect" }
+      vim.opt.completeopt = {"menu", "menuone", "noselect"}
 
       local lspkind = require("lspkind")
       lspkind.init {
-        symbol_map = {
-          -- Copilot = "",
-        },
+        symbol_map = {}
       }
 
       -- vim.api.nvim_set_hl(0, "CmpItemKindCopilot", { fg = "#6CC644" })
 
-      local kind_formatter = lspkind.cmp_format {
+      local kind_formatter =
+        lspkind.cmp_format {
         mode = "symbol_text",
         menu = {
           buffer = "[buf]",
           nvim_lsp = "[LSP]",
           nvim_lua = "[api]",
           path = "[path]",
-          gh_issues = "[issues]",
-        },
+          gh_issues = "[issues]"
+        }
       }
 
       cmp.setup(
         {
           formatting = {
-            fields = { "abbr", "kind", "menu" },
+            fields = {"abbr", "kind", "menu"},
             expandable_indicator = true,
             format = kind_formatter
           },
           mapping = {
-            ["<CR>"] = cmp.mapping(cmp.mapping.confirm({ select = true, behaviour = cmp.SelectBehavior.Insert }),
-              { "i", "c" }),
+            ["<CR>"] = cmp.mapping(
+              cmp.mapping.confirm({select = true, behaviour = cmp.SelectBehavior.Insert}),
+              {"i", "c"}
+            ),
             ["<Tab>"] = cmp.mapping(
               function(fallback)
                 if cmp.visible() then
@@ -815,7 +839,7 @@ return {
                   fallback()
                 end
               end,
-              { "i", "s" }
+              {"i", "s"}
             ),
             ["<S-Tab>"] = cmp.mapping(
               function(fallback)
@@ -825,8 +849,8 @@ return {
                   fallback()
                 end
               end,
-              { "i", "s" }
-            ),
+              {"i", "s"}
+            )
           },
           sources = {
             -- {
@@ -834,10 +858,10 @@ return {
             --   group_index = 0,
             -- },
             -- { name = "copilot" },
-            { name = "nvim_lsp" },
-            { name = "path" },
-            { name = "buffer" }
-          },
+            {name = "nvim_lsp"},
+            {name = "path"},
+            {name = "buffer"}
+          }
 
           -- sorting = {
           --   priority_weight = 2,
@@ -858,7 +882,6 @@ return {
           --   },
           -- },
         }
-
       )
     end
   },
@@ -867,43 +890,50 @@ return {
     cmd = "Copilot",
     event = "InsertEnter",
     config = function()
-      require("copilot").setup({
-        panel = {
-          enabled = false
-        },
-        suggestion = {
-          enabled = true,
-          auto_trigger = false,
-          hide_during_completion = false,
-          debounce = 75,
-          keymap = {
-            accept_word = false,
-            accept_line = false,
-            next = "<C-j>",
-            prev = "<C-k>",
-            dismiss = "<Esc>",
+      require("copilot").setup(
+        {
+          panel = {
+            enabled = false
+          },
+          suggestion = {
+            enabled = true,
+            auto_trigger = false,
+            hide_during_completion = false,
+            debounce = 75,
+            keymap = {
+              accept_word = false,
+              accept_line = false,
+              next = "<C-j>",
+              prev = "<C-k>",
+              dismiss = "<Esc>"
+            }
           }
         }
-      })
+      )
 
-      vim.keymap.set('i', '<C-l>', function()
-        local copilot = require('copilot.suggestion')
-        if copilot.is_visible() then
-          copilot.accept()
-        else
-          copilot.next()
-        end
-      end, { desc = 'Trigger copilot suggestion' })
-    end,
+      vim.keymap.set(
+        "i",
+        "<C-l>",
+        function()
+          local copilot = require("copilot.suggestion")
+          if copilot.is_visible() then
+            copilot.accept()
+          else
+            copilot.next()
+          end
+        end,
+        {desc = "Trigger copilot suggestion"}
+      )
+    end
   },
   {
     "olimorris/codecompanion.nvim",
     dependencies = {
       "nvim-lua/plenary.nvim",
       "nvim-treesitter/nvim-treesitter",
-      "hrsh7th/nvim-cmp",                     -- Optional: For using slash commands and variables in the chat buffer
-      "nvim-telescope/telescope.nvim",        -- Optional: For using slash commands
-      { "stevearc/dressing.nvim", opts = {} } -- Optional: Improves the default Neovim UI
+      "hrsh7th/nvim-cmp", -- Optional: For using slash commands and variables in the chat buffer
+      "nvim-telescope/telescope.nvim", -- Optional: For using slash commands
+      {"stevearc/dressing.nvim", opts = {}} -- Optional: Improves the default Neovim UI
     },
     config = function()
       require("codecompanion").setup(
@@ -948,11 +978,11 @@ return {
         }
       )
 
-      vim.api.nvim_set_keymap("n", "<leader>ca", "<cmd>CodeCompanionActions<cr>", { noremap = true, silent = true })
-      vim.api.nvim_set_keymap("v", "<leader>ca", "<cmd>CodeCompanionActions<cr>", { noremap = true, silent = true })
-      vim.api.nvim_set_keymap("n", "<leader>cc", "<cmd>CodeCompanionChat Toggle<cr>", { noremap = true, silent = true })
-      vim.api.nvim_set_keymap("v", "<leader>cc", "<cmd>CodeCompanionChat Toggle<cr>", { noremap = true, silent = true })
-      vim.api.nvim_set_keymap("v", "<leader>cp", "<cmd>CodeCompanionChat Add<cr>", { noremap = true, silent = true })
+      vim.api.nvim_set_keymap("n", "<leader>ca", "<cmd>CodeCompanionActions<cr>", {noremap = true, silent = true})
+      vim.api.nvim_set_keymap("v", "<leader>ca", "<cmd>CodeCompanionActions<cr>", {noremap = true, silent = true})
+      vim.api.nvim_set_keymap("n", "<leader>cc", "<cmd>CodeCompanionChat Toggle<cr>", {noremap = true, silent = true})
+      vim.api.nvim_set_keymap("v", "<leader>cc", "<cmd>CodeCompanionChat Toggle<cr>", {noremap = true, silent = true})
+      vim.api.nvim_set_keymap("v", "<leader>cp", "<cmd>CodeCompanionChat Add<cr>", {noremap = true, silent = true})
 
       -- Expand 'cc' into 'CodeCompanion' in the command line
       vim.cmd([[cab cc CodeCompanion]])
@@ -962,7 +992,7 @@ return {
     "rcarriga/nvim-notify",
     config = function()
       vim.notify = require "notify"
-    end,
+    end
   },
   {
     "yetone/avante.nvim",
@@ -995,9 +1025,9 @@ return {
       {
         "MeanderingProgrammer/render-markdown.nvim",
         opts = {
-          file_types = { "markdown", "Avante" }
+          file_types = {"markdown", "Avante"}
         },
-        ft = { "markdown", "Avante" }
+        ft = {"markdown", "Avante"}
       }
     },
     version = false
@@ -1010,14 +1040,14 @@ return {
       -- custom function to leap in both directions
       local function leap_bidirectional()
         local current_window = vim.fn.win_getid()
-        leap.leap { target_windows = { current_window } }
+        leap.leap {target_windows = {current_window}}
       end
 
       -- set up the keybinding
-      vim.keymap.set({ "n", "x", "o" }, "s", leap_bidirectional, { silent = true, desc = "leap forward or backward" })
+      vim.keymap.set({"n", "x", "o"}, "s", leap_bidirectional, {silent = true, desc = "leap forward or backward"})
     end
   },
-  { "mfussenegger/nvim-jdtls" },
+  {"mfussenegger/nvim-jdtls"},
   {
     "nvim-treesitter/nvim-treesitter",
     lazy = false,
@@ -1025,20 +1055,27 @@ return {
     config = function()
       require("nvim-treesitter").setup {
         "core",
-        "stable",
+        "stable"
       }
 
-      require("nvim-treesitter.configs").setup({
-        ensure_installed = { "teal" },
-        highlight = {
-          enable = true,
-          additional_vim_regex_highlighting = false,
-        },
-      })
+      require("nvim-treesitter.configs").setup(
+        {
+          ensure_installed = {"teal"},
+          highlight = {
+            enable = true,
+            additional_vim_regex_highlighting = false
+          }
+        }
+      )
     end
   },
   {
-    "nvim-treesitter/nvim-treesitter-context"
+    "nvim-treesitter/nvim-treesitter-context",
+    config = function()
+      require("treesitter-context").setup {
+        enable = true
+      }
+    end
   },
   {
     "hashivim/vim-terraform"
@@ -1082,15 +1119,7 @@ return {
               ["[C"] = "@class.outer"
             }
           },
-          swap = {
-            -- enable = true,
-            -- swap_next = {
-            --   ["<leader>a"] = "@parameter.inner"
-            -- },
-            -- swap_previous = {
-            --   ["<leader>a"] = "@parameter.inner"
-            -- }
-          }
+          swap = {}
         },
         incremental_selection = {
           enable = true,

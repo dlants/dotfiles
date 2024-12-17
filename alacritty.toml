@@ -26,4 +26,4 @@ history = 10000
 option_as_alt = "Both"
 
 [general]
-import = ["~/.config/alacritty/themes/themes/ayu_dark.toml"]
+import = ["~/.config/alacritty/themes/themes/github_dark_colorblind.toml"]
