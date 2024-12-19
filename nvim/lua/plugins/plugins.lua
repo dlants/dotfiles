@@ -28,152 +28,160 @@ return {
   },
   {"christoomey/vim-tmux-navigator"},
   {"ntpeters/vim-better-whitespace"},
-  -- { "junegunn/fzf",                  build = "./install --bin" },
-  -- {
-  --   "ibhagwan/fzf-lua",
-  --   dependencies = { "nvim-tree/nvim-web-devicons" },
-  --   opts = {
-  --     winopts = {
-  --       height = 0.5,
-  --       width = 1.0,
-  --       row = 0,
-  --       border = "none"
-  --     }
-  --   },
-  --   keys = {
-  --     {
-  --       "<leader>f",
-  --       function()
-  --         require("fzf-lua").git_files()
-  --       end,
-  --       desc = "FZF Git Files",
-  --       silent = true
-  --     },
-  --     {
-  --       "<leader>F",
-  --       function()
-  --         require("fzf-lua").files()
-  --       end,
-  --       desc = "FZF Git Files",
-  --       silent = true
-  --     }
-  --     -- {
-  --     --   "<leader>fH",
-  --     --   function()
-  --     --     require("fzf-lua").helptags_grep()
-  --     --   end,
-  --     --   desc = "FZF grep help",
-  --     --   silent = true
-  --     -- }
-  --   }
-  --   -- opts = {
-  --   --   winopts = {
-  --   --     preview = {default = "bat"}
-  --   --   }
-  --   -- }
-  -- },
+  {"junegunn/fzf", build = "./install --bin"},
   {
-    "nvim-telescope/telescope.nvim",
-    tag = "0.1.5",
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-      "nvim-tree/nvim-web-devicons",
-      {"nvim-telescope/telescope-fzf-native.nvim", build = "make"}
+    "ibhagwan/fzf-lua",
+    dependencies = {"nvim-tree/nvim-web-devicons"},
+    opts = {
+      winopts = {
+        height = 0.5,
+        width = 1.0,
+        row = 0,
+        border = "none"
+      }
     },
     keys = {
       {
         "<leader>f",
         function()
-          require("telescope.builtin").git_files({show_untracked = true})
+          require("fzf-lua").git_files()
         end,
-        desc = "Find Git Files"
+        desc = "FZF Git Files",
+        silent = true
       },
       {
         "<leader>F",
         function()
-          require("telescope.builtin").find_files({hidden = true})
+          require("fzf-lua").files()
         end,
-        desc = "Find Files"
-      },
-      {
-        "<leader>/",
-        function()
-          require("telescope.builtin").live_grep()
-        end,
-        desc = "Live Grep"
-      },
-      {
-        "<leader>b",
-        function()
-          require("telescope.builtin").buffers()
-        end,
-        desc = "Find Buffers"
+        desc = "FZF Git Files",
+        silent = true
       },
       {
         "<leader>h",
         function()
-          require("telescope.builtin").help_tags()
+          require("fzf-lua").helptags()
         end,
-        desc = "Help Tags"
+        desc = "FZF grep help",
+        silent = true
+      },
+      {
+        "<leader>/",
+        function()
+          require("fzf-lua").live_grep()
+        end,
+        desc = "FZF live grep",
+        silent = true
       }
-    },
-    config = function()
-      local telescope = require("telescope")
-      local actions = require("telescope.actions")
-
-      telescope.setup(
-        {
-          defaults = {
-            path_display = {"truncate"},
-            -- sorting_strategy = "ascending",
-            -- layout_config = {
-            --   horizontal = {
-            --     prompt_position = "top"
-            --   }
-            -- },
-            mappings = {
-              i = {
-                ["<C-h>"] = "which_key",
-                ["<C-u>"] = false,
-                ["<C-d>"] = false,
-                ["<C-j>"] = actions.move_selection_next,
-                ["<C-k>"] = actions.move_selection_previous,
-                ["<C-q>"] = actions.smart_send_to_qflist + actions.open_qflist,
-                ["<esc>"] = actions.close,
-                ["<CR>"] = actions.select_default + actions.center
-              }
-            },
-            vimgrep_arguments = {
-              "rg",
-              "--color=never",
-              "--no-heading",
-              "--with-filename",
-              "--line-number",
-              "--column",
-              "--smart-case"
-            }
-          },
-          extensions = {
-            fzf = {
-              fuzzy = true,
-              override_generic_sorter = true,
-              override_file_sorter = true,
-              case_mode = "smart_case"
-            }
-          },
-          pickers = {
-            lsp_code_actions = {
-              theme = "dropdown"
-            },
-            find_files = {
-              find_command = {"rg", "--files", "--hidden", "--glob", "!**/.git/*"}
-            }
-          }
-        }
-      )
-      telescope.load_extension("fzf")
-    end
+    }
+    -- opts = {
+    --   winopts = {
+    --     preview = {default = "bat"}
+    --   }
+    -- }
   },
+  -- {
+  --   "nvim-telescope/telescope.nvim",
+  --   tag = "0.1.5",
+  --   dependencies = {
+  --     "nvim-lua/plenary.nvim",
+  --     "nvim-tree/nvim-web-devicons",
+  --     {"nvim-telescope/telescope-fzf-native.nvim", build = "make"}
+  --   },
+  --   keys = {
+  --     {
+  --       "<leader>f",
+  --       function()
+  --         require("telescope.builtin").git_files({show_untracked = true})
+  --       end,
+  --       desc = "Find Git Files"
+  --     },
+  --     {
+  --       "<leader>F",
+  --       function()
+  --         require("telescope.builtin").find_files({hidden = true})
+  --       end,
+  --       desc = "Find Files"
+  --     },
+  --     {
+  --       "<leader>/",
+  --       function()
+  --         require("telescope.builtin").live_grep()
+  --       end,
+  --       desc = "Live Grep"
+  --     },
+  --     {
+  --       "<leader>b",
+  --       function()
+  --         require("telescope.builtin").buffers()
+  --       end,
+  --       desc = "Find Buffers"
+  --     },
+  --     {
+  --       "<leader>h",
+  --       function()
+  --         require("telescope.builtin").help_tags()
+  --       end,
+  --       desc = "Help Tags"
+  --     }
+  --   },
+  --   config = function()
+  --     local telescope = require("telescope")
+  --     local actions = require("telescope.actions")
+  --
+  --     telescope.setup(
+  --       {
+  --         defaults = {
+  --           path_display = {"truncate"},
+  --           -- sorting_strategy = "ascending",
+  --           -- layout_config = {
+  --           --   horizontal = {
+  --           --     prompt_position = "top"
+  --           --   }
+  --           -- },
+  --           mappings = {
+  --             i = {
+  --               ["<C-h>"] = "which_key",
+  --               ["<C-u>"] = false,
+  --               ["<C-d>"] = false,
+  --               ["<C-j>"] = actions.move_selection_next,
+  --               ["<C-k>"] = actions.move_selection_previous,
+  --               ["<C-q>"] = actions.smart_send_to_qflist + actions.open_qflist,
+  --               ["<esc>"] = actions.close,
+  --               ["<CR>"] = actions.select_default + actions.center
+  --             }
+  --           },
+  --           vimgrep_arguments = {
+  --             "rg",
+  --             "--color=never",
+  --             "--no-heading",
+  --             "--with-filename",
+  --             "--line-number",
+  --             "--column",
+  --             "--smart-case"
+  --           }
+  --         },
+  --         extensions = {
+  --           fzf = {
+  --             fuzzy = true,
+  --             override_generic_sorter = true,
+  --             override_file_sorter = true,
+  --             case_mode = "smart_case"
+  --           }
+  --         },
+  --         pickers = {
+  --           lsp_code_actions = {
+  --             theme = "dropdown"
+  --           },
+  --           find_files = {
+  --             find_command = {"rg", "--files", "--hidden", "--glob", "!**/.git/*"}
+  --           }
+  --         }
+  --       }
+  --     )
+  --     telescope.load_extension("fzf")
+  --   end
+  -- },
   -- grep
   {
     "mhinz/vim-grepper",
@@ -224,7 +232,7 @@ return {
       require "lualine".setup {
         options = {
           icons_enabled = true,
-          theme = "github_dark_colorblind",
+          theme = "gruvbox",
           component_separators = {"", ""},
           section_separators = {"", ""},
           disabled_filetypes = {}
@@ -371,14 +379,33 @@ return {
     end
   },
   {
+    "ellisonleao/gruvbox.nvim",
+    config = function()
+      require("gruvbox").setup(
+        {
+          contrast = "hard"
+        }
+      )
+      vim.cmd("colorscheme gruvbox")
+    end
+  },
+  {
     "projekt0n/github-nvim-theme",
     name = "github-theme",
     lazy = false, -- make sure we load this during startup if it is your main colorscheme
     priority = 1000, -- make sure to load this before all the other start plugins
     config = function()
-      require("github-theme").setup({})
-
-      vim.cmd("colorscheme github_dark_colorblind")
+      --require("github-theme").setup({})
+      --vim.cmd("colorscheme github_dark_colorblind")
+    end
+  },
+  {
+    "craftzdog/solarized-osaka.nvim",
+    lazy = false,
+    priority = 1000,
+    opts = {},
+    config = function()
+      --vim.cmd("colorscheme solarized-osaka")
     end
   },
   -- {
@@ -395,11 +422,11 @@ return {
   {"marko-cerovac/material.nvim", lazy = true},
   {"ray-x/aurora", lazy = true},
   {"mhartington/oceanic-next", lazy = true},
-  -- neovim lsp
   {
     "neovim/nvim-lspconfig",
     dependencies = {
-      "hrsh7th/cmp-nvim-lsp"
+      -- "hrsh7th/cmp-nvim-lsp"
+      "saghen/blink.cmp"
     },
     config = function()
       local lspkind = require "lspconfig"
@@ -416,8 +443,9 @@ return {
       )
 
       -- Setup capabilities properly
-      local capabilities = require("cmp_nvim_lsp").default_capabilities(vim.lsp.protocol.make_client_capabilities())
-      capabilities.textDocument.completion.completionItem.snippetSupport = true
+      -- local capabilities = require("cmp_nvim_lsp").default_capabilities(vim.lsp.protocol.make_client_capabilities())
+      -- capabilities.textDocument.completion.completionItem.snippetSupport = true
+      local capabilities = require("blink.cmp").get_lsp_capabilities()
 
       -- on_attach only maps when the language server attaches to the current buffer
       local on_attach = function(client, bufnr)
@@ -452,29 +480,6 @@ return {
           end
         )
 
-        -- Formatting
-        -- buf_set_keymap(
-        --   "n",
-        --   "<leader>`",
-        --   function()
-        --     vim.lsp.buf.format({ async = true })
-        --   end
-        -- )
-        --
-        -- Auto format on save if the LSP supports it
-        -- if client.server_capabilities.documentFormattingProvider then
-        --   vim.api.nvim_create_autocmd(
-        --     "BufWritePre",
-        --     {
-        --       group = vim.api.nvim_create_augroup("Format" .. bufnr, { clear = true }),
-        --       buffer = bufnr,
-        --       callback = function()
-        --         vim.lsp.buf.format()
-        --       end
-        --     }
-        --   )
-        -- end
-
         require "lsp_signature".on_attach {
           bind = true,
           hint_prefix = "",
@@ -508,7 +513,6 @@ return {
         lspkind[server].setup(default_config)
       end
 
-      -- TypeScript specific configuration
       lspkind.ts_ls.setup(
         vim.tbl_extend(
           "force",
@@ -770,120 +774,164 @@ return {
     end
   },
   {"onsails/lspkind.nvim"},
+  -- {
+  --   "hrsh7th/nvim-cmp",
+  --   dependencies = {
+  --     "hrsh7th/cmp-nvim-lsp",
+  --     "hrsh7th/cmp-buffer",
+  --     "hrsh7th/cmp-path",
+  --     "saadparwaiz1/cmp_luasnip",
+  --     "L3MON4D3/LuaSnip"
+  --     -- "zbirenbaum/copilot.lua",
+  --     -- "zbirenbaum/copilot-cmp",
+  --   },
+  --   config = function()
+  --     local cmp = require "cmp"
+  --
+  --     -- require("copilot").setup {
+  --     --   suggestion = { enabled = false },
+  --     --   panel = { enabled = false },
+  --     -- }
+  --     --
+  --     -- require("copilot_cmp").setup()
+  --
+  --     -- local has_words_before = function()
+  --     --   if vim.api.nvim_buf_get_option(0, "buftype") == "prompt" then
+  --     --     return false
+  --     --   end
+  --     --   local line, col = unpack(vim.api.nvim_win_get_cursor(0))
+  --     --   return col ~= 0 and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
+  --     -- end
+  --     vim.opt.completeopt = {"menu", "menuone", "noselect"}
+  --
+  --     local lspkind = require("lspkind")
+  --     lspkind.init {
+  --       symbol_map = {}
+  --     }
+  --
+  --     -- vim.api.nvim_set_hl(0, "CmpItemKindCopilot", { fg = "#6CC644" })
+  --
+  --     local kind_formatter =
+  --       lspkind.cmp_format {
+  --       mode = "symbol_text",
+  --       menu = {
+  --         buffer = "[buf]",
+  --         nvim_lsp = "[LSP]",
+  --         nvim_lua = "[api]",
+  --         path = "[path]",
+  --         gh_issues = "[issues]"
+  --       }
+  --     }
+  --
+  --     cmp.setup(
+  --       {
+  --         formatting = {
+  --           fields = {"abbr", "kind", "menu"},
+  --           expandable_indicator = true,
+  --           format = kind_formatter
+  --         },
+  --         mapping = {
+  --           ["<CR>"] = cmp.mapping(
+  --             cmp.mapping.confirm({select = true, behaviour = cmp.SelectBehavior.Insert}),
+  --             {"i", "c"}
+  --           ),
+  --           ["<Tab>"] = cmp.mapping(
+  --             function(fallback)
+  --               if cmp.visible() then
+  --                 cmp.select_next_item()
+  --               else
+  --                 fallback()
+  --               end
+  --             end,
+  --             {"i", "s"}
+  --           ),
+  --           ["<S-Tab>"] = cmp.mapping(
+  --             function(fallback)
+  --               if cmp.visible() then
+  --                 cmp.select_prev_item()
+  --               else
+  --                 fallback()
+  --               end
+  --             end,
+  --             {"i", "s"}
+  --           )
+  --         },
+  --         sources = {
+  --           -- {
+  --           --   name = "lazydev",
+  --           --   group_index = 0,
+  --           -- },
+  --           -- { name = "copilot" },
+  --           {name = "nvim_lsp"},
+  --           {name = "path"},
+  --           {name = "buffer"}
+  --         }
+  --
+  --         -- sorting = {
+  --         --   priority_weight = 2,
+  --         --   comparators = {
+  --         --     -- require("copilot_cmp.comparators").prioritize,
+  --         --
+  --         --     -- Below is the default comparitor list and order for nvim-cmp
+  --         --     cmp.config.compare.offset,
+  --         --     -- cmp.config.compare.scopes, --this is commented in nvim-cmp too
+  --         --     cmp.config.compare.exact,
+  --         --     cmp.config.compare.score,
+  --         --     cmp.config.compare.recently_used,
+  --         --     cmp.config.compare.locality,
+  --         --     cmp.config.compare.kind,
+  --         --     cmp.config.compare.sort_text,
+  --         --     cmp.config.compare.length,
+  --         --     cmp.config.compare.order,
+  --         --   },
+  --         -- },
+  --       }
+  --     )
+  --   end
+  -- },
   {
-    "hrsh7th/nvim-cmp",
-    dependencies = {
-      "hrsh7th/cmp-nvim-lsp",
-      "hrsh7th/cmp-buffer",
-      "hrsh7th/cmp-path",
-      "saadparwaiz1/cmp_luasnip",
-      "L3MON4D3/LuaSnip"
-      -- "zbirenbaum/copilot.lua",
-      -- "zbirenbaum/copilot-cmp",
+    "saghen/blink.cmp",
+    -- optional: provides snippets for the snippet source
+    dependencies = "rafamadriz/friendly-snippets",
+    -- use a release tag to download pre-built binaries
+    version = "v0.*",
+    -- AND/OR build from source, requires nightly: https://rust-lang.github.io/rustup/concepts/channels.html#working-with-nightly-rust
+    -- build = 'cargo build --release',
+    -- If you use nix, you can build from source using latest nightly rust with:
+    -- build = 'nix run .#build-plugin',
+
+    ---@module 'blink.cmp'
+    ---@type blink.cmp.Config
+    opts = {
+      -- 'default' for mappings similar to built-in completion
+      -- 'super-tab' for mappings similar to vscode (tab to accept, arrow keys to navigate)
+      -- 'enter' for mappings similar to 'super-tab' but with 'enter' to accept
+      -- see the "default configuration" section below for full documentation on how to define
+      -- your own keymap.
+      keymap = {preset = "default"},
+      appearance = {
+        -- Sets the fallback highlight groups to nvim-cmp's highlight groups
+        -- Useful for when your theme doesn't support blink.cmp
+        -- will be removed in a future release
+        use_nvim_cmp_as_default = true,
+        -- Set to 'mono' for 'Nerd Font Mono' or 'normal' for 'Nerd Font'
+        -- Adjusts spacing to ensure icons are aligned
+        nerd_font_variant = "mono"
+      },
+      -- default list of enabled providers defined so that you can extend it
+      -- elsewhere in your config, without redefining it, via `opts_extend`
+      sources = {
+        default = {"lsp", "path", "snippets", "buffer"}
+        -- optionally disable cmdline completions
+        -- cmdline = {},
+      }
+
+      -- experimental signature help support
+      -- signature = { enabled = true }
     },
-    config = function()
-      local cmp = require "cmp"
-
-      -- require("copilot").setup {
-      --   suggestion = { enabled = false },
-      --   panel = { enabled = false },
-      -- }
-      --
-      -- require("copilot_cmp").setup()
-
-      -- local has_words_before = function()
-      --   if vim.api.nvim_buf_get_option(0, "buftype") == "prompt" then
-      --     return false
-      --   end
-      --   local line, col = unpack(vim.api.nvim_win_get_cursor(0))
-      --   return col ~= 0 and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
-      -- end
-      vim.opt.completeopt = {"menu", "menuone", "noselect"}
-
-      local lspkind = require("lspkind")
-      lspkind.init {
-        symbol_map = {}
-      }
-
-      -- vim.api.nvim_set_hl(0, "CmpItemKindCopilot", { fg = "#6CC644" })
-
-      local kind_formatter =
-        lspkind.cmp_format {
-        mode = "symbol_text",
-        menu = {
-          buffer = "[buf]",
-          nvim_lsp = "[LSP]",
-          nvim_lua = "[api]",
-          path = "[path]",
-          gh_issues = "[issues]"
-        }
-      }
-
-      cmp.setup(
-        {
-          formatting = {
-            fields = {"abbr", "kind", "menu"},
-            expandable_indicator = true,
-            format = kind_formatter
-          },
-          mapping = {
-            ["<CR>"] = cmp.mapping(
-              cmp.mapping.confirm({select = true, behaviour = cmp.SelectBehavior.Insert}),
-              {"i", "c"}
-            ),
-            ["<Tab>"] = cmp.mapping(
-              function(fallback)
-                if cmp.visible() then
-                  cmp.select_next_item()
-                else
-                  fallback()
-                end
-              end,
-              {"i", "s"}
-            ),
-            ["<S-Tab>"] = cmp.mapping(
-              function(fallback)
-                if cmp.visible() then
-                  cmp.select_prev_item()
-                else
-                  fallback()
-                end
-              end,
-              {"i", "s"}
-            )
-          },
-          sources = {
-            -- {
-            --   name = "lazydev",
-            --   group_index = 0,
-            -- },
-            -- { name = "copilot" },
-            {name = "nvim_lsp"},
-            {name = "path"},
-            {name = "buffer"}
-          }
-
-          -- sorting = {
-          --   priority_weight = 2,
-          --   comparators = {
-          --     -- require("copilot_cmp.comparators").prioritize,
-          --
-          --     -- Below is the default comparitor list and order for nvim-cmp
-          --     cmp.config.compare.offset,
-          --     -- cmp.config.compare.scopes, --this is commented in nvim-cmp too
-          --     cmp.config.compare.exact,
-          --     cmp.config.compare.score,
-          --     cmp.config.compare.recently_used,
-          --     cmp.config.compare.locality,
-          --     cmp.config.compare.kind,
-          --     cmp.config.compare.sort_text,
-          --     cmp.config.compare.length,
-          --     cmp.config.compare.order,
-          --   },
-          -- },
-        }
-      )
-    end
+    -- allows extending the providers array elsewhere in your config
+    -- without having to redefine it
+    opts_extend = {"sources.default"}
   },
   {
     "zbirenbaum/copilot.lua",
