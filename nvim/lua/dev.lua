@@ -27,3 +27,17 @@ function DebugExtmarks(namespace)
         })
     end
 end
+
+-- function asdf()
+--   vim.api.nvim_buf_set_lines(0, 0, -1, false, {"⚙️hello", "⚙️hello", "⚙️hello"})
+--   vim.api.nvim_buf_set_text(0, 0, 0, 0, 1, {"✅"})
+--   vim.api.nvim_buf_set_text(0, 1, 0, 1, 2, {"✅"})
+--   vim.api.nvim_buf_set_text(0, 2, 0, 2, 3, {"✅"})
+--   local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false )
+--   print(vim.inspect(lines))
+-- end
+--
+
+function GetLineWidth()
+  return #(vim.api.nvim_buf_get_lines(0, 2, 3, false)[1])
+end

@@ -44,7 +44,7 @@ return {
       {
         "<leader>f",
         function()
-          require("fzf-lua").git_files()
+          require("fzf-lua").git_files({show_untracked = true})
         end,
         desc = "FZF Git Files",
         silent = true
@@ -424,10 +424,46 @@ return {
   {"mhartington/oceanic-next", lazy = true},
   {
     "neovim/nvim-lspconfig",
+    lazy = false,
     dependencies = {
       -- "hrsh7th/cmp-nvim-lsp"
-      "saghen/blink.cmp"
+      -- "saghen/blink.cmp"
+      -- main one
+      {"ms-jpq/coq_nvim", branch = "coq"},
+      -- 9000+ Snippets
+      {"ms-jpq/coq.artifacts", branch = "artifacts"},
+      -- lua & third party sources -- See https://github.com/ms-jpq/coq.thirdparty
+      -- Need to **configure separately**
+      {"ms-jpq/coq.thirdparty", branch = "3p"}
+      -- - shell repl
+      -- - nvim lua api
+      -- - scientific calculator
+      -- - comment banner
+      -- - etc
     },
+    init = function()
+      vim.g.coq_settings = {
+        auto_start = true,
+        keymap = {
+          recommended = false
+        }
+      }
+
+
+      vim.api.nvim_set_keymap("i", "<Esc>", [[pumvisible() ? "\<C-e><Esc>" : "\<Esc>"]], {expr = true, silent = true})
+      vim.api.nvim_set_keymap("i", "<C-c>", [[pumvisible() ? "\<C-e><C-c>" : "\<C-c>"]], {expr = true, silent = true})
+      vim.api.nvim_set_keymap("i", "<BS>", [[pumvisible() ? "\<C-e><BS>" : "\<BS>"]], {expr = true, silent = true})
+      vim.api.nvim_set_keymap(
+        "i",
+        "<CR>",
+        [[pumvisible() ? (complete_info().selected == -1 ? "\<C-e><CR>" : "\<C-y>") : "\<CR>"]],
+        {expr = true, silent = true}
+      )
+      vim.api.nvim_set_keymap("i", "<Tab>", [[pumvisible() ? "\<C-n>" : "\<Tab>"]], {expr = true, silent = true})
+      vim.api.nvim_set_keymap("i", "<C-j>", [[pumvisible() ? "\<C-n>" : "\<C-j>"]], {expr = true, silent = true})
+      vim.api.nvim_set_keymap("i", "<S-Tab>", [[pumvisible() ? "\<C-p>" : "\<BS>"]], {expr = true, silent = true})
+      vim.api.nvim_set_keymap("i", "<C-k>", [[pumvisible() ? "\<C-p>" : "\<C-k>"]], {expr = true, silent = true})
+    end,
     config = function()
       local lspkind = require "lspconfig"
 
@@ -445,7 +481,7 @@ return {
       -- Setup capabilities properly
       -- local capabilities = require("cmp_nvim_lsp").default_capabilities(vim.lsp.protocol.make_client_capabilities())
       -- capabilities.textDocument.completion.completionItem.snippetSupport = true
-      local capabilities = require("blink.cmp").get_lsp_capabilities()
+      -- local capabilities = require("blink.cmp").get_lsp_capabilities()
 
       -- on_attach only maps when the language server attaches to the current buffer
       local on_attach = function(client, bufnr)
@@ -854,6 +890,26 @@ return {
   --               end
   --             end,
   --             {"i", "s"}
+  --           ),
+  --           ["<C-j>"] = cmp.mapping(
+  --             function(fallback)
+  --               if cmp.visible() then
+  --                 cmp.select_next_item()
+  --               else
+  --                 fallback()
+  --               end
+  --             end,
+  --             {"i", "s"}
+  --           ),
+  --           ["<C-k>"] = cmp.mapping(
+  --             function(fallback)
+  --               if cmp.visible() then
+  --                 cmp.select_prev_item()
+  --               else
+  --                 fallback()
+  --               end
+  --             end,
+  --             {"i", "s"}
   --           )
   --         },
   --         sources = {
@@ -889,50 +945,64 @@ return {
   --     )
   --   end
   -- },
-  {
-    "saghen/blink.cmp",
-    -- optional: provides snippets for the snippet source
-    dependencies = "rafamadriz/friendly-snippets",
-    -- use a release tag to download pre-built binaries
-    version = "v0.*",
-    -- AND/OR build from source, requires nightly: https://rust-lang.github.io/rustup/concepts/channels.html#working-with-nightly-rust
-    -- build = 'cargo build --release',
-    -- If you use nix, you can build from source using latest nightly rust with:
-    -- build = 'nix run .#build-plugin',
-
-    ---@module 'blink.cmp'
-    ---@type blink.cmp.Config
-    opts = {
-      -- 'default' for mappings similar to built-in completion
-      -- 'super-tab' for mappings similar to vscode (tab to accept, arrow keys to navigate)
-      -- 'enter' for mappings similar to 'super-tab' but with 'enter' to accept
-      -- see the "default configuration" section below for full documentation on how to define
-      -- your own keymap.
-      keymap = {preset = "default"},
-      appearance = {
-        -- Sets the fallback highlight groups to nvim-cmp's highlight groups
-        -- Useful for when your theme doesn't support blink.cmp
-        -- will be removed in a future release
-        use_nvim_cmp_as_default = true,
-        -- Set to 'mono' for 'Nerd Font Mono' or 'normal' for 'Nerd Font'
-        -- Adjusts spacing to ensure icons are aligned
-        nerd_font_variant = "mono"
-      },
-      -- default list of enabled providers defined so that you can extend it
-      -- elsewhere in your config, without redefining it, via `opts_extend`
-      sources = {
-        default = {"lsp", "path", "snippets", "buffer"}
-        -- optionally disable cmdline completions
-        -- cmdline = {},
-      }
-
-      -- experimental signature help support
-      -- signature = { enabled = true }
-    },
-    -- allows extending the providers array elsewhere in your config
-    -- without having to redefine it
-    opts_extend = {"sources.default"}
-  },
+  -- {
+  --   "saghen/blink.cmp",
+  --   -- optional: provides snippets for the snippet source
+  --   dependencies = "rafamadriz/friendly-snippets",
+  --   -- use a release tag to download pre-built binaries
+  --   version = "v0.*",
+  --   -- AND/OR build from source, requires nightly: https://rust-lang.github.io/rustup/concepts/channels.html#working-with-nightly-rust
+  --   -- build = 'cargo build --release',
+  --   -- If you use nix, you can build from source using latest nightly rust with:
+  --   -- build = 'nix run .#build-plugin',
+  --
+  --   ---@module 'blink.cmp'
+  --   ---@type blink.cmp.Config
+  --   opts = {
+  --     keymap = {
+  --       ["<C-space>"] = {"show", "show_documentation", "hide_documentation"},
+  --       ["<C-e>"] = {"hide", "fallback"},
+  --       ["<Tab>"] = {
+  --         function(cmp)
+  --           if cmp.snippet_active() then
+  --             return cmp.accept()
+  --           else
+  --             return cmp.select_and_accept()
+  --           end
+  --         end,
+  --         "snippet_forward",
+  --         "fallback"
+  --       },
+  --       ["<S-Tab>"] = {"snippet_backward", "fallback"},
+  --       ["<C-k>"] = {"select_prev", "fallback"},
+  --       ["<C-j>"] = {"select_next", "fallback"},
+  --       ["<C-b>"] = {"scroll_documentation_up", "fallback"},
+  --       ["<C-f>"] = {"scroll_documentation_down", "fallback"}
+  --     },
+  --     appearance = {
+  --       -- Sets the fallback highlight groups to nvim-cmp's highlight groups
+  --       -- Useful for when your theme doesn't support blink.cmp
+  --       -- will be removed in a future release
+  --       use_nvim_cmp_as_default = true,
+  --       -- Set to 'mono' for 'Nerd Font Mono' or 'normal' for 'Nerd Font'
+  --       -- Adjusts spacing to ensure icons are aligned
+  --       nerd_font_variant = "mono"
+  --     },
+  --     -- default list of enabled providers defined so that you can extend it
+  --     -- elsewhere in your config, without redefining it, via `opts_extend`
+  --     sources = {
+  --       default = {"lsp", "path", "snippets", "buffer"}
+  --       -- optionally disable cmdline completions
+  --       -- cmdline = {},
+  --     }
+  --
+  --     -- experimental signature help support
+  --     -- signature = { enabled = true }
+  --   },
+  --   -- allows extending the providers array elsewhere in your config
+  --   -- without having to redefine it
+  --   opts_extend = {"sources.default"}
+  -- },
   {
     "zbirenbaum/copilot.lua",
     cmd = "Copilot",
@@ -951,8 +1021,8 @@ return {
             keymap = {
               accept_word = false,
               accept_line = false,
-              next = "<C-j>",
-              prev = "<C-k>",
+              -- next = "<C-j>",
+              -- prev = "<C-k>",
               dismiss = "<Esc>"
             }
           }
@@ -972,114 +1042,144 @@ return {
         end,
         {desc = "Trigger copilot suggestion"}
       )
+
+      -- vim.keymap.set(
+      --   "i",
+      --   "<C-j>",
+      --   function()
+      --     if vim.fn.pumvisible() == 1 then
+      --       return
+      --     end
+      --
+      --     local copilot = require("copilot.suggestion")
+      --     copilot.next()
+      --   end,
+      --   {desc = "Trigger copilot suggestion"}
+      -- )
+      --
+      -- vim.keymap.set(
+      --   "i",
+      --   "<C-k>",
+      --   function()
+      --     if vim.fn.pumvisible() == 1 then
+      --       return
+      --     end
+      --
+      --     local copilot = require("copilot.suggestion")
+      --     copilot.prev()
+      --   end,
+      --   {desc = "Trigger copilot suggestion"}
+      -- )
+      --
+
     end
   },
-  {
-    "olimorris/codecompanion.nvim",
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-      "nvim-treesitter/nvim-treesitter",
-      "hrsh7th/nvim-cmp", -- Optional: For using slash commands and variables in the chat buffer
-      "nvim-telescope/telescope.nvim", -- Optional: For using slash commands
-      {"stevearc/dressing.nvim", opts = {}} -- Optional: Improves the default Neovim UI
-    },
-    config = function()
-      require("codecompanion").setup(
-        {
-          opts = {
-            system_prompt = function()
-              return llm_default_prompt
-            end
-          },
-          strategies = {
-            chat = {
-              adapter = "anthropic"
-            },
-            inline = {
-              adapter = "anthropic"
-            },
-            agent = {
-              adapter = "anthropic"
-            }
-          },
-          display = {
-            chat = {}
-          },
-          prompt_library = {
-            ["dcgview"] = {
-              strategy = "chat",
-              description = "Teach the LLM about DCGView",
-              opts = {
-                slash_cmd = "dcgview"
-              },
-              prompts = {
-                {
-                  role = "user",
-                  content = function()
-                    return read_file_to_string("/Users/denislantsman/dcgview_prompt")
-                  end
-                }
-              },
-              contains_code = true
-            }
-          }
-        }
-      )
-
-      vim.api.nvim_set_keymap("n", "<leader>ca", "<cmd>CodeCompanionActions<cr>", {noremap = true, silent = true})
-      vim.api.nvim_set_keymap("v", "<leader>ca", "<cmd>CodeCompanionActions<cr>", {noremap = true, silent = true})
-      vim.api.nvim_set_keymap("n", "<leader>cc", "<cmd>CodeCompanionChat Toggle<cr>", {noremap = true, silent = true})
-      vim.api.nvim_set_keymap("v", "<leader>cc", "<cmd>CodeCompanionChat Toggle<cr>", {noremap = true, silent = true})
-      vim.api.nvim_set_keymap("v", "<leader>cp", "<cmd>CodeCompanionChat Add<cr>", {noremap = true, silent = true})
-
-      -- Expand 'cc' into 'CodeCompanion' in the command line
-      vim.cmd([[cab cc CodeCompanion]])
-    end
-  },
+  -- {
+  --   "olimorris/codecompanion.nvim",
+  --   dependencies = {
+  --     "nvim-lua/plenary.nvim",
+  --     "nvim-treesitter/nvim-treesitter",
+  --     "hrsh7th/nvim-cmp", -- Optional: For using slash commands and variables in the chat buffer
+  --     --"nvim-telescope/telescope.nvim", -- Optional: For using slash commands
+  --     {"stevearc/dressing.nvim", opts = {}} -- Optional: Improves the default Neovim UI
+  --   },
+  --   config = function()
+  --     require("codecompanion").setup(
+  --       {
+  --         opts = {
+  --           system_prompt = function()
+  --             return llm_default_prompt
+  --           end
+  --         },
+  --         strategies = {
+  --           chat = {
+  --             adapter = "anthropic"
+  --           },
+  --           inline = {
+  --             adapter = "anthropic"
+  --           },
+  --           agent = {
+  --             adapter = "anthropic"
+  --           }
+  --         },
+  --         display = {
+  --           chat = {}
+  --         },
+  --         prompt_library = {
+  --           ["dcgview"] = {
+  --             strategy = "chat",
+  --             description = "Teach the LLM about DCGView",
+  --             opts = {
+  --               slash_cmd = "dcgview"
+  --             },
+  --             prompts = {
+  --               {
+  --                 role = "user",
+  --                 content = function()
+  --                   return read_file_to_string("/Users/denislantsman/dcgview_prompt")
+  --                 end
+  --               }
+  --             },
+  --             contains_code = true
+  --           }
+  --         }
+  --       }
+  --     )
+  --
+  --     vim.api.nvim_set_keymap("n", "<leader>ca", "<cmd>CodeCompanionActions<cr>", {noremap = true, silent = true})
+  --     vim.api.nvim_set_keymap("v", "<leader>ca", "<cmd>CodeCompanionActions<cr>", {noremap = true, silent = true})
+  --     vim.api.nvim_set_keymap("n", "<leader>cc", "<cmd>CodeCompanionChat Toggle<cr>", {noremap = true, silent = true})
+  --     vim.api.nvim_set_keymap("v", "<leader>cc", "<cmd>CodeCompanionChat Toggle<cr>", {noremap = true, silent = true})
+  --     vim.api.nvim_set_keymap("v", "<leader>cp", "<cmd>CodeCompanionChat Add<cr>", {noremap = true, silent = true})
+  --
+  --     -- Expand 'cc' into 'CodeCompanion' in the command line
+  --     vim.cmd([[cab cc CodeCompanion]])
+  --   end
+  -- },
   {
     "rcarriga/nvim-notify",
     config = function()
       vim.notify = require "notify"
     end
   },
-  {
-    "yetone/avante.nvim",
-    event = "VeryLazy",
-    lazy = false,
-    opts = {
-      provider = "claude",
-      auto_suggestions_provider = "claude",
-      claude = {
-        endpoint = "https://api.anthropic.com",
-        model = "claude-3-5-sonnet-20241022",
-        temperature = 0,
-        max_tokens = 4096
-      },
-      system_prompt = llm_default_prompt,
-      behaviour = {
-        auto_suggestions = false
-      }
-    }, -- set this if you want to always pull the latest change
-    -- if you want to build from source then do `make BUILD_FROM_SOURCE=true`
-    build = "make",
-    -- build = "powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false" -- for windows
-    dependencies = {
-      "nvim-treesitter/nvim-treesitter",
-      "stevearc/dressing.nvim",
-      "nvim-lua/plenary.nvim",
-      "MunifTanjim/nui.nvim",
-      "nvim-tree/nvim-web-devicons",
-      "zbirenbaum/copilot.lua",
-      {
-        "MeanderingProgrammer/render-markdown.nvim",
-        opts = {
-          file_types = {"markdown", "Avante"}
-        },
-        ft = {"markdown", "Avante"}
-      }
-    },
-    version = false
-  },
+  -- {
+  --   "yetone/avante.nvim",
+  --   event = "VeryLazy",
+  --   lazy = false,
+  --   opts = {
+  --     provider = "claude",
+  --     auto_suggestions_provider = "claude",
+  --     claude = {
+  --       endpoint = "https://api.anthropic.com",
+  --       model = "claude-3-5-sonnet-20241022",
+  --       temperature = 0,
+  --       max_tokens = 4096
+  --     },
+  --     system_prompt = llm_default_prompt,
+  --     behaviour = {
+  --       auto_suggestions = false
+  --     }
+  --   }, -- set this if you want to always pull the latest change
+  --   -- if you want to build from source then do `make BUILD_FROM_SOURCE=true`
+  --   build = "make",
+  --   -- build = "powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false" -- for windows
+  --   dependencies = {
+  --     "nvim-treesitter/nvim-treesitter",
+  --     "stevearc/dressing.nvim",
+  --     "nvim-lua/plenary.nvim",
+  --     "MunifTanjim/nui.nvim",
+  --     "nvim-tree/nvim-web-devicons",
+  --     "zbirenbaum/copilot.lua",
+  --     {
+  --       "MeanderingProgrammer/render-markdown.nvim",
+  --       opts = {
+  --         file_types = {"markdown", "Avante"}
+  --       },
+  --       ft = {"markdown", "Avante"}
+  --     }
+  --   },
+  --   version = false
+  -- },
   {
     "ggandor/leap.nvim",
     config = function()
