@@ -445,7 +445,8 @@ return {
       vim.g.coq_settings = {
         auto_start = true,
         keymap = {
-          recommended = false
+          recommended = false,
+          jump_to_mark = '<C-s>'
         }
       }
 

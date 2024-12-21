@@ -35,6 +35,12 @@ vim.wo.colorcolumn = "120"
 
 vim.cmd "autocmd BufWritePre * StripWhitespace"
 
+-- panel nav
+vim.api.nvim_set_keymap("n", "<C-h>", "<C-w>h", { noremap = true })
+vim.api.nvim_set_keymap("n", "<C-l>", "<C-w>l", { noremap = true })
+vim.api.nvim_set_keymap("n", "<C-k>", "<C-w>k", { noremap = true })
+vim.api.nvim_set_keymap("n", "<C-j>", "<C-w>j", { noremap = true })
+
 -- replicate unimpaired bindings
 vim.api.nvim_set_keymap("n", "[j", "<C-O>", { noremap = true })
 vim.api.nvim_set_keymap("n", "]j", "<C-I>", { noremap = true })
