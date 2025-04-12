@@ -8,4 +8,4 @@ npm install -g \
   yaml-language-server \
   vscode-langservers-extracted
 
-brew install lua-language-server alacritty
+brew install lua-language-server alacritty git-delta

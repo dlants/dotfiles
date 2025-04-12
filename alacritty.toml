@@ -26,4 +26,4 @@ history = 10000
 option_as_alt = "Both"
 
 [general]
-import = ["~/.config/alacritty/themes/themes/gruvbox_material_hard_dark.toml"]
+import = ["~/src/dotfiles/alacritty-flow.toml"]

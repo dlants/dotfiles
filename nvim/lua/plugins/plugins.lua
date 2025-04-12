@@ -1,25 +1,35 @@
-local function read_file_to_string(file_path)
-  if vim.fn.filereadable(file_path) == 0 then
-    print("File not found: " .. file_path)
-    return nil
-  end
-
-  local lines = vim.fn.readfile(file_path)
-  return table.concat(lines, "\n")
-end
-
-local llm_default_prompt =
-  [[You are a coding assistant to a principal software engineer. Please be concise.
-When you're not sure about something, say so but also take a guess. Prefer code samples to written explanations.]]
-
 return {
-  -- dev
   {
-    dir = "~/src/magenta.nvim",
-    build = ":UpdateRemotePlugins",
+    "dlants/magenta.nvim",
     lazy = false,
+    dev = true,
+    build = "npm install --frozen-lockfile",
     config = function()
-      vim.api.nvim_set_keymap("n", "<leader>m", ":Magenta toggle<CR>", {silent = true, noremap = true})
+      require("magenta").setup({
+        profiles= {
+          {
+            name = "claude-3-7",
+            provider = "anthropic",
+            model = "claude-3-7-sonnet-latest",
+            api_key_env_var = "ANTHROPIC_API_KEY"
+          },
+          {
+            name = "claude(work)",
+            provider = "anthropic",
+            model = "claude-3-7-sonnet-latest",
+            api_key_env_var = "AMPLIFY_API_KEY",
+            base_url = "https://amplify-llm-gateway-devci.poc.learning.amplify.com/anthropic"
+          },
+          {
+            name = "gpt-4o",
+            provider = "openai",
+            model = "gpt-4o",
+            api_key_env_var = "AMPLIFY_API_KEY",
+            base_url = "https://amplify-llm-gateway-devci.poc.learning.amplify.com"
+          }
+        },
+        sidebar_position = "left"
+      })
     end
   },
   {
@@ -31,30 +41,38 @@ return {
   {"junegunn/fzf", build = "./install --bin"},
   {
     "ibhagwan/fzf-lua",
+    lazy = false,
     dependencies = {"nvim-tree/nvim-web-devicons"},
-    opts = {
-      winopts = {
-        height = 0.5,
-        width = 1.0,
-        row = 0,
-        border = "none"
-      }
+    config = function()
+      require("fzf-lua").setup({
+        winopts = {
+          height = 0.5,
+          width = 1.0,
+          row = 0,
+          border = "none"
+        }
+      })
+      require("fzf-lua").register_ui_select()
+    end,
+    code_actions = {
+      previewer = "codeaction_native",
+      preview_pager = "delta --side-by-side --width=$FZF_PREVIEW_COLUMNS"
     },
     keys = {
       {
-        "<leader>f",
+        "<leader>F",
         function()
-          require("fzf-lua").git_files({show_untracked = true})
+          require("fzf-lua").git_files()
         end,
         desc = "FZF Git Files",
         silent = true
       },
       {
-        "<leader>F",
+        "<leader>f",
         function()
           require("fzf-lua").files()
         end,
-        desc = "FZF Git Files",
+        desc = "FZF Files",
         silent = true
       },
       {
@@ -378,15 +396,23 @@ return {
       -- vim.cmd.colorscheme "jellybeans"
     end
   },
+  -- {
+  --   "ellisonleao/gruvbox.nvim",
+  --   config = function()
+  --     require("gruvbox").setup(
+  --       {
+  --         contrast = "hard"
+  --       }
+  --     )
+  --     -- vim.cmd("colorscheme gruvbox")
+  --   end
+  -- },
   {
-    "ellisonleao/gruvbox.nvim",
+    "0xstepit/flow.nvim",
+    lazy = false,
     config = function()
-      require("gruvbox").setup(
-        {
-          contrast = "hard"
-        }
-      )
-      vim.cmd("colorscheme gruvbox")
+      require("flow").setup {}
+      vim.cmd("colorscheme flow")
     end
   },
   {
@@ -426,45 +452,45 @@ return {
     "neovim/nvim-lspconfig",
     lazy = false,
     dependencies = {
-      -- "hrsh7th/cmp-nvim-lsp"
+      "hrsh7th/cmp-nvim-lsp"
       -- "saghen/blink.cmp"
       -- main one
-      {"ms-jpq/coq_nvim", branch = "coq"},
+      -- {"ms-jpq/coq_nvim", branch = "coq"},
       -- 9000+ Snippets
-      {"ms-jpq/coq.artifacts", branch = "artifacts"},
+      -- {"ms-jpq/coq.artifacts", branch = "artifacts"},
       -- lua & third party sources -- See https://github.com/ms-jpq/coq.thirdparty
       -- Need to **configure separately**
-      {"ms-jpq/coq.thirdparty", branch = "3p"}
+      -- {"ms-jpq/coq.thirdparty", branch = "3p"}
       -- - shell repl
       -- - nvim lua api
       -- - scientific calculator
       -- - comment banner
       -- - etc
     },
-    init = function()
-      vim.g.coq_settings = {
-        auto_start = true,
-        keymap = {
-          recommended = false,
-          jump_to_mark = '<C-s>'
-        }
-      }
-
-
-      vim.api.nvim_set_keymap("i", "<Esc>", [[pumvisible() ? "\<C-e><Esc>" : "\<Esc>"]], {expr = true, silent = true})
-      vim.api.nvim_set_keymap("i", "<C-c>", [[pumvisible() ? "\<C-e><C-c>" : "\<C-c>"]], {expr = true, silent = true})
-      vim.api.nvim_set_keymap("i", "<BS>", [[pumvisible() ? "\<C-e><BS>" : "\<BS>"]], {expr = true, silent = true})
-      vim.api.nvim_set_keymap(
-        "i",
-        "<CR>",
-        [[pumvisible() ? (complete_info().selected == -1 ? "\<C-e><CR>" : "\<C-y>") : "\<CR>"]],
-        {expr = true, silent = true}
-      )
-      vim.api.nvim_set_keymap("i", "<Tab>", [[pumvisible() ? "\<C-n>" : "\<Tab>"]], {expr = true, silent = true})
-      vim.api.nvim_set_keymap("i", "<C-j>", [[pumvisible() ? "\<C-n>" : "\<C-j>"]], {expr = true, silent = true})
-      vim.api.nvim_set_keymap("i", "<S-Tab>", [[pumvisible() ? "\<C-p>" : "\<BS>"]], {expr = true, silent = true})
-      vim.api.nvim_set_keymap("i", "<C-k>", [[pumvisible() ? "\<C-p>" : "\<C-k>"]], {expr = true, silent = true})
-    end,
+    -- init = function()
+    --   vim.g.coq_settings = {
+    --     auto_start = true,
+    --     keymap = {
+    --       recommended = false,
+    --       jump_to_mark = '<C-s>'
+    --     }
+    --   }
+    --
+    --
+    --   vim.api.nvim_set_keymap("i", "<Esc>", [[pumvisible() ? "\<C-e><Esc>" : "\<Esc>"]], {expr = true, silent = true})
+    --   vim.api.nvim_set_keymap("i", "<C-c>", [[pumvisible() ? "\<C-e><C-c>" : "\<C-c>"]], {expr = true, silent = true})
+    --   vim.api.nvim_set_keymap("i", "<BS>", [[pumvisible() ? "\<C-e><BS>" : "\<BS>"]], {expr = true, silent = true})
+    --   vim.api.nvim_set_keymap(
+    --     "i",
+    --     "<CR>",
+    --     [[pumvisible() ? (complete_info().selected == -1 ? "\<C-e><CR>" : "\<C-y>") : "\<CR>"]],
+    --     {expr = true, silent = true}
+    --   )
+    --   vim.api.nvim_set_keymap("i", "<Tab>", [[pumvisible() ? "\<C-n>" : "\<Tab>"]], {expr = true, silent = true})
+    --   vim.api.nvim_set_keymap("i", "<C-j>", [[pumvisible() ? "\<C-n>" : "\<C-j>"]], {expr = true, silent = true})
+    --   vim.api.nvim_set_keymap("i", "<S-Tab>", [[pumvisible() ? "\<C-p>" : "\<BS>"]], {expr = true, silent = true})
+    --   vim.api.nvim_set_keymap("i", "<C-k>", [[pumvisible() ? "\<C-p>" : "\<C-k>"]], {expr = true, silent = true})
+    -- end,
     config = function()
       local lspkind = require "lspconfig"
 
@@ -480,8 +506,8 @@ return {
       )
 
       -- Setup capabilities properly
-      -- local capabilities = require("cmp_nvim_lsp").default_capabilities(vim.lsp.protocol.make_client_capabilities())
-      -- capabilities.textDocument.completion.completionItem.snippetSupport = true
+      local capabilities = require("cmp_nvim_lsp").default_capabilities(vim.lsp.protocol.make_client_capabilities())
+      capabilities.textDocument.completion.completionItem.snippetSupport = true
       -- local capabilities = require("blink.cmp").get_lsp_capabilities()
 
       -- on_attach only maps when the language server attaches to the current buffer
@@ -497,7 +523,8 @@ return {
         buf_set_keymap("n", "gi", vim.lsp.buf.implementation)
         buf_set_keymap("n", "gr", vim.lsp.buf.references)
         buf_set_keymap("n", "<leader>r", vim.lsp.buf.rename)
-        buf_set_keymap("n", "<leader>x", vim.lsp.buf.code_action)
+        --buf_set_keymap("n", "<leader>x", vim.lsp.buf.code_action)
+        buf_set_keymap("n", "<leader>x", [[:FzfLua lsp_code_actions<CR>]])
         buf_set_keymap("n", "<leader>D", vim.lsp.buf.type_definition)
 
         -- Diagnostics
@@ -811,141 +838,108 @@ return {
     end
   },
   {"onsails/lspkind.nvim"},
-  -- {
-  --   "hrsh7th/nvim-cmp",
-  --   dependencies = {
-  --     "hrsh7th/cmp-nvim-lsp",
-  --     "hrsh7th/cmp-buffer",
-  --     "hrsh7th/cmp-path",
-  --     "saadparwaiz1/cmp_luasnip",
-  --     "L3MON4D3/LuaSnip"
-  --     -- "zbirenbaum/copilot.lua",
-  --     -- "zbirenbaum/copilot-cmp",
-  --   },
-  --   config = function()
-  --     local cmp = require "cmp"
-  --
-  --     -- require("copilot").setup {
-  --     --   suggestion = { enabled = false },
-  --     --   panel = { enabled = false },
-  --     -- }
-  --     --
-  --     -- require("copilot_cmp").setup()
-  --
-  --     -- local has_words_before = function()
-  --     --   if vim.api.nvim_buf_get_option(0, "buftype") == "prompt" then
-  --     --     return false
-  --     --   end
-  --     --   local line, col = unpack(vim.api.nvim_win_get_cursor(0))
-  --     --   return col ~= 0 and vim.api.nvim_buf_get_lines(0, line - 1, line, true)[1]:sub(col, col):match("%s") == nil
-  --     -- end
-  --     vim.opt.completeopt = {"menu", "menuone", "noselect"}
-  --
-  --     local lspkind = require("lspkind")
-  --     lspkind.init {
-  --       symbol_map = {}
-  --     }
-  --
-  --     -- vim.api.nvim_set_hl(0, "CmpItemKindCopilot", { fg = "#6CC644" })
-  --
-  --     local kind_formatter =
-  --       lspkind.cmp_format {
-  --       mode = "symbol_text",
-  --       menu = {
-  --         buffer = "[buf]",
-  --         nvim_lsp = "[LSP]",
-  --         nvim_lua = "[api]",
-  --         path = "[path]",
-  --         gh_issues = "[issues]"
-  --       }
-  --     }
-  --
-  --     cmp.setup(
-  --       {
-  --         formatting = {
-  --           fields = {"abbr", "kind", "menu"},
-  --           expandable_indicator = true,
-  --           format = kind_formatter
-  --         },
-  --         mapping = {
-  --           ["<CR>"] = cmp.mapping(
-  --             cmp.mapping.confirm({select = true, behaviour = cmp.SelectBehavior.Insert}),
-  --             {"i", "c"}
-  --           ),
-  --           ["<Tab>"] = cmp.mapping(
-  --             function(fallback)
-  --               if cmp.visible() then
-  --                 cmp.select_next_item()
-  --               else
-  --                 fallback()
-  --               end
-  --             end,
-  --             {"i", "s"}
-  --           ),
-  --           ["<S-Tab>"] = cmp.mapping(
-  --             function(fallback)
-  --               if cmp.visible() then
-  --                 cmp.select_prev_item()
-  --               else
-  --                 fallback()
-  --               end
-  --             end,
-  --             {"i", "s"}
-  --           ),
-  --           ["<C-j>"] = cmp.mapping(
-  --             function(fallback)
-  --               if cmp.visible() then
-  --                 cmp.select_next_item()
-  --               else
-  --                 fallback()
-  --               end
-  --             end,
-  --             {"i", "s"}
-  --           ),
-  --           ["<C-k>"] = cmp.mapping(
-  --             function(fallback)
-  --               if cmp.visible() then
-  --                 cmp.select_prev_item()
-  --               else
-  --                 fallback()
-  --               end
-  --             end,
-  --             {"i", "s"}
-  --           )
-  --         },
-  --         sources = {
-  --           -- {
-  --           --   name = "lazydev",
-  --           --   group_index = 0,
-  --           -- },
-  --           -- { name = "copilot" },
-  --           {name = "nvim_lsp"},
-  --           {name = "path"},
-  --           {name = "buffer"}
-  --         }
-  --
-  --         -- sorting = {
-  --         --   priority_weight = 2,
-  --         --   comparators = {
-  --         --     -- require("copilot_cmp.comparators").prioritize,
-  --         --
-  --         --     -- Below is the default comparitor list and order for nvim-cmp
-  --         --     cmp.config.compare.offset,
-  --         --     -- cmp.config.compare.scopes, --this is commented in nvim-cmp too
-  --         --     cmp.config.compare.exact,
-  --         --     cmp.config.compare.score,
-  --         --     cmp.config.compare.recently_used,
-  --         --     cmp.config.compare.locality,
-  --         --     cmp.config.compare.kind,
-  --         --     cmp.config.compare.sort_text,
-  --         --     cmp.config.compare.length,
-  --         --     cmp.config.compare.order,
-  --         --   },
-  --         -- },
-  --       }
-  --     )
-  --   end
-  -- },
+  -- magazine.nvim, from https://github.com/iguanacucumber/magazine.nvim
+  { "iguanacucumber/mag-nvim-lsp", name = "cmp-nvim-lsp", opts = {} },
+  { "iguanacucumber/mag-nvim-lua", name = "cmp-nvim-lua" },
+  { "iguanacucumber/mag-buffer", name = "cmp-buffer" },
+  { "iguanacucumber/mag-cmdline", name = "cmp-cmdline" },
+  {
+    "iguanacucumber/magazine.nvim",
+    name = "nvim-cmp",
+    -- "hrsh7th/nvim-cmp",
+    -- dependencies = {
+    --   "hrsh7th/cmp-nvim-lsp",
+    --   "hrsh7th/cmp-buffer",
+    --   "hrsh7th/cmp-path",
+    --   "saadparwaiz1/cmp_luasnip",
+    --   "L3MON4D3/LuaSnip"
+    --   -- "zbirenbaum/copilot.lua",
+    --   -- "zbirenbaum/copilot-cmp",
+    -- },
+    config = function()
+      local cmp = require "cmp"
+
+      vim.opt.completeopt = {"menu", "menuone", "noselect"}
+
+      local lspkind = require("lspkind")
+      lspkind.init {
+        symbol_map = {}
+      }
+
+      local kind_formatter =
+        lspkind.cmp_format {
+        mode = "symbol_text",
+        menu = {
+          buffer = "[buf]",
+          nvim_lsp = "[LSP]",
+          nvim_lua = "[api]",
+          path = "[path]",
+          gh_issues = "[issues]"
+        }
+      }
+
+      cmp.setup(
+        {
+          formatting = {
+            fields = {"abbr", "kind", "menu"},
+            expandable_indicator = true,
+            format = kind_formatter
+          },
+          mapping = {
+            ["<CR>"] = cmp.mapping(
+              cmp.mapping.confirm({select = true, behaviour = cmp.SelectBehavior.Insert}),
+              {"i", "c"}
+            ),
+            ["<Tab>"] = cmp.mapping(
+              function(fallback)
+                if cmp.visible() then
+                  cmp.select_next_item()
+                else
+                  fallback()
+                end
+              end,
+              {"i", "s"}
+            ),
+            ["<S-Tab>"] = cmp.mapping(
+              function(fallback)
+                if cmp.visible() then
+                  cmp.select_prev_item()
+                else
+                  fallback()
+                end
+              end,
+              {"i", "s"}
+            ),
+            ["<C-j>"] = cmp.mapping(
+              function(fallback)
+                if cmp.visible() then
+                  cmp.select_next_item()
+                else
+                  fallback()
+                end
+              end,
+              {"i", "s"}
+            ),
+            ["<C-k>"] = cmp.mapping(
+              function(fallback)
+                if cmp.visible() then
+                  cmp.select_prev_item()
+                else
+                  fallback()
+                end
+              end,
+              {"i", "s"}
+            )
+          },
+          sources = {
+            {name = "nvim_lsp"},
+            {name = "path"},
+            {name = "buffer"}
+          }
+        }
+      )
+    end
+  },
   -- {
   --   "saghen/blink.cmp",
   --   -- optional: provides snippets for the snippet source
@@ -1072,7 +1066,6 @@ return {
       --   {desc = "Trigger copilot suggestion"}
       -- )
       --
-
     end
   },
   -- {
