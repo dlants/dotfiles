@@ -12,8 +12,47 @@ if vim.g.vscode then
   vim.o.smartcase = true
   vim.o.incsearch = true
   vim.o.hlsearch = true
+
+  -- Initialize the vscode API module
+  local vscode = require('vscode')
   
-  -- Only include keymaps that make sense in VSCode
+  -- Add a command to reload Neovim config
+  vim.api.nvim_set_keymap("n", "<leader>sv", ":source $MYVIMRC<CR>", { noremap = true, silent = true })
+  
+  -- Override Q command to close editor group instead of just the current tab
+  vim.api.nvim_set_keymap("n", "Q", "<Cmd>lua require('vscode').action('workbench.action.closeEditorsInGroup')<CR>", { noremap = true, silent = true })
+
+  -- Override default gf to use VSCode file picker
+  vim.api.nvim_set_keymap("n", "gf", "<Cmd>lua require('vscode').action('workbench.action.quickOpen')<CR>",
+    { noremap = true, silent = true })
+
+  -- VSCode-specific mappings
+  -- File navigation
+  vim.api.nvim_set_keymap("n", "<leader>f", "<Cmd>lua require('vscode').action('workbench.action.quickOpen')<CR>",
+    { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "<leader>e",
+    "<Cmd>lua require('vscode').action('workbench.action.toggleSidebarVisibility')<CR>",
+    { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "<leader>b", "<Cmd>lua require('vscode').action('workbench.action.showAllEditors')<CR>",
+    { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "<leader>k", "<Cmd>lua require('vscode').action('editor.action.showHover')<CR>",
+    { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "<leader>g", "<Cmd>lua require('vscode').action('workbench.action.findInFiles')<CR>",
+    { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "<leader>go", "<Cmd>lua require('vscode').action('gitlens.openFileOnRemote')<CR>",
+    { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "<leader>gl", "<Cmd>lua require('vscode').action('gitlens.copyPermalink')<CR>",
+    { noremap = true, silent = true })
+
+
+  -- Code actions
+  vim.api.nvim_set_keymap("n", "gr", "<Cmd>lua require('vscode').action('editor.action.goToReferences')<CR>",
+    { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "gd", "<Cmd>lua require('vscode').action('editor.action.revealDefinition')<CR>",
+    { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "<leader>`", "<Cmd>lua require('vscode').action('editor.action.formatDocument')<CR>",
+    { noremap = true, silent = true })
+  -- Unimpaired-style mappings
   vim.api.nvim_set_keymap("n", "[j", "<C-O>", { noremap = true })
   vim.api.nvim_set_keymap("n", "]j", "<C-I>", { noremap = true })
   vim.api.nvim_set_keymap("n", "[<space>", "O<Esc>j", { noremap = true })
