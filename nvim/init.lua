@@ -12,12 +12,19 @@ if vim.g.vscode then
   vim.o.smartcase = true
   vim.o.incsearch = true
   vim.o.hlsearch = true
-
+  
+  -- No need to disable netrw in VS Code mode
+  
+  -- Bind dash key to open VS Code file explorer
+  vim.api.nvim_set_keymap("n", "-", "<Cmd>lua require('vscode').action('workbench.view.explorer')<CR>", { noremap = true, silent = true })
+  
   -- Initialize the vscode API module
   local vscode = require('vscode')
   
   -- Add a command to reload Neovim config
   vim.api.nvim_set_keymap("n", "<leader>sv", ":source $MYVIMRC<CR>", { noremap = true, silent = true })
+  
+  -- No need for CheckOil command in VS Code mode
   
   -- Override Q command to close editor group instead of just the current tab
   vim.api.nvim_set_keymap("n", "Q", "<Cmd>lua require('vscode').action('workbench.action.closeEditorsInGroup')<CR>", { noremap = true, silent = true })
@@ -57,6 +64,9 @@ if vim.g.vscode then
   vim.api.nvim_set_keymap("n", "]j", "<C-I>", { noremap = true })
   vim.api.nvim_set_keymap("n", "[<space>", "O<Esc>j", { noremap = true })
   vim.api.nvim_set_keymap("n", "]<space>", "o<Esc>k", { noremap = true })
+  -- Diagnostic navigation
+  vim.api.nvim_set_keymap("n", "[d", "<Cmd>lua require('vscode').action('editor.action.marker.prev')<CR>", { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "]d", "<Cmd>lua require('vscode').action('editor.action.marker.next')<CR>", { noremap = true, silent = true })
 else
   -- Standard Neovim settings (when not in VSCode)
   -- disable netrw at the very start of your init.lua (strongly advised)

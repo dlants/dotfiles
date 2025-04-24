@@ -222,7 +222,7 @@ return {
     keys = {
       {"-", "<CMD>Oil<CR>", desc = "oil"}
     },
-    lazy = true,
+    lazy = false,
     config = function()
       -- from https://github.com/stevearc/oil.nvim?tab=readme-ov-file#quick-start
       require("oil").setup(
