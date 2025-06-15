@@ -85,3 +85,37 @@ function testAttach()
 
   print("Tracker attached. Edit the buffer to see events.")
 end
+
+function CustomTMotion()
+  local function create_mapping()
+    local char = vim.fn.getchar()
+
+    if type(char) == "number" then
+      char = vim.fn.nr2char(char)
+    end
+
+    local line = vim.api.nvim_get_current_line()
+
+    local last_pos = line:find(vim.pesc(char), 1, true)
+    local current_pos = last_pos
+
+    while current_pos do
+      last_pos = current_pos
+      current_pos = line:find(vim.pesc(char), last_pos + 1, true)
+    end
+
+    if last_pos then
+      local row = vim.api.nvim_win_get_cursor(0)[1]
+      vim.api.nvim_win_set_cursor(0, {row, last_pos - 1})
+      return true
+    end
+
+    return false
+  end
+
+  return create_mapping
+end
+
+vim.keymap.set({'n', 'x', 'o'}, 'T', function()
+  return CustomTMotion()()
+end, {expr = false, desc = "Move to last occurrence of character in line"})

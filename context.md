@@ -99,6 +99,27 @@ else
 end
 ```
 
+## Key Configuration Files
+
+### `nvim/lua/plugins/plugins.lua`
+The main plugin configuration file that defines all installed plugins and their settings:
+
+- **Plugin Manager**: Uses Lazy.nvim for plugin management
+- **AI Integration**: Includes magenta.nvim for Claude/GPT integration with multiple profiles
+- **LSP Configuration**: Complete LSP setup for multiple languages (TypeScript, Rust, Lua, etc.)
+- **File Navigation**: FZF-lua for fast file searching and navigation
+- **Git Integration**: Gitsigns, fugitive, and related tools
+- **Completion**: nvim-cmp with LSP integration and Copilot support
+- **Themes**: Multiple colorscheme options with Flow theme as default
+- **Treesitter**: Syntax highlighting and text objects
+
+### Plugin Highlights
+- **magenta.nvim**: AI assistant with multiple provider profiles (Claude, GPT, work-specific endpoints)
+- **FZF-lua**: Fast fuzzy finding for files, buffers, and live grep
+- **LSP**: Full language server support with proper keybindings
+- **Oil.nvim**: File explorer integrated with Neovim buffers
+- **Leap.nvim**: Quick navigation with 's' key for bidirectional jumping
+
 ## Useful Resources
 
 - [VSCode-Neovim GitHub Repository](https://github.com/vscode-neovim/vscode-neovim)

@@ -3,6 +3,90 @@
 -- Set leader keys (shared between VSCode and normal mode)
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
+-- Smart formatting function - prioritizes LSP formatting over formatter.nvim
+local function smart_format()
+  -- Get LSP clients attached to current buffer
+  local clients = vim.lsp.get_clients({ bufnr = 0 })
+  local has_formatting_client = false
+
+  -- Check if any client supports formatting
+  for _, client in ipairs(clients) do
+    if client.server_capabilities.documentFormattingProvider then
+      has_formatting_client = true
+      break
+    end
+  end
+
+  if has_formatting_client then
+    vim.lsp.buf.format({ async = true })
+  else
+    -- Fallback to formatter.nvim if available
+    local ok = pcall(vim.cmd, "Format")
+    if not ok then
+      vim.notify("No LSP or formatter.nvim formatting available", vim.log.levels.WARN)
+    end
+  end
+end
+
+-- Create user command and keybinding for smart formatting
+vim.api.nvim_create_user_command("SmartFormat", smart_format, {})
+
+-- Format on save using smart formatting (only in non-VSCode mode)
+if not vim.g.vscode then
+  local augroup = vim.api.nvim_create_augroup("SmartFormat", {clear = true})
+  vim.api.nvim_create_autocmd(
+    "BufWritePost",
+    {
+      group = augroup,
+      callback = smart_format
+    }
+  )
+end
+
+-- Large file handling
+local function setup_large_file_optimizations()
+  local large_file_size = 5 * 1024 * 1024 -- 5MB threshold
+
+  vim.api.nvim_create_autocmd("BufReadPre", {
+    callback = function(args)
+      local ok, stats = pcall(vim.loop.fs_stat, vim.api.nvim_buf_get_name(args.buf))
+      if ok and stats and stats.size > large_file_size then
+        -- Disable syntax highlighting
+        vim.cmd("syntax off")
+
+        -- Disable fold calculations
+        vim.opt_local.foldmethod = "manual"
+        vim.opt_local.foldenable = false
+
+        -- Disable swap file
+        vim.opt_local.swapfile = false
+
+        -- Disable undo persistence
+        vim.opt_local.undofile = false
+
+        -- Disable line numbers for better performance
+        vim.opt_local.number = false
+        vim.opt_local.relativenumber = false
+
+        -- Disable cursorline/cursorcolumn
+        vim.opt_local.cursorline = false
+        vim.opt_local.cursorcolumn = false
+
+        -- Reduce updatetime
+        vim.opt_local.updatetime = 10000
+
+        -- Disable some expensive options
+        vim.opt_local.showmatch = false
+        vim.opt_local.spell = false
+
+        -- Print notification
+        vim.notify("Large file detected. Optimizations applied for better performance.", vim.log.levels.INFO)
+      end
+    end,
+  })
+end
+
+setup_large_file_optimizations()
 
 -- Check if running inside VSCode
 if vim.g.vscode then
@@ -12,20 +96,17 @@ if vim.g.vscode then
   vim.o.smartcase = true
   vim.o.incsearch = true
   vim.o.hlsearch = true
-  
+
   -- No need to disable netrw in VS Code mode
-  
+
   -- Bind dash key to open VS Code file explorer
   vim.api.nvim_set_keymap("n", "-", "<Cmd>lua require('vscode').action('workbench.view.explorer')<CR>", { noremap = true, silent = true })
-  
-  -- Initialize the vscode API module
-  local vscode = require('vscode')
-  
+
   -- Add a command to reload Neovim config
   vim.api.nvim_set_keymap("n", "<leader>sv", ":source $MYVIMRC<CR>", { noremap = true, silent = true })
-  
+
   -- No need for CheckOil command in VS Code mode
-  
+
   -- Override Q command to close editor group instead of just the current tab
   vim.api.nvim_set_keymap("n", "Q", "<Cmd>lua require('vscode').action('workbench.action.closeEditorsInGroup')<CR>", { noremap = true, silent = true })
 
@@ -60,8 +141,8 @@ if vim.g.vscode then
   vim.api.nvim_set_keymap("n", "<leader>`", "<Cmd>lua require('vscode').action('editor.action.formatDocument')<CR>",
     { noremap = true, silent = true })
   -- Unimpaired-style mappings
-  vim.api.nvim_set_keymap("n", "[j", "<C-O>", { noremap = true })
-  vim.api.nvim_set_keymap("n", "]j", "<C-I>", { noremap = true })
+  vim.api.nvim_set_keymap("n", "[j", "<Cmd>lua require('vscode').action('workbench.action.navigateBack')<CR>", { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "]j", "<Cmd>lua require('vscode').action('workbench.action.navigateForward')<CR>", { noremap = true, silent = true })
   vim.api.nvim_set_keymap("n", "[<space>", "O<Esc>j", { noremap = true })
   vim.api.nvim_set_keymap("n", "]<space>", "o<Esc>k", { noremap = true })
   -- Diagnostic navigation
@@ -123,4 +204,7 @@ else
 
   vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", { noremap = true })
   vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", { noremap = true })
+
+  -- Smart formatting keybinding for non-VSCode mode
+  vim.keymap.set("n", "<leader>`", smart_format, { desc = "Smart Format", noremap = true, silent = true })
 end
