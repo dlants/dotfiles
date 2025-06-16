@@ -4,26 +4,6 @@
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
 
-local function smart_format()
-  if _G.formatter_settings and _G.formatter_settings[vim.bo.filetype] ~= nil then
-    vim.cmd("Format")
-  else
-    vim.lsp.buf.format({ async = false })
-  end
-end
-
--- Format on save using smart formatting (only in non-VSCode mode)
-if not vim.g.vscode then
-  local augroup = vim.api.nvim_create_augroup("SmartFormat", { clear = true })
-  vim.api.nvim_create_autocmd(
-    "BufWritePre",
-    {
-      group = augroup,
-      callback = smart_format
-    }
-  )
-end
-
 -- Large file handling
 local function setup_large_file_optimizations()
   local large_file_size = 5 * 1024 * 1024 -- 5MB threshold
@@ -191,6 +171,4 @@ else
 
   vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", { noremap = true })
   vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", { noremap = true })
-
-  vim.keymap.set("n", "<leader>`", smart_format, { desc = "Smart Format", noremap = true, silent = true })
 end

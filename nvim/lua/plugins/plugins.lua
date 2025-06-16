@@ -489,47 +489,37 @@ return {
     "ray-x/lsp_signature.nvim"
   },
   {
-    "mhartington/formatter.nvim",
+    "stevearc/conform.nvim",
     lazy = false,
     config = function()
-      -- Define common formatters
-      local prettier = function()
-        return {
-          exe = "npx prettier",
-          args = { "--stdin-filepath", vim.api.nvim_buf_get_name(0) },
-          stdin = true
-        }
-      end
-
-      local rustfmt = function()
-        return {
-          exe = "rustfmt",
-          args = { "--emit=stdout" },
-          stdin = true
-        }
-      end
-
-      _G.formatter_settings = {
-        javascript = { prettier },
-        typescript = { prettier },
-        javascriptreact = { prettier },
-        typescriptreact = { prettier },
-        json = { prettier },
-        yaml = { prettier },
-        html = { prettier },
-        css = { prettier },
-        scss = { prettier },
-        markdown = { prettier },
-        rust = { rustfmt },
-        -- Add more file types and their formatters here
-        -- default falls back to lsp.format
-      }
-
-      require("formatter").setup({
-        logging = false,
-        log_level = vim.log.levels.WARN,
-        filetype = _G.formatter_settings,
+      require("conform").setup({
+        formatters_by_ft = {
+          javascript = { "prettier" },
+          typescript = { "prettier" },
+          javascriptreact = { "prettier" },
+          typescriptreact = { "prettier" },
+          json = { "prettier" },
+          yaml = { "prettier" },
+          html = { "prettier" },
+          css = { "prettier" },
+          scss = { "prettier" },
+          markdown = { "prettier" },
+          rust = { "rustfmt" },
+        },
+        format_on_save = {
+          timeout_ms = 500,
+          lsp_fallback = true,
+        },
       })
+
+      -- Set up the <leader>` keymap for manual formatting
+      vim.keymap.set({ "n", "v" }, "<leader>`", function()
+        require("conform").format({
+          lsp_fallback = true,
+          async = false,
+          timeout_ms = 500,
+        })
+      end, { desc = "Format buffer" })
     end
   },
   {
