@@ -3,39 +3,20 @@
 -- Set leader keys (shared between VSCode and normal mode)
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
--- Smart formatting function - prioritizes LSP formatting over formatter.nvim
+
 local function smart_format()
-  -- Get LSP clients attached to current buffer
-  local clients = vim.lsp.get_clients({ bufnr = 0 })
-  local has_formatting_client = false
-
-  -- Check if any client supports formatting
-  for _, client in ipairs(clients) do
-    if client.server_capabilities.documentFormattingProvider then
-      has_formatting_client = true
-      break
-    end
-  end
-
-  if has_formatting_client then
-    vim.lsp.buf.format({ async = true })
+  if _G.formatter_settings and _G.formatter_settings[vim.bo.filetype] ~= nil then
+    vim.cmd("Format")
   else
-    -- Fallback to formatter.nvim if available
-    local ok = pcall(vim.cmd, "Format")
-    if not ok then
-      vim.notify("No LSP or formatter.nvim formatting available", vim.log.levels.WARN)
-    end
+    vim.lsp.buf.format({ async = false })
   end
 end
 
--- Create user command and keybinding for smart formatting
-vim.api.nvim_create_user_command("SmartFormat", smart_format, {})
-
 -- Format on save using smart formatting (only in non-VSCode mode)
 if not vim.g.vscode then
-  local augroup = vim.api.nvim_create_augroup("SmartFormat", {clear = true})
+  local augroup = vim.api.nvim_create_augroup("SmartFormat", { clear = true })
   vim.api.nvim_create_autocmd(
-    "BufWritePost",
+    "BufWritePre",
     {
       group = augroup,
       callback = smart_format
@@ -100,7 +81,8 @@ if vim.g.vscode then
   -- No need to disable netrw in VS Code mode
 
   -- Bind dash key to open VS Code file explorer
-  vim.api.nvim_set_keymap("n", "-", "<Cmd>lua require('vscode').action('workbench.view.explorer')<CR>", { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "-", "<Cmd>lua require('vscode').action('workbench.view.explorer')<CR>",
+    { noremap = true, silent = true })
 
   -- Add a command to reload Neovim config
   vim.api.nvim_set_keymap("n", "<leader>sv", ":source $MYVIMRC<CR>", { noremap = true, silent = true })
@@ -108,7 +90,8 @@ if vim.g.vscode then
   -- No need for CheckOil command in VS Code mode
 
   -- Override Q command to close editor group instead of just the current tab
-  vim.api.nvim_set_keymap("n", "Q", "<Cmd>lua require('vscode').action('workbench.action.closeEditorsInGroup')<CR>", { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "Q", "<Cmd>lua require('vscode').action('workbench.action.closeEditorsInGroup')<CR>",
+    { noremap = true, silent = true })
 
   -- Override default gf to use VSCode file picker
   vim.api.nvim_set_keymap("n", "gf", "<Cmd>lua require('vscode').action('workbench.action.quickOpen')<CR>",
@@ -141,13 +124,17 @@ if vim.g.vscode then
   vim.api.nvim_set_keymap("n", "<leader>`", "<Cmd>lua require('vscode').action('editor.action.formatDocument')<CR>",
     { noremap = true, silent = true })
   -- Unimpaired-style mappings
-  vim.api.nvim_set_keymap("n", "[j", "<Cmd>lua require('vscode').action('workbench.action.navigateBack')<CR>", { noremap = true, silent = true })
-  vim.api.nvim_set_keymap("n", "]j", "<Cmd>lua require('vscode').action('workbench.action.navigateForward')<CR>", { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "[j", "<Cmd>lua require('vscode').action('workbench.action.navigateBack')<CR>",
+    { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "]j", "<Cmd>lua require('vscode').action('workbench.action.navigateForward')<CR>",
+    { noremap = true, silent = true })
   vim.api.nvim_set_keymap("n", "[<space>", "O<Esc>j", { noremap = true })
   vim.api.nvim_set_keymap("n", "]<space>", "o<Esc>k", { noremap = true })
   -- Diagnostic navigation
-  vim.api.nvim_set_keymap("n", "[d", "<Cmd>lua require('vscode').action('editor.action.marker.prev')<CR>", { noremap = true, silent = true })
-  vim.api.nvim_set_keymap("n", "]d", "<Cmd>lua require('vscode').action('editor.action.marker.next')<CR>", { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "[d", "<Cmd>lua require('vscode').action('editor.action.marker.prev')<CR>",
+    { noremap = true, silent = true })
+  vim.api.nvim_set_keymap("n", "]d", "<Cmd>lua require('vscode').action('editor.action.marker.next')<CR>",
+    { noremap = true, silent = true })
 else
   -- Standard Neovim settings (when not in VSCode)
   -- disable netrw at the very start of your init.lua (strongly advised)
@@ -205,6 +192,5 @@ else
   vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", { noremap = true })
   vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", { noremap = true })
 
-  -- Smart formatting keybinding for non-VSCode mode
   vim.keymap.set("n", "<leader>`", smart_format, { desc = "Smart Format", noremap = true, silent = true })
 end

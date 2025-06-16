@@ -400,7 +400,6 @@ return {
       for _, server in ipairs(servers) do
         lspkind[server].setup(default_config)
       end
-      require('lspconfig').sqlfluff.setup(default_config)
 
       lspkind.ts_ls.setup(
         vim.tbl_extend(
@@ -510,35 +509,27 @@ return {
         }
       end
 
-      local luafmt = function()
-        return {
-          exe = "luafmt",
-          args = { "--indent-count", 2, "--stdin" },
-          stdin = true
-        }
-      end
+      _G.formatter_settings = {
+        javascript = { prettier },
+        typescript = { prettier },
+        javascriptreact = { prettier },
+        typescriptreact = { prettier },
+        json = { prettier },
+        yaml = { prettier },
+        html = { prettier },
+        css = { prettier },
+        scss = { prettier },
+        markdown = { prettier },
+        rust = { rustfmt },
+        -- Add more file types and their formatters here
+        -- default falls back to lsp.format
+      }
 
-      -- Setup formatters for file types
-      require("formatter").setup(
-        {
-          logging = false,
-          filetype = {
-            javascript = { prettier },
-            typescript = { prettier },
-            javascriptreact = { prettier },
-            typescriptreact = { prettier },
-            json = { prettier },
-            yaml = { prettier },
-            html = { prettier },
-            css = { prettier },
-            scss = { prettier },
-            markdown = { prettier },
-            rust = { rustfmt },
-            lua = { luafmt }
-            -- Add more file types and their formatters here
-          }
-        }
-      )
+      require("formatter").setup({
+        logging = false,
+        log_level = vim.log.levels.WARN,
+        filetype = _G.formatter_settings,
+      })
     end
   },
   {
