@@ -5,49 +5,68 @@ vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
 
 -- Large file handling
-local function setup_large_file_optimizations()
-  local large_file_size = 5 * 1024 * 1024 -- 5MB threshold
+local large_file_size = 5 * 1024 * 1024 -- 5MB threshold
 
-  vim.api.nvim_create_autocmd("BufReadPre", {
-    callback = function(args)
-      local ok, stats = pcall(vim.loop.fs_stat, vim.api.nvim_buf_get_name(args.buf))
-      if ok and stats and stats.size > large_file_size then
-        -- Disable syntax highlighting
-        vim.cmd("syntax off")
+vim.api.nvim_create_autocmd("BufReadPre", {
+  callback = function(args)
+    local ok, stats = pcall(vim.loop.fs_stat, vim.api.nvim_buf_get_name(args.buf))
+    if ok and stats and stats.size > large_file_size then
+      -- Disable syntax highlighting
+      vim.cmd("syntax off")
 
-        -- Disable fold calculations
-        vim.opt_local.foldmethod = "manual"
-        vim.opt_local.foldenable = false
+      -- Disable fold calculations
+      vim.opt_local.foldmethod = "manual"
+      vim.opt_local.foldenable = false
 
-        -- Disable swap file
-        vim.opt_local.swapfile = false
+      -- Disable swap file
+      vim.opt_local.swapfile = false
 
-        -- Disable undo persistence
-        vim.opt_local.undofile = false
+      -- Disable undo persistence
+      vim.opt_local.undofile = false
 
-        -- Disable line numbers for better performance
-        vim.opt_local.number = false
-        vim.opt_local.relativenumber = false
+      -- Disable line numbers for better performance
+      vim.opt_local.number = false
+      vim.opt_local.relativenumber = false
 
-        -- Disable cursorline/cursorcolumn
-        vim.opt_local.cursorline = false
-        vim.opt_local.cursorcolumn = false
+      -- Disable cursorline/cursorcolumn
+      vim.opt_local.cursorline = false
+      vim.opt_local.cursorcolumn = false
 
-        -- Reduce updatetime
-        vim.opt_local.updatetime = 10000
+      -- Reduce updatetime
+      vim.opt_local.updatetime = 10000
 
-        -- Disable some expensive options
-        vim.opt_local.showmatch = false
-        vim.opt_local.spell = false
+      -- Disable some expensive options
+      vim.opt_local.showmatch = false
+      vim.opt_local.spell = false
 
-        -- Print notification
-        vim.notify("Large file detected. Optimizations applied for better performance.", vim.log.levels.INFO)
-      end
-    end,
-  })
-end
+      -- Print notification
+      vim.notify("Large file detected. Optimizations applied for better performance.", vim.log.levels.INFO)
+    end
+  end,
+})
 
-setup_large_file_optimizations()
+-- Setup markdown/wrapped line mode
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "markdown", "txt" },
+  callback = function()
+    -- Enable line wrapping
+    vim.opt_local.wrap = true
+    vim.opt_local.linebreak = true
+    vim.opt_local.breakindent = true
+
+    -- Map j and k to move by visual lines
+    vim.api.nvim_buf_set_keymap(0, "n", "j", "gj", { noremap = true, silent = true })
+    vim.api.nvim_buf_set_keymap(0, "n", "k", "gk", { noremap = true, silent = true })
+    vim.api.nvim_buf_set_keymap(0, "v", "j", "gj", { noremap = true, silent = true })
+    vim.api.nvim_buf_set_keymap(0, "v", "k", "gk", { noremap = true, silent = true })
+
+    -- Map $ and 0 to move by visual lines
+    vim.api.nvim_buf_set_keymap(0, "n", "$", "g$", { noremap = true, silent = true })
+    vim.api.nvim_buf_set_keymap(0, "n", "0", "g0", { noremap = true, silent = true })
+    vim.api.nvim_buf_set_keymap(0, "v", "$", "g$", { noremap = true, silent = true })
+    vim.api.nvim_buf_set_keymap(0, "v", "0", "g0", { noremap = true, silent = true })
+  end,
+})
 
 -- Check if running inside VSCode
 if vim.g.vscode then

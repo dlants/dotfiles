@@ -2,7 +2,7 @@ return {
   {
     "dlants/magenta.nvim",
     lazy = false,
-    -- dev = true,
+    dev = true,
     build = "npm install --frozen-lockfile",
     config = function()
       require("magenta").setup({
@@ -33,14 +33,22 @@ return {
             -- baseUrl= "https://amplify-llm-gateway-devci.poc.learning.amplify.com"
           },
           {
-            name = "claude(work)",
-            provider = "anthropic",
-            model = "claude-3-7-sonnet-latest",
-            apiKeyEnvVar = "AMPLIFY_API_KEY",
-            baseUrl = "https://amplify-llm-gateway-devci.poc.learning.amplify.com/anthropic"
-          },
+            name = "copilot-claude-3-7",
+            provider = "copilot",
+            model = "claude-3.7-sonnet",
+          }
         },
-        sidebarPosition = "left"
+        sidebarPosition = "left",
+
+        mcpServers = {
+          playwright = {
+            command = "npx",
+            args = {
+              "@playwright/mcp@latest"
+            }
+          }
+        }
+
       })
     end
   },
