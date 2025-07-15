@@ -1,5 +1,24 @@
 return {
   {
+    "folke/snacks.nvim",
+    priority = 1000,
+    lazy = false,
+    config = function()
+      require("snacks").setup({
+        input = {},
+        notifier = {},
+        indent = {},
+        rename = {},
+        scroll = {
+          duration = { step = 5, total = 50 }
+        },
+        bigfile = {
+          notify = true
+        },
+      })
+    end
+  },
+  {
     "dlants/magenta.nvim",
     lazy = false,
     dev = true,
@@ -56,39 +75,39 @@ return {
     "sphamba/smear-cursor.nvim",
     opts = {}
   },
-  {
-    "karb94/neoscroll.nvim",
-    config = function()
-      require("neoscroll").setup({
-        hide_cursor = true,
-        stop_eof = true,
-        respect_scrolloff = false,
-        cursor_scrolls_alone = true,
-        easing_function = nil,
-        performance_mode = false,
-      })
-
-      -- Custom key mappings with faster scroll speed
-      local neoscroll = require('neoscroll')
-      local keymap = {
-        -- Faster scrolling - reduce the time values to speed up
-        ["<C-u>"] = function() neoscroll.ctrl_u({ duration = 50 }) end,
-        ["<C-d>"] = function() neoscroll.ctrl_d({ duration = 50 }) end,
-        ["<C-b>"] = function() neoscroll.ctrl_b({ duration = 75 }) end,
-        ["<C-f>"] = function() neoscroll.ctrl_f({ duration = 75 }) end,
-        ["<C-y>"] = function() neoscroll.scroll(-0.1, { move_cursor = false, duration = 25 }) end,
-        ["<C-e>"] = function() neoscroll.scroll(0.1, { move_cursor = false, duration = 25 }) end,
-        ["zt"]    = function() neoscroll.zt({ half_win_duration = 50 }) end,
-        ["zz"]    = function() neoscroll.zz({ half_win_duration = 50 }) end,
-        ["zb"]    = function() neoscroll.zb({ half_win_duration = 50 }) end,
-      }
-
-      local modes = { 'n', 'v', 'x' }
-      for key, func in pairs(keymap) do
-        vim.keymap.set(modes, key, func)
-      end
-    end
-  },
+  -- {
+  --   "karb94/neoscroll.nvim",
+  --   config = function()
+  --     require("neoscroll").setup({
+  --       hide_cursor = true,
+  --       stop_eof = true,
+  --       respect_scrolloff = false,
+  --       cursor_scrolls_alone = true,
+  --       easing_function = nil,
+  --       performance_mode = false,
+  --     })
+  --
+  --     -- Custom key mappings with faster scroll speed
+  --     local neoscroll = require('neoscroll')
+  --     local keymap = {
+  --       -- Faster scrolling - reduce the time values to speed up
+  --       ["<C-u>"] = function() neoscroll.ctrl_u({ duration = 50 }) end,
+  --       ["<C-d>"] = function() neoscroll.ctrl_d({ duration = 50 }) end,
+  --       ["<C-b>"] = function() neoscroll.ctrl_b({ duration = 75 }) end,
+  --       ["<C-f>"] = function() neoscroll.ctrl_f({ duration = 75 }) end,
+  --       ["<C-y>"] = function() neoscroll.scroll(-0.1, { move_cursor = false, duration = 25 }) end,
+  --       ["<C-e>"] = function() neoscroll.scroll(0.1, { move_cursor = false, duration = 25 }) end,
+  --       ["zt"]    = function() neoscroll.zt({ half_win_duration = 50 }) end,
+  --       ["zz"]    = function() neoscroll.zz({ half_win_duration = 50 }) end,
+  --       ["zb"]    = function() neoscroll.zb({ half_win_duration = 50 }) end,
+  --     }
+  --
+  --     local modes = { 'n', 'v', 'x' }
+  --     for key, func in pairs(keymap) do
+  --       vim.keymap.set(modes, key, func)
+  --     end
+  --   end
+  -- },
   { "christoomey/vim-tmux-navigator" },
   { "ntpeters/vim-better-whitespace" },
   { "junegunn/fzf",                  build = "./install --bin" },
@@ -115,9 +134,11 @@ return {
       {
         "<leader>F",
         function()
-          require("fzf-lua").git_files()
+          require("fzf-lua").files({
+            fd_opts = "--color=never --type f --hidden --follow --no-ignore"
+          })
         end,
-        desc = "FZF Git Files",
+        desc = "FZF All Files (including gitignored)",
         silent = true
       },
       {
@@ -182,6 +203,16 @@ return {
           }
         }
       )
+
+      -- Integration with snacks.nvim rename plugin
+      vim.api.nvim_create_autocmd("User", {
+        pattern = "OilActionsPost",
+        callback = function(event)
+          if event.data.actions.type == "move" then
+            require("snacks").rename.on_rename_file(event.data.actions.src_url, event.data.actions.dest_url)
+          end
+        end,
+      })
     end
   },
   {
@@ -233,6 +264,14 @@ return {
     },
     config = function()
       require("gitsigns").setup()
+
+      vim.keymap.set('n', ']c', function()
+        require('gitsigns').nav_hunk('next')
+      end, { desc = 'Next git hunk' })
+
+      vim.keymap.set('n', '[c', function()
+        require('gitsigns').nav_hunk('prev')
+      end, { desc = 'Previous git hunk' })
     end
   },
   { "tpope/vim-fugitive" },
@@ -256,14 +295,14 @@ return {
   --   enabled = false,
   --   ft = "qf"
   -- },
-  {
-    "lukas-reineke/indent-blankline.nvim",
-    main = "ibl",
-    opts = {
-      indent = { char = "│" },
-      scope = { enabled = true }
-    }
-  },
+  -- {
+  --   "lukas-reineke/indent-blankline.nvim",
+  --   main = "ibl",
+  --   opts = {
+  --     indent = { char = "│" },
+  --     scope = { enabled = true }
+  --   }
+  -- },
   -- Show LSP progress
   {
     "j-hui/fidget.nvim",
@@ -784,12 +823,7 @@ return {
       )
     end
   },
-  {
-    "rcarriga/nvim-notify",
-    config = function()
-      vim.notify = require "notify"
-    end
-  },
+
   {
     "ggandor/leap.nvim",
     config = function()
@@ -855,21 +889,17 @@ return {
             set_jumps = true,
             goto_next_start = {
               ["]f"] = "@function.outer",
-              ["]c"] = "@class.outer",
               ["]a"] = "@parameter.inner"
             },
             goto_next_end = {
-              ["]F"] = "@function.outer",
-              ["]C"] = "@class.outer"
+              ["]F"] = "@function.outer"
             },
             goto_previous_start = {
               ["[f"] = "@function.outer",
-              ["[c"] = "@class.outer",
               ["[a"] = "@parameter.inner"
             },
             goto_previous_end = {
-              ["[F"] = "@function.outer",
-              ["[C"] = "@class.outer"
+              ["[F"] = "@function.outer"
             }
           },
           swap = {}
