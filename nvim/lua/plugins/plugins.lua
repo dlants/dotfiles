@@ -6,12 +6,8 @@ return {
     config = function()
       require("snacks").setup({
         input = {},
-        notifier = {},
         indent = {},
         rename = {},
-        scroll = {
-          duration = { step = 5, total = 50 }
-        },
         bigfile = {
           notify = true
         },
@@ -60,6 +56,9 @@ return {
         sidebarPosition = "left",
 
         mcpServers = {
+          -- Hub = {
+          --   url = "http://localhost:37373/mcp"
+          -- },
           playwright = {
             command = "npx",
             args = {
@@ -67,47 +66,46 @@ return {
             }
           }
         }
-
       })
     end
   },
-  {
-    "sphamba/smear-cursor.nvim",
-    opts = {}
-  },
   -- {
-  --   "karb94/neoscroll.nvim",
-  --   config = function()
-  --     require("neoscroll").setup({
-  --       hide_cursor = true,
-  --       stop_eof = true,
-  --       respect_scrolloff = false,
-  --       cursor_scrolls_alone = true,
-  --       easing_function = nil,
-  --       performance_mode = false,
-  --     })
-  --
-  --     -- Custom key mappings with faster scroll speed
-  --     local neoscroll = require('neoscroll')
-  --     local keymap = {
-  --       -- Faster scrolling - reduce the time values to speed up
-  --       ["<C-u>"] = function() neoscroll.ctrl_u({ duration = 50 }) end,
-  --       ["<C-d>"] = function() neoscroll.ctrl_d({ duration = 50 }) end,
-  --       ["<C-b>"] = function() neoscroll.ctrl_b({ duration = 75 }) end,
-  --       ["<C-f>"] = function() neoscroll.ctrl_f({ duration = 75 }) end,
-  --       ["<C-y>"] = function() neoscroll.scroll(-0.1, { move_cursor = false, duration = 25 }) end,
-  --       ["<C-e>"] = function() neoscroll.scroll(0.1, { move_cursor = false, duration = 25 }) end,
-  --       ["zt"]    = function() neoscroll.zt({ half_win_duration = 50 }) end,
-  --       ["zz"]    = function() neoscroll.zz({ half_win_duration = 50 }) end,
-  --       ["zb"]    = function() neoscroll.zb({ half_win_duration = 50 }) end,
-  --     }
-  --
-  --     local modes = { 'n', 'v', 'x' }
-  --     for key, func in pairs(keymap) do
-  --       vim.keymap.set(modes, key, func)
-  --     end
-  --   end
+  --   "sphamba/smear-cursor.nvim",
+  --   opts = {}
   -- },
+  {
+    "karb94/neoscroll.nvim",
+    config = function()
+      require("neoscroll").setup({
+        hide_cursor = true,
+        stop_eof = true,
+        respect_scrolloff = false,
+        cursor_scrolls_alone = true,
+        easing_function = nil,
+        performance_mode = false,
+      })
+
+      -- Custom key mappings with faster scroll speed
+      local neoscroll = require('neoscroll')
+      local keymap = {
+        -- Faster scrolling - reduce the time values to speed up
+        ["<C-u>"] = function() neoscroll.ctrl_u({ duration = 50 }) end,
+        ["<C-d>"] = function() neoscroll.ctrl_d({ duration = 50 }) end,
+        ["<C-b>"] = function() neoscroll.ctrl_b({ duration = 75 }) end,
+        ["<C-f>"] = function() neoscroll.ctrl_f({ duration = 75 }) end,
+        ["<C-y>"] = function() neoscroll.scroll(-0.1, { move_cursor = false, duration = 25 }) end,
+        ["<C-e>"] = function() neoscroll.scroll(0.1, { move_cursor = false, duration = 25 }) end,
+        ["zt"]    = function() neoscroll.zt({ half_win_duration = 50 }) end,
+        ["zz"]    = function() neoscroll.zz({ half_win_duration = 50 }) end,
+        ["zb"]    = function() neoscroll.zb({ half_win_duration = 50 }) end,
+      }
+
+      local modes = { 'n', 'v', 'x' }
+      for key, func in pairs(keymap) do
+        vim.keymap.set(modes, key, func)
+      end
+    end
+  },
   { "christoomey/vim-tmux-navigator" },
   { "ntpeters/vim-better-whitespace" },
   { "junegunn/fzf",                  build = "./install --bin" },
@@ -823,7 +821,12 @@ return {
       )
     end
   },
-
+  {
+    "rcarriga/nvim-notify",
+    config = function()
+      vim.notify = require "notify"
+    end
+  },
   {
     "ggandor/leap.nvim",
     config = function()
