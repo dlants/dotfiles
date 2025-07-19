@@ -224,7 +224,6 @@ return {
       require "lualine".setup {
         options = {
           icons_enabled = true,
-          theme = "gruvbox",
           component_separators = { "", "" },
           section_separators = { "", "" },
           disabled_filetypes = {}
@@ -287,7 +286,27 @@ return {
       require("nvim-surround").setup({})
     end,
   },
-  { "norcalli/nvim-colorizer.lua" },
+  {
+    "norcalli/nvim-colorizer.lua",
+    config = function()
+      require('colorizer').setup({
+        '*',                      -- Highlight all files, but customize some others.
+        css = { rgb_fn = true, }, -- Enable parsing rgb(...) functions in css.
+        html = { names = false, } -- Disable parsing "names" like Blue or Gray
+      }, {
+        RGB = true,               -- #RGB hex codes
+        RRGGBB = true,            -- #RRGGBB hex codes
+        names = true,             -- "Name" codes like Blue
+        RRGGBBAA = true,          -- #RRGGBBAA hex codes
+        rgb_fn = true,            -- CSS rgb() and rgba() functions
+        hsl_fn = true,            -- CSS hsl() and hsla() functions
+        css = true,               -- Enable all CSS features: rgb_fn, hsl_fn, names, RGB, RRGGBB
+        css_fn = true,            -- Enable all CSS *functions*: rgb_fn, hsl_fn
+        -- Available modes: foreground, background
+        mode = 'background',      -- Set the display mode.
+      })
+    end
+  },
   -- {
   --   "kevinhwang91/nvim-bqf",
   --   enabled = false,
@@ -316,39 +335,67 @@ return {
     }
   },
   -- themes
-  {
-    "nanotech/jellybeans.vim",
-    config = function()
-      -- vim.cmd.colorscheme "jellybeans"
-    end
-  },
+  -- {
+  --   "nanotech/jellybeans.vim",
+  --   config = function()
+  --     -- vim.cmd.colorscheme "jellybeans"
+  --   end
+  -- },
   {
     "0xstepit/flow.nvim",
     lazy = false,
     config = function()
-      require("flow").setup {}
+      require("flow").setup {
+        theme = {
+          contrast = "high"
+        },
+      }
       vim.cmd("colorscheme flow")
     end
   },
-  {
-    "projekt0n/github-nvim-theme",
-    name = "github-theme",
-    lazy = false,    -- make sure we load this during startup if it is your main colorscheme
-    priority = 1000, -- make sure to load this before all the other start plugins
-    config = function()
-      --require("github-theme").setup({})
-      --vim.cmd("colorscheme github_dark_colorblind")
-    end
-  },
-  {
-    "craftzdog/solarized-osaka.nvim",
-    lazy = false,
-    priority = 1000,
-    opts = {},
-    config = function()
-      --vim.cmd("colorscheme solarized-osaka")
-    end
-  },
+  -- {
+  --   "rebelot/kanagawa.nvim",
+  --   lazy = false,
+  --   config = function()
+  --     require("kanagawa").setup {}
+  --     vim.cmd("colorscheme kanagawa-dragon")
+  --   end
+  -- },
+  -- {
+  --   "ellisonleao/gruvbox.nvim",
+  --   config = function()
+  --     require("gruvbox").setup {
+  --       contrast = "hard"
+  --     }
+  --   end
+  -- },
+  -- {
+  --   "sainnhe/gruvbox-material",
+  --   config = function()
+  --     vim.g.gruvbox_material_background = 'hard'
+  --     vim.g.gruvbox_material_ui_contrast = 'high'
+  --     vim.cmd("colorscheme gruvbox-material")
+  --   end
+  -- },
+  -- {
+  --   "projekt0n/github-nvim-theme",
+  --   name = "github-theme",
+  --   lazy = false,    -- make sure we load this during startup if it is your main colorscheme
+  --   priority = 1000, -- make sure to load this before all the other start plugins
+  --   config = function()
+  --     --require("github-theme").setup({})
+  --     --vim.cmd("colorscheme github_dark_colorblind")
+  --   end
+  -- },
+  -- {
+  --   "craftzdog/solarized-osaka.nvim",
+  --   lazy = false,
+  --   priority = 1000,
+  --   opts = {},
+  --   config = function()
+  --     --vim.cmd("colorscheme solarized-osaka")
+  --   end
+  -- },
   { "tomasr/molokai",              lazy = true },
   { "rafamadriz/neon",             lazy = true },
   { "marko-cerovac/material.nvim", lazy = true },
@@ -396,6 +443,9 @@ return {
         buf_set_keymap("n", "<leader>x", [[:FzfLua lsp_code_actions<CR>]])
         buf_set_keymap("n", "<leader>D", vim.lsp.buf.type_definition)
 
+        -- Signature help
+        buf_set_keymap("i", "<C-s>", vim.lsp.buf.signature_help)
+
         -- Diagnostics
         buf_set_keymap("n", "<leader>d", vim.diagnostic.setqflist)
         buf_set_keymap("n", "[d", function() vim.diagnostic.jump({ count = -1, float = true }) end)
@@ -412,14 +462,6 @@ return {
             print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
           end
         )
-
-        require "lsp_signature".on_attach {
-          bind = true,
-          hint_prefix = "",
-          handler_opts = {
-            border = "none"
-          }
-        }
       end
 
       -- Default configuration for all servers
@@ -529,9 +571,6 @@ return {
         }
       }
     end
-  },
-  {
-    "ray-x/lsp_signature.nvim"
   },
   {
     "stevearc/conform.nvim",
@@ -648,14 +687,6 @@ return {
             end,
             opts
           )
-
-          require "lsp_signature".on_attach {
-            bind = true,
-            hint_prefix = "",
-            handler_opts = {
-              border = "none"
-            }
-          }
         end
       }
       -- this starts a new client & server,

@@ -1,4 +1,6 @@
 theme = flow-pink
+# theme = GruvboxDarkHard
+# theme = gruvbox-material
 # custom-shader = shaders/cursor_blaze.glsl
 # custom-shader = shaders/cursor_blaze_no_trail.glsl
 # custom-shader = shaders/cursor_blaze_tapered.glsl
@@ -9,3 +11,4 @@ custom-shader = shaders/glitchy.glsl
 # custom-shader = shaders/debug_cursor_animated.glsl
 # custom-shader = shaders/debug_cursor_static.glsl
 # custom-shader = shaders/manga_slash.glsl
+keybind = shift+enter=text:\n

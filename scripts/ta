@@ -60,6 +60,9 @@ maybe_init_classroom_session() {
 }
 
 create_if_needed_and_attach() {
+  # enable core dumps for this session
+  ulimit -c unlimited
+
   if not_in_tmux; then
     tmux new-session -As "$session_name" -c "$path_name"
     maybe_init_classroom_session
