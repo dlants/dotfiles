@@ -5,6 +5,23 @@ vim.g.maplocalleader = "\\"
 
 
 
+-- Visual line scrolling functions
+local function scroll_up_visual()
+  local count = math.floor(vim.fn.winheight(0) / 2)
+  for i = 1, count do
+    vim.cmd('normal! gk')
+  end
+  vim.cmd('normal! zz')
+end
+
+local function scroll_down_visual()
+  local count = math.floor(vim.fn.winheight(0) / 2)
+  for i = 1, count do
+    vim.cmd('normal! gj')
+  end
+  vim.cmd('normal! zz')
+end
+
 -- Setup markdown/wrapped line mode
 vim.api.nvim_create_autocmd("FileType", {
   pattern = { "markdown", "txt" },
@@ -15,16 +32,20 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.opt_local.breakindent = true
 
     -- Map j and k to move by visual lines
-    vim.api.nvim_buf_set_keymap(0, "n", "j", "gj", { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(0, "n", "k", "gk", { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(0, "v", "j", "gj", { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(0, "v", "k", "gk", { noremap = true, silent = true })
+    vim.keymap.set("n", "j", "gj", { buffer = 0, noremap = true, silent = true })
+    vim.keymap.set("n", "k", "gk", { buffer = 0, noremap = true, silent = true })
+    vim.keymap.set("v", "j", "gj", { buffer = 0, noremap = true, silent = true })
+    vim.keymap.set("v", "k", "gk", { buffer = 0, noremap = true, silent = true })
 
     -- Map $ and 0 to move by visual lines
-    vim.api.nvim_buf_set_keymap(0, "n", "$", "g$", { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(0, "n", "0", "g0", { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(0, "v", "$", "g$", { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(0, "v", "0", "g0", { noremap = true, silent = true })
+    vim.keymap.set("n", "$", "g$", { buffer = 0, noremap = true, silent = true })
+    vim.keymap.set("n", "0", "g0", { buffer = 0, noremap = true, silent = true })
+    vim.keymap.set("v", "$", "g$", { buffer = 0, noremap = true, silent = true })
+    vim.keymap.set("v", "0", "g0", { buffer = 0, noremap = true, silent = true })
+
+    -- Map Ctrl-u/d to scroll by visual lines
+    vim.keymap.set("n", "<C-u>", scroll_up_visual, { buffer = 0, noremap = true, silent = true })
+    vim.keymap.set("n", "<C-d>", scroll_down_visual, { buffer = 0, noremap = true, silent = true })
   end,
 })
 
@@ -44,6 +65,7 @@ vim.o.background = "dark"
 vim.o.number = true
 vim.o.clipboard = "unnamedplus"
 vim.o.tabstop = 2
+vim.o.scrolloff = 1
 vim.o.shiftwidth = 2
 vim.o.softtabstop = 0
 vim.o.expandtab = true

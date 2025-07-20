@@ -26,7 +26,11 @@ return {
             name = "claude-4-sonnet",
             provider = "anthropic",
             model = "claude-sonnet-4-20250514",
-            apiKeyEnvVar = "ANTHROPIC_API_KEY"
+            apiKeyEnvVar = "ANTHROPIC_API_KEY",
+            thinking = {
+              enabled = true,
+              budgetTokens = 1024
+            }
           },
           {
             name = "claude-3-7",
@@ -296,13 +300,12 @@ return {
       }, {
         RGB = true,               -- #RGB hex codes
         RRGGBB = true,            -- #RRGGBB hex codes
-        names = true,             -- "Name" codes like Blue
         RRGGBBAA = true,          -- #RRGGBBAA hex codes
-        rgb_fn = true,            -- CSS rgb() and rgba() functions
-        hsl_fn = true,            -- CSS hsl() and hsla() functions
-        css = true,               -- Enable all CSS features: rgb_fn, hsl_fn, names, RGB, RRGGBB
-        css_fn = true,            -- Enable all CSS *functions*: rgb_fn, hsl_fn
-        -- Available modes: foreground, background
+        names = false,            -- "Name" codes like Blue
+        rgb_fn = false,           -- CSS rgb() and rgba() functions
+        hsl_fn = false,           -- CSS hsl() and hsla() functions
+        css = false,              -- Enable all CSS features: rgb_fn, hsl_fn, names, RGB, RRGGBB
+        css_fn = false,           -- Enable all CSS *functions*: rgb_fn, hsl_fn
         mode = 'background',      -- Set the display mode.
       })
     end
@@ -413,13 +416,29 @@ return {
       -- Add proper diagnostic configuration
       vim.diagnostic.config(
         {
-          virtual_text = true,
+          virtual_text = false,  -- Disable regular virtual text to avoid redundancy
+          virtual_lines = false, -- Disable virtual lines by default
           signs = true,
           underline = true,
           update_in_insert = false,
           severity_sort = true
         }
       )
+
+      -- Function to temporarily show virtual lines
+      local function show_virtual_lines_until_next_move()
+        vim.diagnostic.config({ virtual_lines = true })
+
+        -- Hide when cursor moves, with delay to allow diagnostic jump to complete
+        vim.defer_fn(function()
+          vim.api.nvim_create_autocmd("CursorMoved", {
+            once = true,
+            callback = function()
+              vim.diagnostic.config({ virtual_lines = false })
+            end
+          })
+        end, 50)
+      end
 
       -- Setup capabilities properly
       local capabilities = require("cmp_nvim_lsp").default_capabilities()
@@ -448,9 +467,17 @@ return {
 
         -- Diagnostics
         buf_set_keymap("n", "<leader>d", vim.diagnostic.setqflist)
-        buf_set_keymap("n", "[d", function() vim.diagnostic.jump({ count = -1, float = true }) end)
-        buf_set_keymap("n", "]d", function() vim.diagnostic.jump({ count = 1, float = true }) end)
-        buf_set_keymap("n", "<leader>e", function() vim.diagnostic.open_float() end)
+        buf_set_keymap("n", "[d", function()
+          vim.diagnostic.jump({ count = -1, float = false })
+          show_virtual_lines_until_next_move()
+        end)
+        buf_set_keymap("n", "]d", function()
+          vim.diagnostic.jump({ count = 1, float = false })
+          show_virtual_lines_until_next_move()
+        end)
+        buf_set_keymap("n", "<leader>e", function()
+          show_virtual_lines_until_next_move()
+        end)
 
         -- Workspace
         buf_set_keymap("n", "<leader>wa", vim.lsp.buf.add_workspace_folder)
