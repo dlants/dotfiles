@@ -52,6 +52,18 @@ return {
             -- baseUrl= "https://amplify-llm-gateway-devci.poc.learning.amplify.com"
           },
           {
+            name = "codex-mini",
+            provider = "openai",
+            model = "codex-mini-latest",
+            apiKeyEnvVar = "OPENAI_API_KEY"
+          },
+          {
+            name = "o4-mini",
+            provider = "openai",
+            model = "o4-mini",
+            apiKeyEnvVar = "OPENAI_API_KEY"
+          },
+          {
             name = "copilot-claude-3-7",
             provider = "copilot",
             model = "claude-3.7-sonnet",
@@ -399,11 +411,11 @@ return {
   --     --vim.cmd("colorscheme solarized-osaka")
   --   end
   -- },
-  { "tomasr/molokai",              lazy = true },
-  { "rafamadriz/neon",             lazy = true },
-  { "marko-cerovac/material.nvim", lazy = true },
-  { "ray-x/aurora",                lazy = true },
-  { "mhartington/oceanic-next",    lazy = true },
+  -- { "tomasr/molokai",              lazy = true },
+  -- { "rafamadriz/neon",             lazy = true },
+  -- { "marko-cerovac/material.nvim", lazy = true },
+  -- { "ray-x/aurora",                lazy = true },
+  -- { "mhartington/oceanic-next",    lazy = true },
   {
     "neovim/nvim-lspconfig",
     lazy = false,
@@ -723,23 +735,23 @@ return {
   },
   { "onsails/lspkind.nvim" },
   -- magazine.nvim, from https://github.com/iguanacucumber/magazine.nvim
-  { "iguanacucumber/mag-nvim-lsp", name = "cmp-nvim-lsp", opts = {} },
-  { "iguanacucumber/mag-nvim-lua", name = "cmp-nvim-lua" },
-  { "iguanacucumber/mag-buffer",   name = "cmp-buffer" },
-  { "iguanacucumber/mag-cmdline",  name = "cmp-cmdline" },
+  -- { "iguanacucumber/mag-nvim-lsp", name = "cmp-nvim-lsp", opts = {} },
+  -- { "iguanacucumber/mag-nvim-lua", name = "cmp-nvim-lua" },
+  -- { "iguanacucumber/mag-buffer",   name = "cmp-buffer" },
+  -- { "iguanacucumber/mag-cmdline",  name = "cmp-cmdline" },
   {
-    "iguanacucumber/magazine.nvim",
-    name = "nvim-cmp",
-    -- "hrsh7th/nvim-cmp",
-    -- dependencies = {
-    --   "hrsh7th/cmp-nvim-lsp",
-    --   "hrsh7th/cmp-buffer",
-    --   "hrsh7th/cmp-path",
-    --   "saadparwaiz1/cmp_luasnip",
-    --   "L3MON4D3/LuaSnip"
-    --   -- "zbirenbaum/copilot.lua",
-    --   -- "zbirenbaum/copilot-cmp",
-    -- },
+    "hrsh7th/nvim-cmp",
+    dependencies = {
+      "hrsh7th/cmp-nvim-lsp",
+      "hrsh7th/cmp-buffer",
+      "hrsh7th/cmp-nvim-lua",
+      "hrsh7th/cmp-path",
+      "hrsh7th/cmp-cmdline",
+      -- "saadparwaiz1/cmp_luasnip",
+      -- "L3MON4D3/LuaSnip"
+      -- "zbirenbaum/copilot.lua",
+      -- "zbirenbaum/copilot-cmp",
+    },
     config = function()
       local cmp = require "cmp"
 
@@ -836,6 +848,32 @@ return {
           }
         }
       )
+
+      -- Setup filetype-specific sources
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = "lua",
+        callback = function()
+          cmp.setup.buffer {
+            sources = cmp.config.sources({
+              { name = "nvim_lsp" },
+              { name = "nvim_lua" },
+              { name = "path" },
+              {
+                name = "buffer",
+                option = {
+                  get_bufnrs = function()
+                    local bufs = {}
+                    for _, win in ipairs(vim.api.nvim_list_wins()) do
+                      bufs[vim.api.nvim_win_get_buf(win)] = true
+                    end
+                    return vim.tbl_keys(bufs)
+                  end
+                }
+              }
+            })
+          }
+        end
+      })
     end
   },
   {
