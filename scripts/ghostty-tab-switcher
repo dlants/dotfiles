@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# Ghostty Tab Switcher using fzf and Hammerspoon
+# Usage: ./ghostty-tab-switcher
+
+# Get tab list from Hammerspoon
+TABS=$(hs -c "cliFormatGhosttyTabs()")
+
+if [ -z "$TABS" ]; then
+    echo "No Ghostty tabs found"
+    exit 1
+fi
+
+# Use fzf to select a tab, showing only the tab title
+SELECTED=$(echo "$TABS" | fzf --delimiter=:: --with-nth=4 --header="Select Ghostty Tab")
+
+if [ -n "$SELECTED" ]; then
+    # Switch to the selected tab
+    hs -c "cliSelectGhosttyTab('$SELECTED')" > /dev/null
+else
+    echo "No tab selected"
+fi

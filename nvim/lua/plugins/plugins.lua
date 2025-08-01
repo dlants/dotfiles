@@ -1,26 +1,12 @@
 return {
   {
-    "folke/snacks.nvim",
-    priority = 1000,
-    lazy = false,
-    config = function()
-      require("snacks").setup({
-        input = {},
-        indent = {},
-        rename = {},
-        bigfile = {
-          notify = true
-        },
-      })
-    end
-  },
-  {
     "dlants/magenta.nvim",
     lazy = false,
     dev = true,
     build = "npm install --frozen-lockfile",
     config = function()
       require("magenta").setup({
+        -- debug = true,
         profiles = {
           {
             name = "claude-4-sonnet",
@@ -70,7 +56,13 @@ return {
           }
         },
         sidebarPosition = "left",
-
+        editPrediction = {
+          profile = {
+            provider = "anthropic",
+            model = "claude-sonnet-4-20250514",
+            apiKeyEnvVar = "ANTHROPIC_API_KEY",
+          }
+        },
         mcpServers = {
           -- Hub = {
           --   url = "http://localhost:37373/mcp"
@@ -90,6 +82,21 @@ return {
   --   opts = {}
   -- },
   {
+    "folke/snacks.nvim",
+    priority = 1000,
+    lazy = false,
+    config = function()
+      require("snacks").setup({
+        input = {},
+        indent = {},
+        rename = {},
+        bigfile = {
+          notify = true
+        },
+      })
+    end
+  },
+  {
     "karb94/neoscroll.nvim",
     config = function()
       require("neoscroll").setup({
@@ -98,7 +105,7 @@ return {
         respect_scrolloff = false,
         cursor_scrolls_alone = true,
         easing_function = nil,
-        performance_mode = false,
+        performance_mode = true,
       })
 
       -- Custom key mappings with faster scroll speed
@@ -338,7 +345,6 @@ return {
   -- Show LSP progress
   {
     "j-hui/fidget.nvim",
-    tag = "legacy",
     event = "LspAttach",
     opts = {
       text = {
@@ -437,6 +443,18 @@ return {
         }
       )
 
+      -- Clear hovers when switching buffers
+      -- vim.api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
+      --   callback = function()
+      --     -- Close any floating windows (including LSP hovers)
+      --     for _, winid in pairs(vim.api.nvim_tabpage_list_wins(0)) do
+      --       if vim.api.nvim_win_get_config(winid).relative ~= "" then
+      --         vim.api.nvim_win_close(winid, false)
+      --       end
+      --     end
+      --   end,
+      -- })
+
       -- Function to temporarily show virtual lines
       local function show_virtual_lines_until_next_move()
         vim.diagnostic.config({ virtual_lines = true })
@@ -455,7 +473,6 @@ return {
       -- Setup capabilities properly
       local capabilities = require("cmp_nvim_lsp").default_capabilities()
       capabilities.textDocument.completion.completionItem.snippetSupport = true
-      -- local capabilities = require("blink.cmp").get_lsp_capabilities()
 
       -- on_attach only maps when the language server attaches to the current buffer
       local on_attach = function(_, bufnr)
@@ -466,7 +483,7 @@ return {
         -- LSP actions
         buf_set_keymap("n", "<leader>k", vim.lsp.buf.hover)
         buf_set_keymap("n", "gd", vim.lsp.buf.definition)
-        buf_set_keymap("n", "gD", vim.lsp.buf.declaration)
+        buf_set_keymap("n", "gD", vim.lsp.buf.type_definition)
         buf_set_keymap("n", "gi", vim.lsp.buf.implementation)
         buf_set_keymap("n", "gr", vim.lsp.buf.references)
         buf_set_keymap("n", "<leader>r", vim.lsp.buf.rename)
@@ -537,7 +554,16 @@ return {
               preferences = {
                 importModuleSpecifierPreference = "relative"
               }
-            }
+            },
+            capabilities = vim.tbl_extend(
+              "force",
+              capabilities,
+              {
+                textDocument = {
+                  signatureHelp = nil
+                }
+              }
+            )
           }
         )
       )
@@ -874,47 +900,6 @@ return {
           }
         end
       })
-    end
-  },
-  {
-    "zbirenbaum/copilot.lua",
-    cmd = "Copilot",
-    event = "InsertEnter",
-    config = function()
-      require("copilot").setup(
-        {
-          panel = {
-            enabled = false
-          },
-          suggestion = {
-            enabled = true,
-            auto_trigger = false,
-            hide_during_completion = false,
-            debounce = 75,
-            keymap = {
-              accept_word = false,
-              accept_line = false,
-              -- next = "<C-j>",
-              -- prev = "<C-k>",
-              dismiss = "<Esc>"
-            }
-          }
-        }
-      )
-
-      vim.keymap.set(
-        "i",
-        "<C-l>",
-        function()
-          local copilot = require("copilot.suggestion")
-          if copilot.is_visible() then
-            copilot.accept()
-          else
-            copilot.next()
-          end
-        end,
-        { desc = "Trigger copilot suggestion" }
-      )
     end
   },
   {
