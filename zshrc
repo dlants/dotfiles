@@ -85,31 +85,19 @@ export PATH="$PATH:/Users/denislantsman/.local/bin"
 
 
 
-# Custom simple multi-line prompt
+# Simple fast git prompt (local changes only, no remote checks)
 if [[ "$TERM" != "dumb" ]]; then
-  # Function to get git branch with status
+  # Function to get git branch with local status only
   git_branch() {
-    local branch status_symbols
+    local branch
     branch=$(git branch 2>/dev/null | grep '^\*' | colrm 1 2)
 
     if [[ -n "$branch" ]]; then
-      status_symbols=""
+      local status_symbols=""
 
-      # Check if working directory is dirty
-      if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
-        status_symbols="${status_symbols}*"
-      fi
-
-      # Check sync status with origin
-      local ahead behind
-      ahead=$(git rev-list --count @{upstream}..HEAD 2>/dev/null)
-      behind=$(git rev-list --count HEAD..@{upstream} 2>/dev/null)
-
-      if [[ "$ahead" -gt 0 ]]; then
-        status_symbols="${status_symbols}↑${ahead}"
-      fi
-      if [[ "$behind" -gt 0 ]]; then
-        status_symbols="${status_symbols}↓${behind}"
+      # Quick check for any uncommitted changes
+      if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+        status_symbols="*"
       fi
 
       echo " (${branch}${status_symbols})"
