@@ -9,15 +9,24 @@ return {
         -- debug = true,
         profiles = {
           {
-            name = "claude-4-sonnet",
+            name = "claude-4-sonnet(max)",
             provider = "anthropic",
             model = "claude-sonnet-4-20250514",
-            apiKeyEnvVar = "ANTHROPIC_API_KEY",
+            authType = "max",
             thinking = {
               enabled = true,
               budgetTokens = 1024
             }
-          },
+          }, {
+          name = "claude-4-sonnet",
+          provider = "anthropic",
+          model = "claude-sonnet-4-20250514",
+          apiKeyEnvVar = "ANTHROPIC_API_KEY",
+          thinking = {
+            enabled = true,
+            budgetTokens = 1024
+          }
+        },
           {
             name = "claude-3-7",
             provider = "anthropic",
@@ -25,15 +34,9 @@ return {
             apiKeyEnvVar = "ANTHROPIC_API_KEY"
           },
           {
-            name = "claude-4-opus",
-            provider = "anthropic",
-            model = "claude-opus-4-20250514",
-            apiKeyEnvVar = "ANTHROPIC_API_KEY"
-          },
-          {
-            name = "gpt-4.1",
+            name = "gpt-5",
             provider = "openai",
-            model = "gpt-4.1",
+            model = "gpt-5",
             -- apiKeyEnvVar= "AMPLIFY_API_KEY",
             -- baseUrl= "https://amplify-llm-gateway-devci.poc.learning.amplify.com"
           },
@@ -143,6 +146,17 @@ return {
           width = 1.0,
           row = 0,
           border = "none"
+        },
+        previewers = {
+          builtin = {
+            extensions = {
+              ["png"] = false,
+              ["jpg"] = false,
+              ["jpeg"] = false,
+              ["gif"] = false,
+              ["webp"] = false,
+            }
+          }
         }
       })
       require("fzf-lua").register_ui_select()
@@ -285,13 +299,22 @@ return {
     config = function()
       require("gitsigns").setup()
 
+      -- Only set gitsigns navigation when not in fugitive diff buffers
       vim.keymap.set('n', ']c', function()
-        require('gitsigns').nav_hunk('next')
-      end, { desc = 'Next git hunk' })
+        if vim.wo.diff then
+          return ']c'
+        end
+        vim.schedule(function() require('gitsigns').nav_hunk('next') end)
+        return '<Ignore>'
+      end, { expr = true, desc = 'Next git hunk' })
 
       vim.keymap.set('n', '[c', function()
-        require('gitsigns').nav_hunk('prev')
-      end, { desc = 'Previous git hunk' })
+        if vim.wo.diff then
+          return '[c'
+        end
+        vim.schedule(function() require('gitsigns').nav_hunk('prev') end)
+        return '<Ignore>'
+      end, { expr = true, desc = 'Previous git hunk' })
     end
   },
   { "tpope/vim-fugitive" },
@@ -429,8 +452,6 @@ return {
       "hrsh7th/cmp-nvim-lsp"
     },
     config = function()
-      local lspkind = require "lspconfig"
-
       -- Add proper diagnostic configuration
       vim.diagnostic.config(
         {
@@ -525,7 +546,7 @@ return {
         on_attach = on_attach,
         capabilities = capabilities,
         flags = {
-          debounce_text_changes = 150
+          debounce_text_changes = 500
         }
       }
 
@@ -541,10 +562,10 @@ return {
       }
 
       for _, server in ipairs(servers) do
-        lspkind[server].setup(default_config)
+        vim.lsp.config(server, default_config)
       end
 
-      lspkind.ts_ls.setup(
+      vim.lsp.config("ts_ls",
         vim.tbl_extend(
           "force",
           default_config,
@@ -563,13 +584,16 @@ return {
                   signatureHelp = nil
                 }
               }
-            )
+            ),
+            flags = {
+              debounce_text_changes = 1000
+            }
           }
-        )
-      )
+        ))
+
 
       -- Rust specific configuration
-      lspkind.rust_analyzer.setup(
+      vim.lsp.config("rust_analyzer",
         vim.tbl_extend(
           "force",
           default_config,
@@ -595,7 +619,7 @@ return {
         )
       )
 
-      lspkind.lua_ls.setup {
+      vim.lsp.config("lua_ls", {
         on_attach = on_attach,
         capabilities = capabilities,
         on_init = function(client)
@@ -634,7 +658,30 @@ return {
         settings = {
           Lua = {}
         }
-      }
+      })
+
+      vim.lsp.config("zls", {
+        on_attach = on_attach,
+        capabilities = capabilities,
+        -- There are two ways to set config options:
+        --   - edit your `zls.json` that applies to any editor that uses ZLS
+        --   - set in-editor config options with the `settings` field below.
+        --
+        -- Further information on how to configure ZLS:
+        -- https://zigtools.org/zls/configure/
+        settings = {
+          zls = {
+            -- Whether to enable build-on-save diagnostics
+            --
+            -- Further information about build-on save:
+            -- https://zigtools.org/zls/guides/build-on-save/
+            -- enable_build_on_save = true,
+
+            -- Neovim already provides basic syntax highlighting
+            semantic_tokens = "partial",
+          }
+        }
+      })
     end
   },
   {
@@ -931,10 +978,20 @@ return {
     config = function()
       require("nvim-treesitter.configs").setup(
         {
-          ensure_installed = { "teal" },
+          ensure_installed = {
+            "lua", "typescript", "javascript", "tsx", "json", "yaml",
+            "html", "css", "rust", "bash", "markdown", "teal"
+          },
           highlight = {
             enable = true,
-            additional_vim_regex_highlighting = false
+            additional_vim_regex_highlighting = false,
+            disable = function(lang, buf)
+              local max_filesize = 100 * 1024 -- 100 KB
+              local ok, stats = pcall(vim.loop.fs_stat, vim.api.nvim_buf_get_name(buf))
+              if ok and stats and stats.size > max_filesize then
+                return true
+              end
+            end,
           }
         }
       )
