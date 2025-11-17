@@ -173,14 +173,14 @@ return {
         desc = "FZF All Files (including gitignored)",
         silent = true
       },
-      {
-        "<leader>f",
-        function()
-          require("fzf-lua").files()
-        end,
-        desc = "FZF Files",
-        silent = true
-      },
+      -- {
+      --   "<leader>f",
+      --   function()
+      --     require("fzf-lua").files()
+      --   end,
+      --   desc = "FZF Files",
+      --   silent = true
+      -- },
       {
         "<leader>h",
         function()
@@ -195,6 +195,38 @@ return {
           require("fzf-lua").live_grep()
         end,
         desc = "FZF live grep",
+        silent = true
+      }
+    }
+  },
+  {
+    "dmtrKovalenko/fff.nvim",
+    lazy = false,
+    build = function()
+      require("fff.download").download_or_build_binary()
+    end,
+    opts = {
+      layout = {
+        height = 0.5,
+        width = 1,
+        row = 0,
+        col = nil,
+        prompt_position = 'top',    -- or 'top'
+        preview_position = 'right', -- or 'left', 'right', 'top', 'bottom'
+        preview_size = 0.5,
+      },
+      keymaps = {
+        move_up = { '<Up>', '<C-k>' },
+        move_down = { '<Down>', '<C-j>' },
+      },
+    },
+    keys = {
+      {
+        "<leader>f",
+        function()
+          require("fff").find_files()
+        end,
+        desc = "FFF Find files",
         silent = true
       }
     }
@@ -504,89 +536,53 @@ return {
         on_attach = on_attach,
         capabilities = capabilities,
         flags = {
-          debounce_text_changes = 500
+          debounce_text_changes = 150
         }
       }
 
-      local servers = {
-        "bashls",
-        "dockerls",
-        "eslint",
-        "jsonls",
-        "terraformls",
-        "tflint",
-        "yamlls",
-        "teal_ls"
-      }
-
-      for _, server in ipairs(servers) do
-        vim.lsp.config(server, default_config)
-      end
-
-      vim.lsp.config("ts_ls",
-        vim.tbl_extend(
-          "force",
-          default_config,
-          {
-            capabilities = vim.tbl_extend(
-              "force",
-              capabilities,
-              {
-                textDocument = {
-                  signatureHelp = nil
-                }
-              }
-            ),
-            settings = {
-              typescript = {
-                inlayHints = {
-                  includeInlayParameterNameHints = "all",
-                  includeInlayParameterNameHintsWhenArgumentMatchesName = false,
-                  includeInlayFunctionParameterTypeHints = true,
-                  includeInlayVariableTypeHints = true,
-                  includeInlayPropertyDeclarationTypeHints = true,
-                  includeInlayFunctionLikeReturnTypeHints = true,
-                  includeInlayEnumMemberValueHints = true,
-                },
-                preferences = {
-                  importModuleSpecifier = "relative"
-                }
-              }
+      -- TypeScript specific configuration
+      vim.lsp.config("ts_ls", vim.tbl_deep_extend("force", default_config, {
+        settings = {
+          typescript = {
+            inlayHints = {
+              includeInlayParameterNameHints = "all",
+              includeInlayParameterNameHintsWhenArgumentMatchesName = false,
+              includeInlayFunctionParameterTypeHints = true,
+              includeInlayVariableTypeHints = true,
+              includeInlayPropertyDeclarationTypeHints = true,
+              includeInlayFunctionLikeReturnTypeHints = true,
+              includeInlayEnumMemberValueHints = true,
+            },
+            preferences = {
+              importModuleSpecifier = "relative"
             }
           }
-        ))
-
+        }
+      }))
 
       -- Rust specific configuration
-      vim.lsp.config("rust_analyzer",
-        vim.tbl_extend(
-          "force",
-          default_config,
-          {
-            settings = {
-              ["rust-analyzer"] = {
-                assist = {
-                  importGranularity = "module",
-                  importPrefix = "self"
-                },
-                cargo = {
-                  loadOutDirsFromCheck = true
-                },
-                procMacro = {
-                  enable = true
-                },
-                checkOnSave = {
-                  command = "clippy"
-                }
-              }
+      vim.lsp.config("rust_analyzer", vim.tbl_deep_extend("force", default_config, {
+        settings = {
+          ["rust-analyzer"] = {
+            assist = {
+              importGranularity = "module",
+              importPrefix = "self"
+            },
+            cargo = {
+              loadOutDirsFromCheck = true
+            },
+            procMacro = {
+              enable = true
+            },
+            checkOnSave = {
+              command = "clippy"
             }
           }
-        )
-      )
+        }
+      }))
 
-      vim.lsp.config("lua_ls", {
-        on_attach = on_attach,
-        capabilities = capabilities,
+      -- Lua specific configuration
+      vim.lsp.config("lua_ls", vim.tbl_deep_extend("force", default_config, {
         on_init = function(client)
           if client.workspace_folders then
             local path = client.workspace_folders[1].name
@@ -601,21 +597,13 @@ return {
                 client.config.settings.Lua,
                 {
                   runtime = {
-                    -- Tell the language server which version of Lua you're using
-                    -- (most likely LuaJIT in the case of Neovim)
                     version = "LuaJIT"
                   },
-                  -- Make the server aware of Neovim runtime files
                   workspace = {
                     checkThirdParty = false,
                     library = {
                       vim.env.VIMRUNTIME
-                      -- Depending on the usage, you might want to add additional paths here.
-                      -- "${3rd}/luv/library"
-                      -- "${3rd}/busted/library",
                     }
-                    -- or pull in all of 'runtimepath'. NOTE: this is a lot slower and will cause issues when working on your own configuration (see https://github.com/neovim/nvim-lspconfig/issues/3189)
-                    -- library = vim.api.nvim_get_runtime_file("", true)
                   }
                 }
               )
@@ -623,41 +611,50 @@ return {
         settings = {
           Lua = {}
         }
-      })
+      }))
 
-      vim.lsp.config("zls", {
-        on_attach = on_attach,
-        capabilities = capabilities,
-        -- There are two ways to set config options:
-        --   - edit your `zls.json` that applies to any editor that uses ZLS
-        --   - set in-editor config options with the `settings` field below.
-        --
-        -- Further information on how to configure ZLS:
-        -- https://zigtools.org/zls/configure/
+      -- Zig specific configuration
+      vim.lsp.config("zls", vim.tbl_deep_extend("force", default_config, {
         settings = {
           zls = {
-            -- Whether to enable build-on-save diagnostics
-            --
-            -- Further information about build-on save:
-            -- https://zigtools.org/zls/guides/build-on-save/
-            -- enable_build_on_save = true,
-
-            -- Neovim already provides basic syntax highlighting
             semantic_tokens = "partial",
           }
         }
-      })
+      }))
 
-      -- Enable all configured LSP servers
-      vim.lsp.enable('ts_ls')
-      vim.lsp.enable('rust_analyzer')
-      vim.lsp.enable('lua_ls')
-      vim.lsp.enable('zls')
+      -- Configure servers that don't need special settings
+      local simple_servers = {
+        "bashls",
+        "dockerls",
+        "eslint",
+        "jsonls",
+        "terraformls",
+        "tflint",
+        "yamlls",
+        "teal_ls"
+      }
 
-      -- Enable other servers
-      for _, server in ipairs(servers) do
-        vim.lsp.enable(server)
+      for _, server in ipairs(simple_servers) do
+        vim.lsp.config(server, default_config)
       end
+
+      -- Enable all LSP servers
+      local all_servers = {
+        "bashls",
+        "dockerls",
+        "eslint",
+        "jsonls",
+        "terraformls",
+        "tflint",
+        "yamlls",
+        "teal_ls",
+        "ts_ls",
+        "rust_analyzer",
+        "lua_ls",
+        "zls"
+      }
+
+      vim.lsp.enable(all_servers)
     end
   },
   {
