@@ -1,69 +1,66 @@
+-- Function to temporarily show virtual lines
+local function show_virtual_lines_until_next_move()
+  vim.diagnostic.config({ virtual_lines = true })
+
+  -- Hide when cursor moves, with delay to allow diagnostic jump to complete
+  vim.defer_fn(function()
+    vim.api.nvim_create_autocmd("CursorMoved", {
+      once = true,
+      callback = function()
+        vim.diagnostic.config({ virtual_lines = false })
+      end
+    })
+  end, 50)
+end
+
+
 return {
   {
     "dlants/magenta.nvim",
     lazy = false,
     dev = true,
-    build = "npm install --frozen-lockfile",
+    build = "npm ci --production",
     config = function()
       require("magenta").setup({
         -- debug = true,
         profiles = {
           {
-            name = "claude-4-sonnet(max)",
+            name = "sonnet-4.5(max)",
             provider = "anthropic",
-            model = "claude-sonnet-4-20250514",
+            model = "claude-sonnet-4-5",
             authType = "max",
             thinking = {
               enabled = true,
               budgetTokens = 1024
             }
-          }, {
-          name = "claude-4-sonnet",
-          provider = "anthropic",
-          model = "claude-sonnet-4-20250514",
-          apiKeyEnvVar = "ANTHROPIC_API_KEY",
-          thinking = {
-            enabled = true,
-            budgetTokens = 1024
-          }
-        },
+          },
           {
-            name = "claude-3-7",
+            name = "opus-4.1(max)",
             provider = "anthropic",
-            model = "claude-3-7-sonnet-latest",
-            apiKeyEnvVar = "ANTHROPIC_API_KEY"
+            model = "claude-opus-4-1-20250805",
+            authType = "max",
+            thinking = {
+              enabled = true,
+              budgetTokens = 1024
+            }
           },
           {
-            name = "gpt-5",
-            provider = "openai",
-            model = "gpt-5",
-            -- apiKeyEnvVar= "AMPLIFY_API_KEY",
-            -- baseUrl= "https://amplify-llm-gateway-devci.poc.learning.amplify.com"
+            name = "sonnet-4.5",
+            provider = "anthropic",
+            model = "claude-sonnet-4-5",
+            apiKeyEnvVar = "ANTHROPIC_API_KEY",
+            thinking = {
+              enabled = true,
+              budgetTokens = 1024
+            }
           },
-          {
-            name = "codex-mini",
-            provider = "openai",
-            model = "codex-mini-latest",
-            apiKeyEnvVar = "OPENAI_API_KEY"
-          },
-          {
-            name = "o4-mini",
-            provider = "openai",
-            model = "o4-mini",
-            apiKeyEnvVar = "OPENAI_API_KEY"
-          },
-          {
-            name = "copilot-claude-3-7",
-            provider = "copilot",
-            model = "claude-3.7-sonnet",
-          }
         },
         sidebarPosition = "left",
         editPrediction = {
           profile = {
             provider = "anthropic",
-            model = "claude-sonnet-4-20250514",
-            apiKeyEnvVar = "ANTHROPIC_API_KEY",
+            model = "claude-sonnet-4-5",
+            authType = "max",
           }
         },
         mcpServers = {
@@ -464,33 +461,6 @@ return {
         }
       )
 
-      -- Clear hovers when switching buffers
-      -- vim.api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
-      --   callback = function()
-      --     -- Close any floating windows (including LSP hovers)
-      --     for _, winid in pairs(vim.api.nvim_tabpage_list_wins(0)) do
-      --       if vim.api.nvim_win_get_config(winid).relative ~= "" then
-      --         vim.api.nvim_win_close(winid, false)
-      --       end
-      --     end
-      --   end,
-      -- })
-
-      -- Function to temporarily show virtual lines
-      local function show_virtual_lines_until_next_move()
-        vim.diagnostic.config({ virtual_lines = true })
-
-        -- Hide when cursor moves, with delay to allow diagnostic jump to complete
-        vim.defer_fn(function()
-          vim.api.nvim_create_autocmd("CursorMoved", {
-            once = true,
-            callback = function()
-              vim.diagnostic.config({ virtual_lines = false })
-            end
-          })
-        end, 50)
-      end
-
       -- Setup capabilities properly
       local capabilities = require("cmp_nvim_lsp").default_capabilities()
       capabilities.textDocument.completion.completionItem.snippetSupport = true
@@ -510,7 +480,6 @@ return {
         buf_set_keymap("n", "<leader>r", vim.lsp.buf.rename)
         --buf_set_keymap("n", "<leader>x", vim.lsp.buf.code_action)
         buf_set_keymap("n", "<leader>x", [[:FzfLua lsp_code_actions<CR>]])
-        buf_set_keymap("n", "<leader>D", vim.lsp.buf.type_definition)
 
         -- Signature help
         buf_set_keymap("i", "<C-s>", vim.lsp.buf.signature_help)
@@ -528,17 +497,6 @@ return {
         buf_set_keymap("n", "<leader>e", function()
           show_virtual_lines_until_next_move()
         end)
-
-        -- Workspace
-        buf_set_keymap("n", "<leader>wa", vim.lsp.buf.add_workspace_folder)
-        buf_set_keymap("n", "<leader>wr", vim.lsp.buf.remove_workspace_folder)
-        buf_set_keymap(
-          "n",
-          "<leader>wl",
-          function()
-            print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
-          end
-        )
       end
 
       -- Default configuration for all servers
@@ -570,12 +528,6 @@ return {
           "force",
           default_config,
           {
-            init_options = {
-              hostInfo = "neovim",
-              preferences = {
-                importModuleSpecifierPreference = "relative"
-              }
-            },
             capabilities = vim.tbl_extend(
               "force",
               capabilities,
@@ -585,8 +537,21 @@ return {
                 }
               }
             ),
-            flags = {
-              debounce_text_changes = 1000
+            settings = {
+              typescript = {
+                inlayHints = {
+                  includeInlayParameterNameHints = "all",
+                  includeInlayParameterNameHintsWhenArgumentMatchesName = false,
+                  includeInlayFunctionParameterTypeHints = true,
+                  includeInlayVariableTypeHints = true,
+                  includeInlayPropertyDeclarationTypeHints = true,
+                  includeInlayFunctionLikeReturnTypeHints = true,
+                  includeInlayEnumMemberValueHints = true,
+                },
+                preferences = {
+                  importModuleSpecifier = "relative"
+                }
+              }
             }
           }
         ))
@@ -682,6 +647,17 @@ return {
           }
         }
       })
+
+      -- Enable all configured LSP servers
+      vim.lsp.enable('ts_ls')
+      vim.lsp.enable('rust_analyzer')
+      vim.lsp.enable('lua_ls')
+      vim.lsp.enable('zls')
+
+      -- Enable other servers
+      for _, server in ipairs(servers) do
+        vim.lsp.enable(server)
+      end
     end
   },
   {
@@ -727,42 +703,39 @@ return {
       local config = {
         -- the command that starts the language server
         -- see: https://github.com/eclipse/eclipse.jdt.ls#running-from-the-command-line
-        cmd = {
-          "/opt/homebrew/opt/openjdk/bin/java",
-          "-declipse.application=org.eclipse.jdt.ls.core.id1",
-          "-dosgi.bundles.defaultstartlevel=4",
-          "-declipse.product=org.eclipse.jdt.ls.core.product",
-          "-dlog.protocol=true",
-          "-dlog.level=all",
-          "-xmx1g",
-          "--add-modules=all-system",
-          "--add-opens",
-          "java.base/java.util=all-unnamed",
-          "--add-opens",
-          "java.base/java.lang=all-unnamed",
-          -- 💀
-          "-jar",
-          "/opt/homebrew/cellar/jdtls/1.38.0/libexec/plugins/org.eclipse.equinox.launcher_1.6.900.v20240613-2009.jar",
-          -- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                       ^^^^^^^^^^^^^^
-          -- must point to the                                                     change this to
-          -- eclipse.jdt.ls installation                                           the actual version
-
-          -- 💀
-          "-configuration",
-          "/opt/homebrew/cellar/jdtls/1.38.0/libexec/config_mac",
-          -- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^        ^^^^^^
-          -- must point to the                      change to one of `linux`, `win` or `mac`
-          -- eclipse.jdt.ls installation            depending on your system.
-
-          -- 💀
-          -- see `data directory configuration` section in the readme
-          "-data",
-          workspace_dir
-        },
+        -- cmd = {
+        --   "/opt/homebrew/opt/openjdk/bin/java",
+        --   "-Declipse.application=org.eclipse.jdt.ls.core.id1",
+        --   "-Dosgi.bundles.defaultStartLevel=4",
+        --   "-Declipse.product=org.eclipse.jdt.ls.core.product",
+        --   "-Dlog.protocol=true",
+        --   "-Dlog.level=ALL",
+        --   "-Xmx1g",
+        --   "--add-modules=all-system",
+        --   "--add-opens",
+        --   "java.base/java.util=all-unnamed",
+        --   "--add-opens",
+        --   "java.base/java.lang=all-unnamed",
+        --   -- 💀
+        --   "-jar",
+        --   "/opt/homebrew/Cellar/jdtls/1.51.0/libexec/plugins/org.eclipse.equinox.launcher_1.7.0.v20250519-0528.jar",
+        --   -- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                                       ^^^^^^^^^^^^^^
+        --   -- must point to the                                                     change this to
+        --   -- eclipse.jdt.ls installation                                           the actual version
+        --
+        --   -- 💀
+        --   "-configuration",
+        --   "/opt/homebrew/Cellar/jdtls/1.51.0/libexec/config_mac_arm",
+        --   -- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^        ^^^^^^
+        --   -- must point to the                      change to one of `linux`, `win` or `mac`
+        --   -- eclipse.jdt.ls installation            depending on your system.
+        --
+        --   -- 💀
+        --   -- see `data directory configuration` section in the readme
+        --   "-data",
+        --   workspace_dir
+        -- },
         -- 💀
-        -- this is the default if not provided, you can remove it. or adjust as needed.
-        -- one dedicated lsp server & client will be started per unique root_dir
-        root_dir = require("jdtls.setup").find_root({ ".git", "mvnw", "gradlew" }),
         -- here you can configure eclipse.jdt.ls specific settings
         -- see https://github.com/eclipse/eclipse.jdt.ls/wiki/running-the-java-ls-server-from-the-command-line#initialize-request
         -- for a list of options
@@ -776,21 +749,32 @@ return {
         -- see https://github.com/mfussenegger/nvim-jdtls#java-debug-installation
         --
         -- if you don't plan on using the debugger or other eclipse.jdt.ls plugins you can remove this
-        init_options = {
-          bundles = {}
-        },
-        on_attach = function()
-          local opts = { noremap = true, silent = true }
+        -- init_options = {
+        --   bundles = {}
+        -- },
+        on_attach = function(_, bufnr)
+          local opts = { buffer = bufnr, noremap = true, silent = true }
 
-          vim.keymap.set("n", "<leader>t", vim.lsp.buf.hover, opts)
+          vim.keymap.set("n", "<leader>k", vim.lsp.buf.hover, opts)
           vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
-          vim.keymap.set("n", "gD", vim.lsp.buf.declaration, opts)
+          vim.keymap.set("n", "gD", vim.lsp.buf.type_definition, opts)
+          vim.keymap.set("n", "gi", vim.lsp.buf.implementation)
           vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
           vim.keymap.set("n", "<leader>r", vim.lsp.buf.rename, opts)
+          vim.keymap.set("n", "<leader>x", [[:FzfLua lsp_code_actions<CR>]])
 
-          vim.keymap.set("n", "<leader>i", function() vim.diagnostic.setloclist() end, opts)
-          vim.keymap.set("n", "[d", function() vim.diagnostic.jump({ count = -1, float = true }) end, opts)
-          vim.keymap.set("n", "]d", function() vim.diagnostic.jump({ count = 1, float = true }) end, opts)
+          vim.keymap.set("n", "<leader>d", vim.diagnostic.setqflist)
+          vim.keymap.set("n", "[d", function()
+            vim.diagnostic.jump({ count = -1, float = false })
+            show_virtual_lines_until_next_move()
+          end)
+          vim.keymap.set("n", "]d", function()
+            vim.diagnostic.jump({ count = 1, float = false })
+            show_virtual_lines_until_next_move()
+          end)
+          vim.keymap.set("n", "<leader>e", function()
+            show_virtual_lines_until_next_move()
+          end)
           vim.keymap.set(
             "n",
             "<leader>`",
@@ -801,9 +785,8 @@ return {
           )
         end
       }
-      -- this starts a new client & server,
-      -- or attaches to an existing client & server depending on the `root_dir`.
-      require("jdtls").start_or_attach(config)
+      vim.lsp.config("jdtls", config)
+      vim.lsp.enable("jdtls")
     end
   },
   { "onsails/lspkind.nvim" },
