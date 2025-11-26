@@ -63,17 +63,17 @@ return {
             authType = "max",
           }
         },
-        mcpServers = {
-          -- Hub = {
-          --   url = "http://localhost:37373/mcp"
-          -- },
-          playwright = {
-            command = "npx",
-            args = {
-              "@playwright/mcp@latest"
-            }
-          }
-        }
+        -- mcpServers = {
+        --   -- Hub = {
+        --   --   url = "http://localhost:37373/mcp"
+        --   -- },
+        --   playwright = {
+        --     command = "npx",
+        --     args = {
+        --       "@playwright/mcp@latest"
+        --     }
+        --   }
+        -- }
       })
     end
   },
@@ -220,6 +220,23 @@ return {
         move_down = { '<Down>', '<C-j>' },
       },
     },
+    config = function(_, opts)
+      require("fff").setup(opts)
+
+      -- Add custom keybindings for the input buffer
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = "fff_input",
+        callback = function(ev)
+          local buf = ev.buf
+          -- Jump to beginning of line (after the prompt)
+          vim.keymap.set('i', '<C-a>', '<C-o>I', { buffer = buf, silent = true })
+          -- Jump to end of line
+          vim.keymap.set('i', '<C-e>', '<C-o>A', { buffer = buf, silent = true })
+          -- Clear the line (delete all after prompt)
+          vim.keymap.set('i', '<C-l>', '<C-o>cc', { buffer = buf, silent = true })
+        end,
+      })
+    end,
     keys = {
       {
         "<leader>f",
@@ -268,12 +285,31 @@ return {
         }
       )
 
-      -- Integration with snacks.nvim rename plugin
+      -- Integration with snacks.nvim rename plugin and buffer cleanup
       vim.api.nvim_create_autocmd("User", {
         pattern = "OilActionsPost",
         callback = function(event)
-          if event.data.actions.type == "move" then
-            require("snacks").rename.on_rename_file(event.data.actions.src_url, event.data.actions.dest_url)
+          local action = event.data.actions
+
+          if action.type == "move" then
+            require("snacks").rename.on_rename_file(action.src_url, action.dest_url)
+            -- Close the old buffer (force since the path is now stale)
+            local old_path = vim.fn.fnamemodify(action.src_url:gsub("^oil://", ""), ":p")
+            for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+              if vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_buf_get_name(buf) == old_path then
+                vim.api.nvim_buf_delete(buf, { force = true })
+                break
+              end
+            end
+          elseif action.type == "delete" then
+            -- Close buffers for deleted files (force since file no longer exists)
+            local deleted_path = vim.fn.fnamemodify(action.url:gsub("^oil://", ""), ":p")
+            for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+              if vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_buf_get_name(buf) == deleted_path then
+                vim.api.nvim_buf_delete(buf, { force = true })
+                break
+              end
+            end
           end
         end,
       })
