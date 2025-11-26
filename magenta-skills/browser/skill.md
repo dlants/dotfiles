@@ -28,57 +28,68 @@ This will install Puppeteer, TypeScript, and tsx using the exact versions from t
 
 ```bash
 cd ~/.magenta/skills/browser && npx tsx scripts/browser.ts "
-load('https://www.google.com')
-waitForElement('textarea[name=q]')
-click('textarea[name=q]')
-type('hello world')
-sleep(500)
-waitForElement('input[value=\"Google Search\"]')
-click('input[value=\"Google Search\"]')
-waitForNewPage('google.com/search')
-screenshot('result.png')
+load https://www.google.com
+waitForElement textarea[name=q]
+click textarea[name=q]
+type hello world
+sleep 500
+waitForElement input[value=\"Google Search\"]
+click input[value=\"Google Search\"]
+waitForNewPage google.com/search
+screenshot result.png
 "
 ```
 
 ## Available Commands
 
-- `load(url)` - Navigate to a URL
-  - `url`: URL string
-- `waitForElement(selector)` - Wait for an element to appear (30s timeout)
-  - `selector`: CSS selector
-- `click(selector)` - Click an element
-  - `selector`: CSS selector
-- `type(text)` - Type text into the currently focused element
-  - `text`: Text string
-- `waitForNewPage(urlPattern)` - Wait for navigation to a URL containing the pattern
-  - `urlPattern`: URL pattern
-- `screenshot(filename)` - Take a screenshot and save to `/tmp/magenta/`
-  - `filename`: File path
-- `sleep(ms)` - Wait for a specified duration
-  - `ms`: Milliseconds
-- `hover(selector)` - Hover over an element
-  - `selector`: CSS selector
-- `select(selector, value)` - Select an option from a dropdown
-  - `selector`: CSS selector
-  - `value`: Value to select
-- `focus(selector)` - Focus an element
-  - `selector`: CSS selector
-- `pressKey(key)` - Press a keyboard key (e.g., 'Enter', 'Escape', 'Tab')
-  - `key`: Key name
-- `getText(selector)` - Get and log the text content of an element
-  - `selector`: CSS selector
-- `getAttribute(selector, attr)` - Get and log an element's attribute value
-  - `selector`: CSS selector
-  - `attr`: Attribute name
-- `reload()` - Reload the current page
-- `saveContent(filename)` - Save page HTML to `/tmp/magenta/`
-  - `filename`: File path
-- `keepOpen()` - Keep browser open after script completes (useful for debugging)
+- `load <url>` - Navigate to a URL
+- `waitForElement <selector>` - Wait for an element to appear (30s timeout)
+- `click <selector>` - Click an element
+- `type <text>` - Type text into the currently focused element
+- `waitForNewPage <urlPattern>` - Wait for navigation to a new page, then verify the URL contains the given pattern (substring match)
+- `screenshot <filename>` - Take a screenshot and save to `/tmp/magenta/`
+- `sleep <ms>` - Wait for a specified duration in milliseconds
+- `hover <selector>` - Hover over an element
+- `select <selector> <value>` - Select an option from a dropdown
+- `focus <selector>` - Focus an element
+- `pressKey <key>` - Press a keyboard key (e.g., Enter, Escape, Tab)
+- `getText <selector>` - Get and log the text content of an element
+- `getAttribute <selector> <attribute>` - Get and log an element's attribute value
+- `reload` - Reload the current page
+- `saveContent <filename>` - Save page HTML to `/tmp/magenta/`
+- `keepOpen` - Keep browser open after script completes (useful for debugging)
+- `eval` / `endeval` - Execute JavaScript code in the page context
+  ```
+  eval
+  console.log('Hello from page context');
+  return document.title;
+  endeval
+  ```
 
 ## DSL Syntax
 
-- One command per line
-- Commands use the format: `commandName(arg1, arg2, ...)`
-- Arguments can be quoted with single or double quotes
+- One command per line (except `eval` blocks)
+- Commands use the format: `commandName arg1 arg2 ...`
+- No quotes or parentheses needed - arguments are separated by whitespace
+- Multi-line code blocks supported with `eval` / `endeval`
 - Lines starting with `#` are treated as comments
 - Empty lines are ignored
+
+### Examples
+
+Simple commands:
+```
+load https://example.com
+click button.submit
+type Hello World
+waitForNewPage example.com/results  # Waits for navigation, then checks URL contains "example.com/results"
+```
+
+Multi-line eval block:
+```
+eval
+const title = document.querySelector('h1').textContent;
+console.log('Title:', title);
+return title;
+endeval
+```

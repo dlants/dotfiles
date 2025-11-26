@@ -5,40 +5,104 @@ import * as path from 'path';
 interface Command {
   type: string;
   args: string[];
+  code?: string; // For eval command
 }
 
-function parseCommand(line: string): Command | null {
-  line = line.trim();
-  if (!line || line.startsWith('#')) {
-    return null;
-  }
+function parseCommands(script: string): Command[] {
+  const lines = script.split('\n');
+  const commands: Command[] = [];
+  let i = 0;
 
-  // Parse command(arg1, arg2, ...)
-  const match = line.match(/^(\w+)\((.*)\)$/);
-  if (!match) {
-    throw new Error(`Invalid command syntax: ${line}`);
-  }
+  while (i < lines.length) {
+    const line = lines[i].trim();
 
-  const [, type, argsStr] = match;
-
-  // Parse arguments - handle quoted strings
-  const args: string[] = [];
-  const argMatches = argsStr.matchAll(/'([^']*)'|"([^"]*)"|([^,\s]+)/g);
-
-  for (const argMatch of argMatches) {
-    const arg = argMatch[1] || argMatch[2] || argMatch[3];
-    if (arg !== undefined && arg !== '') {
-      args.push(arg);
+    // Skip empty lines and comments
+    if (!line || line.startsWith('#')) {
+      i++;
+      continue;
     }
+
+    // Check for eval block
+    if (line === 'eval') {
+      const codeLines: string[] = [];
+      i++;
+
+      while (i < lines.length && lines[i].trim() !== 'endeval') {
+        codeLines.push(lines[i]);
+        i++;
+      }
+
+      if (i >= lines.length) {
+        throw new Error('eval block not closed with endeval');
+      }
+
+      commands.push({
+        type: 'eval',
+        args: [],
+        code: codeLines.join('\n')
+      });
+      i++; // Skip the endeval line
+      continue;
+    }
+
+    // Parse regular command: commandName arg1 arg2 ...
+    const parts = line.split(/\s+/);
+    const type = parts[0];
+    const args = parts.slice(1);
+
+    // Join all args back together as a single string for most commands
+    // This allows selectors and URLs to have spaces if needed
+    const fullArg = args.join(' ');
+
+    commands.push({
+      type,
+      args: fullArg ? [fullArg] : []
+    });
+
+    i++;
   }
 
-  return { type, args };
+  return commands;
 }
 
 async function executeCommand(command: Command, page: Page, state: { keepOpen: boolean }): Promise<void> {
-  const { type, args } = command;
+  const { type, args, code } = command;
 
   switch (type) {
+    case 'eval':
+      if (!code) {
+        throw new Error('eval command requires code block');
+      }
+      console.log('Evaluating code in page context...');
+
+      // Capture console output from the page
+      const consoleMessages: string[] = [];
+      const consoleHandler = (msg: any) => {
+        const type = msg.type();
+        const text = msg.text();
+        consoleMessages.push(`[browser ${type}] ${text}`);
+      };
+
+      page.on('console', consoleHandler);
+
+      try {
+        // Wrap code in an async function to support return statements
+        const wrappedCode = `(async () => { ${code} })()`;
+        const result = await page.evaluate(wrappedCode);
+
+        // Output any console messages from the browser
+        if (consoleMessages.length > 0) {
+          console.log('\nBrowser console output:');
+          consoleMessages.forEach(msg => console.log(msg));
+        }
+
+        // Always output the result
+        console.log('\nEval result:', result);
+      } finally {
+        page.off('console', consoleHandler);
+      }
+      break;
+
     case 'load':
       if (args.length !== 1) {
         throw new Error(`load expects 1 argument, got ${args.length}`);
@@ -120,11 +184,13 @@ async function executeCommand(command: Command, page: Page, state: { keepOpen: b
       break;
 
     case 'select':
-      if (args.length !== 2) {
-        throw new Error(`select expects 2 arguments (selector, value), got ${args.length}`);
+      // Split args for multi-argument commands
+      const selectArgs = args[0].split(/\s+/, 2);
+      if (selectArgs.length !== 2) {
+        throw new Error(`select expects 2 arguments (selector value), got ${selectArgs.length}`);
       }
-      console.log(`Selecting "${args[1]}" in ${args[0]}...`);
-      await page.select(args[0], args[1]);
+      console.log(`Selecting "${selectArgs[1]}" in ${selectArgs[0]}...`);
+      await page.select(selectArgs[0], selectArgs[1]);
       break;
 
     case 'focus':
@@ -153,11 +219,13 @@ async function executeCommand(command: Command, page: Page, state: { keepOpen: b
       break;
 
     case 'getAttribute':
-      if (args.length !== 2) {
-        throw new Error(`getAttribute expects 2 arguments (selector, attribute), got ${args.length}`);
+      // Split args for multi-argument commands
+      const attrArgs = args[0].split(/\s+/, 2);
+      if (attrArgs.length !== 2) {
+        throw new Error(`getAttribute expects 2 arguments (selector attribute), got ${attrArgs.length}`);
       }
-      console.log(`Getting attribute "${args[1]}" from ${args[0]}...`);
-      const attrValue = await page.$eval(args[0], (el, attr) => el.getAttribute(attr), args[1]);
+      console.log(`Getting attribute "${attrArgs[1]}" from ${attrArgs[0]}...`);
+      const attrValue = await page.$eval(attrArgs[0], (el, attr) => el.getAttribute(attr), attrArgs[1]);
       console.log(`Attribute value: ${attrValue}`);
       break;
 
@@ -209,17 +277,14 @@ async function runScript(script: string): Promise<void> {
 
   try {
     const page = await browser.newPage();
-    const lines = script.split('\n');
+    const commands = parseCommands(script);
 
-    for (let i = 0; i < lines.length; i++) {
-      const command = parseCommand(lines[i]);
-      if (command) {
-        try {
-          await executeCommand(command, page, state);
-        } catch (error) {
-          console.error(`Error executing command on line ${i + 1}: ${lines[i]}`);
-          throw error;
-        }
+    for (const command of commands) {
+      try {
+        await executeCommand(command, page, state);
+      } catch (error) {
+        console.error(`Error executing command: ${command.type}`);
+        throw error;
       }
     }
 
