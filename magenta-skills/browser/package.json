@@ -1,0 +1,24 @@
+{
+  "name": "browser-skill",
+  "version": "1.0.0",
+  "description": "Browser automation skill using Puppeteer",
+  "scripts": {
+    "browser": "tsx scripts/browser.ts"
+  },
+  "keywords": [
+    "puppeteer",
+    "automation",
+    "browser"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "puppeteer": "^24.26.1"
+  },
+  "packageManager": "pnpm@10.23.0+sha512.21c4e5698002ade97e4efe8b8b4a89a8de3c85a37919f957e7a0f30f38fbc5bbdd05980ffe29179b2fb6e6e691242e098d945d1601772cad0fef5fb6411e2a4b"
+}

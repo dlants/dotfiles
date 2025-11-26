@@ -1,0 +1,13 @@
+# Example: Google Search
+# This script demonstrates basic browser automation
+
+load('https://www.google.com')
+waitForElement('textarea[name=q]')
+click('textarea[name=q]')
+type('puppeteer automation')
+sleep(500)
+waitForElement('input[value="Google Search"]')
+click('input[value="Google Search"]')
+waitForNewPage('google.com/search')
+sleep(1000)
+screenshot('google-results.png')
