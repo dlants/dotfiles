@@ -25,30 +25,20 @@ return {
         -- debug = true,
         profiles = {
           {
+            name = "opus-4.5(max)",
+            provider = "anthropic",
+            model = "claude-opus-4-5",
+            authType = "max",
+            thinking = {
+              enabled = true,
+              budgetTokens = 1024
+            }
+          },
+          {
             name = "sonnet-4.5(max)",
             provider = "anthropic",
             model = "claude-sonnet-4-5",
             authType = "max",
-            thinking = {
-              enabled = true,
-              budgetTokens = 1024
-            }
-          },
-          {
-            name = "opus-4.1(max)",
-            provider = "anthropic",
-            model = "claude-opus-4-1-20250805",
-            authType = "max",
-            thinking = {
-              enabled = true,
-              budgetTokens = 1024
-            }
-          },
-          {
-            name = "sonnet-4.5",
-            provider = "anthropic",
-            model = "claude-sonnet-4-5",
-            apiKeyEnvVar = "ANTHROPIC_API_KEY",
             thinking = {
               enabled = true,
               budgetTokens = 1024
@@ -59,7 +49,7 @@ return {
         editPrediction = {
           profile = {
             provider = "anthropic",
-            model = "claude-sonnet-4-5",
+            model = "claude-haiku-4-5",
             authType = "max",
           }
         },
