@@ -224,6 +224,7 @@ return {
           vim.keymap.set('i', '<C-e>', '<C-o>A', { buffer = buf, silent = true })
           -- Clear the line (delete all after prompt)
           vim.keymap.set('i', '<C-l>', '<C-o>cc', { buffer = buf, silent = true })
+          vim.keymap.set('i', '<C-u>', '<C-o>cc', { buffer = buf, silent = true })
         end,
       })
     end,
