@@ -374,7 +374,6 @@ return {
     end
   },
   { "tpope/vim-fugitive" },
-  { "almo7aya/openingh.nvim" },
   { "tpope/vim-rhubarb" },
   {
     "numtostr/comment.nvim",

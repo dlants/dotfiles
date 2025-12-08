@@ -139,3 +139,51 @@ vim.api.nvim_set_keymap("n", "]f", ":cnewer<CR>", { noremap = true })
 
 vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", { noremap = true })
 vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", { noremap = true })
+
+-- GitHub browse commands using gh CLI
+local function gh_browse(opts)
+  local file = vim.fn.expand("%")
+  local branch = opts.branch
+
+  local cmd = "gh browse " .. vim.fn.shellescape(file)
+  if branch then
+    cmd = cmd .. " -b " .. branch
+  end
+
+  vim.fn.system(cmd)
+end
+
+local function gh_browse_lines(opts)
+  local file = vim.fn.expand("%")
+  local branch = opts.branch
+  local start_line, end_line
+
+  if opts.range > 0 then
+    start_line = opts.line1
+    end_line = opts.line2
+  else
+    start_line = vim.fn.line(".")
+    end_line = start_line
+  end
+
+  local file_with_lines
+  if start_line == end_line then
+    file_with_lines = file .. ":" .. start_line
+  else
+    file_with_lines = file .. ":" .. start_line .. "-" .. end_line
+  end
+
+  local cmd = "gh browse " .. vim.fn.shellescape(file_with_lines)
+  if branch then
+    cmd = cmd .. " -b " .. branch
+  end
+
+  vim.fn.system(cmd)
+end
+
+vim.api.nvim_create_user_command("Gho", function() gh_browse({}) end, {})
+vim.api.nvim_create_user_command("Ghom", function() gh_browse({ branch = "main" }) end, {})
+vim.api.nvim_create_user_command("Ghl", function(opts) gh_browse_lines(opts) end, { range = true })
+vim.api.nvim_create_user_command("Ghlm",
+  function(opts) gh_browse_lines({ range = opts.range, line1 = opts.line1, line2 = opts.line2, branch = "main" }) end,
+  { range = true })

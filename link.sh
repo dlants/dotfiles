@@ -7,6 +7,8 @@ ln -sf "$DOTFILES_DIR/tmux.conf" ~/.tmux.conf
 ln -sf "$DOTFILES_DIR/zshrc" ~/.zshrc
 ln -sf "$DOTFILES_DIR/digrc" ~/.digrc
 ln -sf "$DOTFILES_DIR/zpreztorc" ~/.zpreztorc
+
+mkdir -p ~/.config/nvim
 ln -sf "$DOTFILES_DIR/nvim/init.lua" ~/.config/nvim/init.lua
 ln -sf "$DOTFILES_DIR/nvim/lua" ~/.config/nvim/lua
 

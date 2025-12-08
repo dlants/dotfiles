@@ -7,6 +7,7 @@ if test -f ~/.config/fish/secrets.fish
 end
 
 alias vi nvim
+alias rm='rm -I'
 
 # Enable vi keybindings
 fish_vi_key_bindings
