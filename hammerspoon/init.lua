@@ -15,20 +15,62 @@ end)
 hs.alert.show("Config loaded")
 
 
--- Window management
+-- Window management helpers
+local TOLERANCE = 20
+
+local function isApprox(a, b)
+  return math.abs(a - b) <= TOLERANCE
+end
+
+local function isLeftHalf(win, screen)
+  local f = win:frame()
+  local s = screen:frame()
+  return isApprox(f.x, s.x) and isApprox(f.y, s.y) and isApprox(f.w, s.w / 2) and isApprox(f.h, s.h)
+end
+
+local function isRightHalf(win, screen)
+  local f = win:frame()
+  local s = screen:frame()
+  return isApprox(f.x, s.x + s.w / 2) and isApprox(f.y, s.y) and isApprox(f.w, s.w / 2) and isApprox(f.h, s.h)
+end
+
+local function moveToLeftHalf(win, screen)
+  win:moveToScreen(screen)
+  local s = screen:frame()
+  win:setFrame({ x = s.x, y = s.y, w = s.w / 2, h = s.h })
+end
+
+local function moveToRightHalf(win, screen)
+  win:moveToScreen(screen)
+  local s = screen:frame()
+  win:setFrame({ x = s.x + s.w / 2, y = s.y, w = s.w / 2, h = s.h })
+end
+
 hs.hotkey.bind({ "cmd", "alt" }, "h", function()
   local win = hs.window.focusedWindow()
-  if win then
-    local screen = win:screen():frame()
-    win:setFrame({ x = screen.x, y = screen.y, w = screen.w / 2, h = screen.h })
+  if not win then return end
+
+  local currentScreen = win:screen()
+  local westScreen = currentScreen:toWest()
+
+  if isLeftHalf(win, currentScreen) and westScreen then
+    moveToRightHalf(win, westScreen)
+  else
+    moveToLeftHalf(win, currentScreen)
   end
 end)
 
 hs.hotkey.bind({ "cmd", "alt" }, "l", function()
   local win = hs.window.focusedWindow()
-  if win then
-    local screen = win:screen():frame()
-    win:setFrame({ x = screen.x + screen.w / 2, y = screen.y, w = screen.w / 2, h = screen.h })
+  if not win then return end
+
+  local currentScreen = win:screen()
+  local eastScreen = currentScreen:toEast()
+
+  if isRightHalf(win, currentScreen) and eastScreen then
+    moveToLeftHalf(win, eastScreen)
+  else
+    moveToRightHalf(win, currentScreen)
   end
 end)
 
