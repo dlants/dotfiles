@@ -95,7 +95,7 @@ return {
         respect_scrolloff = false,
         cursor_scrolls_alone = true,
         easing_function = nil,
-        performance_mode = true,
+        performance_mode = false,
       })
 
       -- Custom key mappings with faster scroll speed
@@ -982,15 +982,13 @@ return {
     lazy = false,
     build = ":TSUpdate",
     config = function()
-      require("nvim-treesitter.configs").setup(
+      require("nvim-treesitter").setup(
         {
           ensure_installed = {
             "lua", "typescript", "javascript", "tsx", "json", "yaml",
             "html", "css", "rust", "bash", "markdown", "teal"
           },
           highlight = {
-            enable = true,
-            additional_vim_regex_highlighting = false,
             disable = function(lang, buf)
               local max_filesize = 100 * 1024 -- 100 KB
               local ok, stats = pcall(vim.loop.fs_stat, vim.api.nvim_buf_get_name(buf))
@@ -1016,51 +1014,55 @@ return {
   },
   {
     "nvim-treesitter/nvim-treesitter-textobjects",
+    branch = "main",
+    dependencies = { "nvim-treesitter/nvim-treesitter" },
     config = function()
-      require("nvim-treesitter.configs").setup {
-        textobjects = {
-          select = {
-            enable = true,
-            lookahead = true,
-            keymaps = {
-              ["af"] = "@function.outer",
-              ["if"] = "@function.inner",
-              ["ac"] = "@class.outer",
-              ["ic"] = "@class.inner",
-              ["aa"] = "@parameter.outer",
-              ["ia"] = "@parameter.inner"
-            }
-          },
-          move = {
-            enable = true,
-            set_jumps = true,
-            goto_next_start = {
-              ["]f"] = "@function.outer",
-              ["]a"] = "@parameter.inner"
-            },
-            goto_next_end = {
-              ["]F"] = "@function.outer"
-            },
-            goto_previous_start = {
-              ["[f"] = "@function.outer",
-              ["[a"] = "@parameter.inner"
-            },
-            goto_previous_end = {
-              ["[F"] = "@function.outer"
-            }
-          },
-          swap = {}
+      require("nvim-treesitter-textobjects").setup({
+        select = {
+          lookahead = true,
         },
-        incremental_selection = {
-          enable = true,
-          keymaps = {
-            init_selection = "<cr>",
-            node_incremental = "<cr>",
-            scope_incremental = "<s-cr>",
-            node_decremental = "<bs>"
-          }
-        }
+        move = {
+          set_jumps = true,
+        },
+      })
+
+      local select = require("nvim-treesitter-textobjects.select")
+      local move = require("nvim-treesitter-textobjects.move")
+
+      -- Selection keymaps
+      local select_maps = {
+        ["af"] = "@function.outer",
+        ["if"] = "@function.inner",
+        ["ac"] = "@class.outer",
+        ["ic"] = "@class.inner",
+        ["aa"] = "@parameter.outer",
+        ["ia"] = "@parameter.inner",
       }
+      for key, query in pairs(select_maps) do
+        vim.keymap.set({ "x", "o" }, key, function()
+          select.select_textobject(query, "textobjects")
+        end)
+      end
+
+      -- Movement keymaps
+      vim.keymap.set({ "n", "x", "o" }, "]f", function()
+        move.goto_next_start("@function.outer", "textobjects")
+      end)
+      vim.keymap.set({ "n", "x", "o" }, "[f", function()
+        move.goto_previous_start("@function.outer", "textobjects")
+      end)
+      vim.keymap.set({ "n", "x", "o" }, "]F", function()
+        move.goto_next_end("@function.outer", "textobjects")
+      end)
+      vim.keymap.set({ "n", "x", "o" }, "[F", function()
+        move.goto_previous_end("@function.outer", "textobjects")
+      end)
+      vim.keymap.set({ "n", "x", "o" }, "]a", function()
+        move.goto_next_start("@parameter.inner", "textobjects")
+      end)
+      vim.keymap.set({ "n", "x", "o" }, "[a", function()
+        move.goto_previous_start("@parameter.inner", "textobjects")
+      end)
     end
   }
 }

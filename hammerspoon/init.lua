@@ -14,6 +14,31 @@ end)
 
 hs.alert.show("Config loaded")
 
+
+-- Window management
+hs.hotkey.bind({ "cmd", "alt" }, "h", function()
+  local win = hs.window.focusedWindow()
+  if win then
+    local screen = win:screen():frame()
+    win:setFrame({ x = screen.x, y = screen.y, w = screen.w / 2, h = screen.h })
+  end
+end)
+
+hs.hotkey.bind({ "cmd", "alt" }, "l", function()
+  local win = hs.window.focusedWindow()
+  if win then
+    local screen = win:screen():frame()
+    win:setFrame({ x = screen.x + screen.w / 2, y = screen.y, w = screen.w / 2, h = screen.h })
+  end
+end)
+
+hs.hotkey.bind({ "cmd", "alt" }, "k", function()
+  local win = hs.window.focusedWindow()
+  if win then
+    local screen = win:screen():frame()
+    win:setFrame({ x = screen.x, y = screen.y, w = screen.w, h = screen.h })
+  end
+end)
 -- Fuzzy matching function
 local function fuzzyMatch(str, pattern)
   if pattern == "" then return true end
