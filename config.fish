@@ -22,3 +22,6 @@ source ~/.orbstack/shell/init2.fish 2>/dev/null || :
 
 # Created by `pipx` on 2025-12-15 18:40:48
 set PATH $PATH /Users/denis.lantsman/.local/bin
+
+# set display to pass X session to ssh
+set -x DISPLAY :0
