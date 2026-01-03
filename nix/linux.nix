@@ -1,5 +1,5 @@
 # Linux devcontainer-specific configuration
-{ config, pkgs, ... }:
+{ config, pkgs, lib, dotfilesDir, ... }:
 
 {
   home.packages = with pkgs; [
@@ -9,8 +9,6 @@
     wget
   ];
 
-  programs.fish.interactiveShellInit = ''
-    # Linux-specific PATH additions
-    set -gx PATH $PATH $HOME/.local/bin
-  '';
+  # Fish config (Linux-specific)
+  xdg.configFile."fish/config.fish".source = lib.mkForce (config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/fish/config-linux.fish");
 }

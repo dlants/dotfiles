@@ -16,17 +16,6 @@
   # Hammerspoon config (macOS-only, uses ~/.hammerspoon not XDG)
   home.file.".hammerspoon".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/hammerspoon";
 
-  programs.fish.interactiveShellInit = ''
-    # OrbStack integration
-    source ~/.orbstack/shell/init2.fish 2>/dev/null || true
-
-    # macOS-specific PATH additions
-    set -gx PATH $PATH /Users/denis.lantsman/.local/bin
-    set -gx DISPLAY :0
-  '';
-
-  # macOS-specific settings
-  programs.neovim.extraConfig = ''
-    vim.o.shell = "/opt/homebrew/bin/zsh"
-  '';
+  # Fish config (macOS-specific)
+  xdg.configFile."fish/config.fish".source = lib.mkForce (config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/fish/config-darwin.fish");
 }

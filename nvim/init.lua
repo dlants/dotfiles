@@ -69,7 +69,10 @@ vim.o.scrolloff = 1
 vim.o.shiftwidth = 2
 vim.o.softtabstop = 0
 vim.o.expandtab = true
-vim.o.shell = "/opt/homebrew/bin/zsh"
+
+if vim.loop.os_uname().sysname == "Darwin" then
+  vim.o.shell = "/opt/homebrew/bin/zsh"
+end
 
 vim.o.ignorecase = true
 vim.o.smartcase = true

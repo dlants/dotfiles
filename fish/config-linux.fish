@@ -16,12 +16,5 @@ function git-clean-branches
     git branch --merged | grep -E -v "(^\*|master|main|dev)" | xargs git branch -d
 end
 
-# Added by OrbStack: command-line tools and integration
-# This won't be added again if you remove it.
-source ~/.orbstack/shell/init2.fish 2>/dev/null || :
-
-# Created by `pipx` on 2025-12-15 18:40:48
-set PATH $PATH /Users/denis.lantsman/.local/bin
-
-# set display to pass X session to ssh
-set -x DISPLAY :0
+# Linux-specific PATH
+set -gx PATH $PATH $HOME/.local/bin
