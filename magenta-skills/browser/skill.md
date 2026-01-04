@@ -5,6 +5,10 @@ description: Automate browser actions using Puppeteer with a simple DSL for web 
 
 # Browser Automation Skill
 
+This skill uses [pkgx](https://pkgx.sh) to run tools without global installation:
+- **Node scripts**: `pkgx pnpm exec tsx script.ts`
+- **Python scripts**: `pkgx uv run script.py`
+
 This skill provides browser automation using Puppeteer through a simple DSL. You can use it to:
 - Test web applications
 - Scrape web content
@@ -17,17 +21,25 @@ First, install dependencies in the skill directory:
 
 ```bash
 cd ~/.magenta/skills/browser
-pnpm install --frozen-lockfile
+pkgx pnpm install
 ```
 
-This will install Puppeteer, TypeScript, and tsx using the exact versions from the lockfile.
+This will install Puppeteer, TypeScript, and tsx.
+
+Then install Chrome for Puppeteer:
+
+```bash
+npx puppeteer browsers install chrome
+```
+
+This downloads a compatible Chrome version to `~/.cache/puppeteer/`.
 
 ## Usage
 
 ### Running from Command Line
 
 ```bash
-cd ~/.magenta/skills/browser && npx tsx scripts/browser.ts "
+cd ~/.magenta/skills/browser && pkgx pnpm exec tsx scripts/browser.ts "
 load https://www.google.com
 waitForElement textarea[name=q]
 click textarea[name=q]

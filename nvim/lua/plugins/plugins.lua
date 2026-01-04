@@ -21,38 +21,13 @@ return {
     dev = true,
     build = "npm ci --production",
     config = function()
+      local magenta_config = require("config.magenta")
       require("magenta").setup({
         -- debug = true,
-        profiles = {
-          {
-            name = "opus-4.5(max)",
-            provider = "anthropic",
-            model = "claude-opus-4-5",
-            authType = "max",
-            thinking = {
-              enabled = true,
-              budgetTokens = 1024
-            }
-          },
-          {
-            name = "sonnet-4.5(max)",
-            provider = "anthropic",
-            model = "claude-sonnet-4-5",
-            authType = "max",
-            thinking = {
-              enabled = true,
-              budgetTokens = 1024
-            }
-          },
-        },
+        profiles = magenta_config.profiles,
         sidebarPosition = "left",
-        editPrediction = {
-          profile = {
-            provider = "anthropic",
-            model = "claude-haiku-4-5",
-            authType = "max",
-          }
-        },
+        editPrediction = magenta_config.editPrediction,
+        chimeVolume = magenta_config.chimeVolume,
         -- mcpServers = {
         --   -- Hub = {
         --   --   url = "http://localhost:37373/mcp"
@@ -648,6 +623,12 @@ return {
         }
       }))
 
+      -- Ty configuration for Python
+      vim.lsp.config("ty", default_config)
+
+      -- Ruff configuration for Python linting/formatting
+      vim.lsp.config("ruff", default_config)
+
       -- Configure servers that don't need special settings
       local simple_servers = {
         "bashls",
@@ -677,7 +658,9 @@ return {
         "ts_ls",
         "rust_analyzer",
         "lua_ls",
-        "zls"
+        "zls",
+        "ty",
+        "ruff"
       }
 
       vim.lsp.enable(all_servers)

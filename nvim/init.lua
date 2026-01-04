@@ -3,7 +3,24 @@
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
 
+-- OS-specific settings
+local is_linux = vim.loop.os_uname().sysname == "Linux"
 
+if is_linux then
+  -- In dev container, use escape sequences to write to host system clipboard
+  vim.o.clipboard = 'unnamedplus'
+  vim.g.clipboard = {
+    name = 'OSC 52',
+    copy = {
+      ['+'] = require('vim.ui.clipboard.osc52').copy('+'),
+      ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
+    },
+    paste = {
+      ['+'] = require('vim.ui.clipboard.osc52').paste('+'),
+      ['*'] = require('vim.ui.clipboard.osc52').paste('*'),
+    },
+  }
+end
 
 -- Visual line scrolling functions
 local function scroll_up_visual()
@@ -63,14 +80,14 @@ vim.cmd "filetype plugin indent on"
 
 vim.o.background = "dark"
 vim.o.number = true
-vim.o.clipboard = "unnamedplus"
 vim.o.tabstop = 2
 vim.o.scrolloff = 1
 vim.o.shiftwidth = 2
 vim.o.softtabstop = 0
 vim.o.expandtab = true
 
-if vim.loop.os_uname().sysname == "Darwin" then
+if not is_linux then
+  vim.o.clipboard = "unnamedplus"
   vim.o.shell = "/opt/homebrew/bin/zsh"
 end
 

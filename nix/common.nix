@@ -19,6 +19,8 @@
     fzf
     delta  # git-delta
     gh     # GitHub CLI
+    rustup
+    nodejs # includes npm
 
     # Language servers
     lua-language-server
@@ -31,10 +33,21 @@
     # Formatters
     nodePackages.prettier
     stylua
+
+    # For installing ty (Python type checker not yet in nixpkgs)
+    uv
   ];
 
   # Fish shell
-  programs.fish.enable = true;
+  programs.fish = {
+    enable = true;
+    plugins = [
+      {
+        name = "pure";
+        src = pkgs.fishPlugins.pure.src;
+      }
+    ];
+  };
 
   # Neovim configuration
   programs.neovim = {
@@ -55,4 +68,20 @@
     "nvim/init.lua".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/nvim/init.lua";
     "nvim/lua".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/nvim/lua";
   };
+
+  # Magenta skills symlinks (individual per skill)
+  home.file.".magenta/skills/browser".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-skills/browser";
+
+  # Clone magenta.nvim if it doesn't exist
+  home.activation.cloneMagenta = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    if [ ! -d "$HOME/src/magenta.nvim" ]; then
+      mkdir -p "$HOME/src"
+      ${pkgs.git}/bin/git clone https://github.com/dlants/magenta.nvim.git "$HOME/src/magenta.nvim"
+    fi
+  '';
+
+  # Install ty via uv (Rust binary on PyPI, not yet in nixpkgs)
+  home.activation.installTy = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    ${pkgs.uv}/bin/uv tool install ty 2>/dev/null || true
+  '';
 }

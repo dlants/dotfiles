@@ -6,10 +6,11 @@
     # macOS-specific tools (GUI apps installed via brew below)
   ];
 
-  # Install GUI apps via Homebrew (not available in nixpkgs for macOS)
-  home.activation.brewCasks = lib.hm.dag.entryAfter ["writeBoundary"] ''
+  # Install apps via Homebrew (not available in nixpkgs for macOS)
+  home.activation.brewInstall = lib.hm.dag.entryAfter ["writeBoundary"] ''
     if command -v brew &> /dev/null; then
       brew list --cask hammerspoon &> /dev/null || brew install --cask hammerspoon
+      brew list pkgx &> /dev/null || brew install pkgx
     fi
   '';
 
