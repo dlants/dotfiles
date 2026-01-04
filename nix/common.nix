@@ -38,6 +38,16 @@
     uv
   ];
 
+  # Git configuration
+  programs.git = {
+    enable = true;
+    settings = {
+      aliases = {
+        co = "checkout";
+      };
+    };
+  };
+
   # Fish shell
   programs.fish = {
     enable = true;

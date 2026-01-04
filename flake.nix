@@ -36,7 +36,7 @@
 
         # Ubuntu devcontainer
         "devcontainer" = mkHomeConfig {
-	  system = "aarch64-linux";
+          system = "aarch64-linux";
           username = "aurelia";
           homeDirectory = "/home/aurelia";
           dotfilesDir = "/home/aurelia/src/dotfiles";
