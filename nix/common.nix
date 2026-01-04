@@ -42,7 +42,7 @@
   programs.git = {
     enable = true;
     settings = {
-      aliases = {
+      alias = {
         co = "checkout";
       };
     };
