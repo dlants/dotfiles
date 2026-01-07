@@ -82,6 +82,9 @@
   # Magenta skills symlinks (individual per skill)
   home.file.".magenta/skills/browser".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-skills/browser";
 
+  # Prevent rustup from creating a broken fish config (nix manages PATH)
+  home.file.".config/fish/conf.d/rustup.fish".text = "";
+
   # Clone magenta.nvim if it doesn't exist
   home.activation.cloneMagenta = lib.hm.dag.entryAfter ["writeBoundary"] ''
     if [ ! -d "$HOME/src/magenta.nvim" ]; then
