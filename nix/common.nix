@@ -34,6 +34,9 @@
     nodePackages.prettier
     stylua
 
+    # Tree-sitter
+    tree-sitter
+
     # For installing ty (Python type checker not yet in nixpkgs)
     uv
   ];
