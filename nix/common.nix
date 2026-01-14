@@ -83,7 +83,7 @@
   };
 
   # Magenta skills symlinks (individual per skill)
-  home.file.".magenta/skills/browser".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-skills/browser";
+  home.file.".claude/skills/browser".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-skills/browser";
 
   # Prevent rustup from creating a broken fish config (nix manages PATH)
   home.file.".config/fish/conf.d/rustup.fish".text = "";
