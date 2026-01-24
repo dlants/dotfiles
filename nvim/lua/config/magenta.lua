@@ -38,6 +38,15 @@ if is_linux then
     }
   }
   M.chimeVolume = 0
+
+  M.pkb = {
+    path = "~/pkb",
+    embeddingModel = {
+      provider = "bedrock",
+      model = "cohere.embed-v4:0",
+      region = "us-west-2", -- optional, defaults to us-west-2
+    },
+  }
 else
   M.profiles = {
     {

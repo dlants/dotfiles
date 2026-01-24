@@ -28,6 +28,7 @@ return {
         sidebarPosition = "left",
         editPrediction = magenta_config.editPrediction,
         chimeVolume = magenta_config.chimeVolume,
+        pkb = magenta_config.pkb
         -- mcpServers = {
         --   -- Hub = {
         --   --   url = "http://localhost:37373/mcp"
