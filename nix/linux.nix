@@ -7,6 +7,7 @@
     git
     curl
     wget
+    # Note: nodejs omitted - devcontainers typically provide their own version
   ];
 
   # Install pkgx via curl (brew not available on Linux)

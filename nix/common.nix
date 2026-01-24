@@ -20,7 +20,6 @@
     delta  # git-delta
     gh     # GitHub CLI
     rustup
-    nodejs # includes npm
 
     # Language servers
     lua-language-server
@@ -33,12 +32,6 @@
     # Formatters
     nodePackages.prettier
     stylua
-
-    # Tree-sitter
-    tree-sitter
-
-    # For installing ty (Python type checker not yet in nixpkgs)
-    uv
   ];
 
   # Git configuration
@@ -96,8 +89,12 @@
     fi
   '';
 
-  # Install ty via uv (Rust binary on PyPI, not yet in nixpkgs)
+  # Install ty via uv if not already available (uv may be system-provided on Linux)
   home.activation.installTy = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    ${pkgs.uv}/bin/uv tool install ty 2>/dev/null || true
+    if ! command -v ty &> /dev/null; then
+      if command -v uv &> /dev/null; then
+        uv tool install ty 2>/dev/null || true
+      fi
+    fi
   '';
 }
