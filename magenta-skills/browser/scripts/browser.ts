@@ -268,10 +268,15 @@ async function executeCommand(command: Command, page: Page, state: { keepOpen: b
 }
 
 async function runScript(script: string): Promise<void> {
-  const browser = await puppeteer.launch({
-    headless: false,
-    defaultViewport: { width: 1280, height: 720 }
-  });
+  const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
+    headless: true,
+    defaultViewport: { width: 1280, height: 720 },
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  };
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+  const browser = await puppeteer.launch(launchOptions);
 
   const state = { keepOpen: false };
 

@@ -419,16 +419,25 @@ return {
   --     -- vim.cmd.colorscheme "jellybeans"
   --   end
   -- },
+  -- {
+  --   "0xstepit/flow.nvim",
+  --   lazy = false,
+  --   config = function()
+  --     require("flow").setup {
+  --       theme = {
+  --         contrast = "high"
+  --       },
+  --     }
+  --     vim.cmd("colorscheme flow")
+  --   end
+  -- },
   {
-    "0xstepit/flow.nvim",
+    "p00f/alabaster.nvim",
     lazy = false,
+    priority = 1000,
     config = function()
-      require("flow").setup {
-        theme = {
-          contrast = "high"
-        },
-      }
-      vim.cmd("colorscheme flow")
+      vim.opt.termguicolors = true
+      vim.cmd("colorscheme alabaster")
     end
   },
   -- {
