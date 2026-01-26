@@ -18,3 +18,6 @@ keybind = shift+command+]=next_tab
 
 macos-titlebar-style=tabs
 shell-integration-features = cursor,sudo,no-title
+
+clipboard-read = allow
+clipboard-write = allow
