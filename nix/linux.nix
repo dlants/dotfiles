@@ -13,7 +13,7 @@
   # Install pkgx via curl (brew not available on Linux)
   home.activation.pkgxInstall = lib.hm.dag.entryAfter ["writeBoundary"] ''
     if ! command -v pkgx &> /dev/null; then
-      curl -fsS https://pkgx.sh | sh
+      ${pkgs.curl}/bin/curl -fsS https://pkgx.sh | sh
     fi
   '';
 
