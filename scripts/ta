@@ -1,0 +1,28 @@
+#!/bin/bash
+# Attach to an existing tmux session, or start a new one
+
+# With a path argument: create/attach to a session for that directory
+if [ -n "$1" ]; then
+  dir="$1"
+  session_name=$(basename -- "$dir" | tr '.' '_')
+
+  if [ -n "$TMUX" ]; then
+    # Inside tmux: create session in background and switch to it
+    if ! tmux has-session -t "=$session_name" 2>/dev/null; then
+      tmux new-session -ds "$session_name" -c "$dir"
+    fi
+    exec tmux switch-client -t "$session_name"
+  else
+    # Outside tmux: create and attach
+    exec tmux new-session -As "$session_name" -c "$dir"
+  fi
+fi
+
+# No arguments: attach to existing session or start a new one
+if [ -n "$TMUX" ]; then
+  echo "Already in tmux. Use 'ta <path>' to create/switch to a session."
+  exit 1
+fi
+
+session_name=$(basename -- "$PWD" | tr '.' '_')
+tmux attach 2>/dev/null || exec tmux new-session -s "$session_name"
