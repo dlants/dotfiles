@@ -88,7 +88,6 @@ vim.o.expandtab = true
 
 if not is_linux then
   vim.o.clipboard = "unnamedplus"
-  vim.o.shell = "/opt/homebrew/bin/zsh"
 end
 
 vim.o.ignorecase = true

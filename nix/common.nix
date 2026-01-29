@@ -21,6 +21,7 @@
     gh     # GitHub CLI
     rustup
     tmux
+    tree-sitter
 
     # Language servers
     lua-language-server
@@ -67,6 +68,7 @@
       ripgrep
       fd
       nodejs
+      tree-sitter
     ];
   };
 
