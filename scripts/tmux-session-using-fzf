@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # customizable
-LIST_DATA="#{session_name}:#{window_index} #{window_name}:#{pane_index} #{pane_current_command} #{pane_current_path}"
+LIST_DATA="#{session_name}:#{window_index} #{window_name}:#{pane_index} #{pane_title} #{pane_current_path}"
 FZF_COMMAND="fzf-tmux -p --delimiter=:: --with-nth 4 --color=hl:2"
 
 # do not change
