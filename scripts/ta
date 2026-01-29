@@ -32,6 +32,9 @@ create_remote_session() {
     remote_path="/src"
   fi
 
+  # Strip trailing slashes for consistent session names
+  remote_path="${remote_path%/}"
+
   session_name="${host}${remote_path}"
 
   # Create the session if it doesn't exist
