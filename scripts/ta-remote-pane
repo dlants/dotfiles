@@ -1,0 +1,11 @@
+#!/bin/bash
+# Helper script for ta: SSH into remote host when new pane/window is created
+# Called by tmux hook in remote sessions
+
+# Get the remote host and path from session environment
+host=$(tmux show-environment TA_REMOTE_HOST 2>/dev/null | cut -d= -f2)
+remote_path=$(tmux show-environment TA_REMOTE_PATH 2>/dev/null | cut -d= -f2)
+
+if [ -n "$host" ] && [ -n "$remote_path" ]; then
+  tmux send-keys "ssh -t $host \"cd $remote_path && exec \\\$SHELL\"" Enter
+fi
