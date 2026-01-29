@@ -15,6 +15,7 @@
   # Tmux helper scripts
   home.file.".local/bin/ta".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/ta";
   home.file.".local/bin/tmux-session-using-fzf".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/tmux-session-using-fzf";
+  home.file.".local/bin/clipboard-sync".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/clipboard-sync";
 
   # Install apps via Homebrew (not available in nixpkgs for macOS)
   home.activation.brewInstall = lib.hm.dag.entryAfter ["writeBoundary"] ''

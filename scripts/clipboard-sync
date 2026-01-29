@@ -1,0 +1,32 @@
+#!/bin/bash
+# Singleton daemon that syncs macOS clipboard to a shared file
+# Used for clipboard access from remote dev containers
+
+CLIPBOARD_FILE="$HOME/dev-in-docker-shared-files/clipboard.txt"
+PIDFILE="$HOME/.clipboard-sync.pid"
+
+# Check if already running
+if [ -f "$PIDFILE" ]; then
+  pid=$(cat "$PIDFILE")
+  if kill -0 "$pid" 2>/dev/null; then
+    exit 0  # Already running
+  fi
+fi
+
+# Write PID and set up cleanup
+echo $$ > "$PIDFILE"
+trap "rm -f $PIDFILE" EXIT
+
+# Ensure directory exists
+mkdir -p "$(dirname "$CLIPBOARD_FILE")"
+
+# Sync clipboard to file whenever it changes
+prev=""
+while true; do
+  current=$(pbpaste 2>/dev/null)
+  if [[ "$current" != "$prev" ]]; then
+    printf '%s' "$current" > "$CLIPBOARD_FILE"
+    prev="$current"
+  fi
+  sleep 0.5
+done
