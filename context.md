@@ -127,6 +127,52 @@ The main plugin configuration file that defines all installed plugins and their 
 - [VSCode Command Identifier Reference](https://code.visualstudio.com/api/references/commands)
 - [VSCode Keyboard Shortcuts Reference](https://code.visualstudio.com/docs/getstarted/keybindings)
 
+## Tmux Setup
+
+### Architecture
+
+Tmux runs on the **host machine** (macOS), not inside remote dev containers. This provides:
+- Persistent sessions that survive SSH disconnects
+- Consistent keybindings and configuration across all projects
+- Fast local pane switching
+
+### Remote Dev Sessions
+
+The `ta` script (`scripts/ta`) creates special sessions for remote development:
+
+```bash
+ta dev           # Creates session "dev/src" → SSH to dev:/src
+ta dev:/infra    # Creates session "dev/infra" → SSH to dev:/infra
+```
+
+These sessions:
+1. Store remote host/path info in tmux environment variables (`TA_REMOTE_HOST`, `TA_REMOTE_PATH`)
+2. Set up an `after-new-window` hook so new windows automatically SSH to the same remote location
+3. First window SSHs into the remote path on creation
+
+### Title Propagation
+
+For the fzf session switcher to show meaningful names (not just "ssh"):
+
+1. **Fish shell** on the remote sets terminal title via `fish_title` function in `fish/config-linux.fish`:
+   ```fish
+   function fish_title
+       status current-command
+   end
+   ```
+
+2. **Tmux** is configured to allow title changes (`allow-rename on`, `automatic-rename on` in `tmux.conf`)
+
+3. **fzf switcher** (`scripts/tmux-session-using-fzf`) uses `#{pane_title}` instead of `#{pane_current_command}` to display the propagated title
+
+This chain allows you to see the actual command running on the remote (e.g., "nvim", "cargo build") instead of just "ssh" in the session picker.
+
+### Session Switching
+
+- `ctrl-b o` — Opens fzf picker to switch between any pane across all sessions
+- `ta <path>` — Create/switch to a session for a local directory
+- `ta dev` — Create/switch to a remote dev session
+
 ## Tips for Effective Use
 
 1. Use VSCode's native features for insert mode, intellisense, and UI operations
