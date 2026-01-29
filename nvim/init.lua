@@ -9,31 +9,22 @@ local is_linux = vim.loop.os_uname().sysname == "Linux"
 if is_linux then
   vim.o.clipboard = 'unnamedplus'
 
-  if vim.env.TMUX then
-    -- Inside tmux: use tmux buffer (which syncs with system clipboard via OSC52)
-    -- tmux doesn't pass through OSC52 paste responses, so we read from tmux buffer
-    local copy = { 'tmux', 'load-buffer', '-w', '-' }
-    local paste = { 'bash', '-c', 'tmux refresh-client -l && sleep 0.05 && tmux save-buffer -' }
-    vim.g.clipboard = {
-      name = 'tmux',
-      copy = { ['+'] = copy, ['*'] = copy },
-      paste = { ['+'] = paste, ['*'] = paste },
-      cache_enabled = 0,
-    }
-  else
-    -- Direct terminal: use OSC52 for both copy and paste
-    vim.g.clipboard = {
-      name = 'OSC 52',
-      copy = {
-        ['+'] = require('vim.ui.clipboard.osc52').copy('+'),
-        ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
-      },
-      paste = {
-        ['+'] = require('vim.ui.clipboard.osc52').paste('+'),
-        ['*'] = require('vim.ui.clipboard.osc52').paste('*'),
-      },
-    }
-  end
+  -- Use OSC52 for copying (works through tmux+ssh)
+  -- For pasting: read from shared clipboard file (synced from host)
+  -- OSC52 paste doesn't work through tmux: https://github.com/tmux/tmux/issues/3068
+  local clipboard_file = '/home/aurelia/dev-in-docker-shared-files/clipboard.txt'
+
+  vim.g.clipboard = {
+    name = 'OSC 52 + shared file',
+    copy = {
+      ['+'] = require('vim.ui.clipboard.osc52').copy('+'),
+      ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
+    },
+    paste = {
+      ['+'] = { 'cat', clipboard_file },
+      ['*'] = { 'cat', clipboard_file },
+    },
+  }
 end
 
 -- Visual line scrolling functions
