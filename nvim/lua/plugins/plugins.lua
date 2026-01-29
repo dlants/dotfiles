@@ -986,7 +986,7 @@ return {
 
       -- Enable treesitter highlighting for these filetypes
       local ts_filetypes = {
-        "lua", "typescript", "javascript", "typescriptreact", "javascriptreact",
+        "lua", "typescript", "tsx", "javascript", "typescriptreact", "javascriptreact",
         "json", "yaml", "html", "css", "rust", "bash", "markdown", "teal"
       }
 

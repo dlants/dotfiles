@@ -20,7 +20,6 @@
     delta  # git-delta
     gh     # GitHub CLI
     rustup
-    tmux
     tree-sitter
 
     # Language servers
@@ -77,13 +76,6 @@
     "nvim/init.lua".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/nvim/init.lua";
     "nvim/lua".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/nvim/lua";
   };
-
-  # Tmux config symlink
-  home.file.".tmux.conf".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/tmux.conf";
-
-  # Tmux helper scripts (executable bit comes from source files)
-  home.file.".local/bin/ta".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/ta";
-  home.file.".local/bin/tmux-session-using-fzf".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/tmux-session-using-fzf";
 
   # Magenta skills symlinks (individual per skill)
   home.file.".claude/skills/browser".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-skills/browser";

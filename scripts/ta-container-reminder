@@ -1,0 +1,5 @@
+#!/bin/bash
+# Reminder script for containers - the real ta lives on the host
+echo "You're inside a container. Run 'ta' on your host machine instead."
+echo "Exit SSH first, then run ta from the host tmux."
+exit 1
