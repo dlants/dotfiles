@@ -20,13 +20,3 @@ end
 
 # Linux-specific PATH
 set -gx PATH $PATH $HOME/.local/bin
-
-function fish_title
-    set -l cmd (status current-command)
-    set -l dir (prompt_pwd)
-    if test "$cmd" = "fish"
-        echo "dev: $dir"
-    else
-        echo "dev: $dir — $cmd"
-    end
-end

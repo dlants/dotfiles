@@ -32,21 +32,22 @@ create_remote_session() {
     remote_path="/src"
   fi
 
-  session_name="${host}:${remote_path}"
+  session_name="${host}${remote_path}"
 
   # Create the session if it doesn't exist
-  if ! tmux has-session -t "=$session_name" 2>/dev/null; then
+  if ! tmux has-session -t "$session_name" 2>/dev/null; then
     tmux new-session -ds "$session_name"
 
     # Store remote info in session environment
     tmux set-environment -t "$session_name" TA_REMOTE_HOST "$host"
     tmux set-environment -t "$session_name" TA_REMOTE_PATH "$remote_path"
 
-    # Set up hook for new windows in this session - calls ta-remote-pane helper
-    tmux set-hook -t "$session_name" after-new-window "run-shell 'ta-remote-pane'"
+    # Set up hook for new windows in this session to auto-SSH
+    tmux set-hook -t "$session_name" after-new-window \
+      "run-shell 'tmux send-keys \"ssh -o RemoteCommand=none -t $host \\\"cd $remote_path && exec \\\\\\\$SHELL\\\"\" Enter'"
 
     # SSH into the first window
-    tmux send-keys -t "$session_name" "ssh -t $host \"cd $remote_path && exec \\\$SHELL\"" Enter
+    tmux send-keys -t "$session_name" "ssh -o RemoteCommand=none -t $host \"cd $remote_path && exec \\\$SHELL\"" Enter
   fi
 
   # Attach or switch to the session

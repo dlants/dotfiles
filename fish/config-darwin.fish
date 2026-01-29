@@ -16,16 +16,6 @@ function git-clean-branches
     git branch --merged | grep -E -v "(^\*|master|main|dev)" | xargs git branch -d
 end
 
-function fish_title
-    set -l cmd (status current-command)
-    set -l dir (prompt_pwd)
-    if test "$cmd" = "fish"
-        echo "$dir"
-    else
-        echo "$dir — $cmd"
-    end
-end
-
 # OrbStack integration
 source ~/.orbstack/shell/init2.fish 2>/dev/null || true
 
