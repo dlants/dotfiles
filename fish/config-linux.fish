@@ -18,5 +18,9 @@ function git-clean-branches
     git branch --merged | grep -E -v "(^\*|master|main|dev)" | xargs git branch -d
 end
 
+function fish_title
+    status current-command
+end
+
 # Linux-specific PATH
 set -gx PATH $PATH $HOME/.local/bin

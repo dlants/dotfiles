@@ -16,6 +16,10 @@ function git-clean-branches
     git branch --merged | grep -E -v "(^\*|master|main|dev)" | xargs git branch -d
 end
 
+function fish_title
+    status current-command
+end
+
 # OrbStack integration
 source ~/.orbstack/shell/init2.fish 2>/dev/null || true
 
