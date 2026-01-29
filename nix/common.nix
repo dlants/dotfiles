@@ -42,6 +42,9 @@
       alias = {
         co = "checkout";
       };
+      push = {
+        autoSetupRemote = true;
+      };
     };
   };
 
