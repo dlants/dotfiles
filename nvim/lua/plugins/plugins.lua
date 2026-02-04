@@ -141,17 +141,7 @@ return {
         desc = "FZF All Files in git root (including gitignored)",
         silent = true
       },
-      {
-        "<leader>k",
-        function()
-          require("fzf-lua").files({
-            fd_opts = "--color=never --type f --hidden --follow",
-            cwd = vim.fn.expand("~/pkb"),
-          })
-        end,
-        desc = "FZF Files in home directory",
-        silent = true
-      },
+
       -- {
       --   "<leader>f",
       --   function()
@@ -232,11 +222,19 @@ return {
       {
         "<leader>f",
         function()
-          require("fff").find_files()
+          require("fff").find_in_git_root()
         end,
         desc = "FFF Find files",
         silent = true
-      }
+      },
+      {
+        "<leader>p",
+        function()
+          require("fff").find_files_in_dir(vim.fn.expand("~/pkb"))
+        end,
+        desc = "Find files in PKB",
+        silent = true
+      },
     }
   },
   {

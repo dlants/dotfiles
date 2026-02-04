@@ -1,13 +1,3 @@
-vim.keymap.set(
-  "n",
-  "<leader>pr",
-  function()
-    vim.cmd("UpdateRemotePlugins")
-    vim.cmd("runtime plugin/magenta.vim")
-  end,
-  {desc = "Reload magenta plugin"}
-)
-
 _G.P = function(v)
   print(vim.inspect(v))
   return v
@@ -20,7 +10,7 @@ vim.keymap.set(
     local plenary = require("plenary.test_harness")
     plenary.test_directory(vim.fn.expand("%:p"))
   end,
-  {desc = "Run plenary test under cursor"}
+  { desc = "Run plenary test under cursor" }
 )
 
 function DebugExtmarks(namespace)
@@ -35,7 +25,7 @@ function DebugExtmarks(namespace)
       row,
       col,
       {
-        virt_text = {{string.format("[mark %d]", id), "Comment"}},
+        virt_text = { { string.format("[mark %d]", id), "Comment" } },
         virt_text_pos = "inline"
       }
     )
@@ -57,9 +47,9 @@ function GetLineWidth()
 end
 
 function testSelection()
-  vim.api.nvim_win_set_cursor(0, {1, 1})
+  vim.api.nvim_win_set_cursor(0, { 1, 1 })
   vim.api.nvim_exec2("normal!v", {})
-  vim.api.nvim_win_set_cursor(0, {2, 1})
+  vim.api.nvim_win_set_cursor(0, { 2, 1 })
 end
 
 function testAttach()
@@ -106,7 +96,7 @@ function CustomTMotion()
 
     if last_pos then
       local row = vim.api.nvim_win_get_cursor(0)[1]
-      vim.api.nvim_win_set_cursor(0, {row, last_pos - 1})
+      vim.api.nvim_win_set_cursor(0, { row, last_pos - 1 })
       return true
     end
 
@@ -116,6 +106,6 @@ function CustomTMotion()
   return create_mapping
 end
 
-vim.keymap.set({'n', 'x', 'o'}, 'T', function()
+vim.keymap.set({ 'n', 'x', 'o' }, 'T', function()
   return CustomTMotion()()
-end, {expr = false, desc = "Move to last occurrence of character in line"})
+end, { expr = false, desc = "Move to last occurrence of character in line" })
