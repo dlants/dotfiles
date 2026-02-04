@@ -39,7 +39,7 @@ create_remote_session() {
   # Strip trailing slashes for consistent session names
   remote_path="${remote_path%/}"
 
-  session_name="${host}${remote_path}"
+  session_name=$(echo "${host}${remote_path}" | tr '.' '_')
 
   # Create the session if it doesn't exist
   if ! tmux has-session -t "$session_name" 2>/dev/null; then

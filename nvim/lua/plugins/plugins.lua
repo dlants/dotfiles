@@ -27,8 +27,7 @@ return {
         profiles = magenta_config.profiles,
         sidebarPosition = "left",
         editPrediction = magenta_config.editPrediction,
-        chimeVolume = magenta_config.chimeVolume,
-        pkb = magenta_config.pkb
+        chimeVolume = 0,
         -- mcpServers = {
         --   -- Hub = {
         --   --   url = "http://localhost:37373/mcp"
@@ -161,6 +160,14 @@ return {
           require("fzf-lua").live_grep()
         end,
         desc = "FZF live grep",
+        silent = true
+      },
+      {
+        "<leader>b",
+        function()
+          require("fzf-lua").buffers()
+        end,
+        desc = "FZF buffers",
         silent = true
       }
     }
