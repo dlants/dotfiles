@@ -131,11 +131,25 @@ return {
       {
         "<leader>F",
         function()
+          local git_root = vim.fn.system('git rev-parse --show-toplevel 2>/dev/null'):gsub('\n', '')
+          local cwd = vim.v.shell_error == 0 and git_root or nil
           require("fzf-lua").files({
-            fd_opts = "--color=never --type f --hidden --follow --no-ignore"
+            fd_opts = "--color=never --type f --hidden --follow --no-ignore",
+            cwd = cwd,
           })
         end,
-        desc = "FZF All Files (including gitignored)",
+        desc = "FZF All Files in git root (including gitignored)",
+        silent = true
+      },
+      {
+        "<leader>k",
+        function()
+          require("fzf-lua").files({
+            fd_opts = "--color=never --type f --hidden --follow",
+            cwd = vim.fn.expand("~/pkb"),
+          })
+        end,
+        desc = "FZF Files in home directory",
         silent = true
       },
       -- {
