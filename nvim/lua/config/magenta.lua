@@ -6,9 +6,9 @@ local M = {}
 if is_linux then
   M.profiles = {
     {
-      name = "opus-4.5(bedrock)",
+      name = "opus-4.6(bedrock)",
       provider = "bedrock",
-      model = "global.anthropic.claude-opus-4-5-20251101-v1:0",
+      model = "global.anthropic.claude-opus-4-6-v1:0",
       fastModel = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
       authType = "max",
       env = {
@@ -50,9 +50,9 @@ if is_linux then
 else
   M.profiles = {
     {
-      name = "opus-4.5(max)",
+      name = "opus-4.6(max)",
       provider = "anthropic",
-      model = "claude-opus-4-5",
+      model = "claude-opus-4-6",
       authType = "max",
       thinking = {
         enabled = true,
