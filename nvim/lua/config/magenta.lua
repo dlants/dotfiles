@@ -8,7 +8,7 @@ if is_linux then
     {
       name = "opus-4.6(bedrock)",
       provider = "bedrock",
-      model = "global.anthropic.claude-opus-4-6-v1:0",
+      model = "us.anthropic.claude-opus-4-6-v1",
       fastModel = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
       authType = "max",
       env = {
