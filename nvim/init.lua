@@ -144,6 +144,7 @@ vim.opt.termguicolors = true
 
 require "config.lazy"
 require "dev"
+-- require("markdown-center").setup({ max_width = 120 })
 
 vim.cmd "filetype plugin indent on"
 
