@@ -372,7 +372,7 @@ return {
     end
   },
   { "tpope/vim-fugitive" },
-  { "tpope/vim-rhubarb" },
+  --  { "tpope/vim-rhubarb" },
   {
     "numtostr/comment.nvim",
     opts = {}

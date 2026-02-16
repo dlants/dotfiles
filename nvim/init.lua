@@ -44,6 +44,39 @@ local function scroll_down_visual()
   vim.cmd('normal! zz')
 end
 
+-- Open a file in another window if available, otherwise create a vsplit
+local function open_file_in_other_window(abs_path)
+  local cur_win = vim.api.nvim_get_current_win()
+  local cur_is_magenta = pcall(vim.api.nvim_win_get_var, cur_win, "magenta")
+
+  local buf = vim.fn.bufadd(abs_path)
+  vim.fn.bufload(buf)
+
+  if not cur_is_magenta then
+    vim.api.nvim_win_set_buf(cur_win, buf)
+    return
+  end
+
+  -- Current window is magenta, find a non-magenta window
+  local wins = vim.api.nvim_tabpage_list_wins(0)
+  for _, win in ipairs(wins) do
+    local is_magenta = pcall(vim.api.nvim_win_get_var, win, "magenta")
+    if not is_magenta then
+      vim.api.nvim_win_set_buf(win, buf)
+      vim.api.nvim_set_current_win(win)
+      return
+    end
+  end
+
+  -- No non-magenta window found, create a full-height split
+  vim.api.nvim_open_win(buf, true, {
+    win = -1,
+    split = "right",
+  })
+end
+
+
+
 -- Setup markdown/wrapped line mode
 vim.api.nvim_create_autocmd("FileType", {
   pattern = { "markdown", "txt" },
@@ -65,6 +98,37 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.keymap.set("v", "$", "g$", { buffer = 0, noremap = true, silent = true })
     vim.keymap.set("v", "0", "g0", { buffer = 0, noremap = true, silent = true })
 
+    -- Open URL or file under cursor with <CR>
+    vim.keymap.set("n", "<CR>", function()
+      local word = vim.fn.expand("<cWORD>")
+      -- Extract from markdown link syntax [text](target) or bare URL
+      local target = word:match("%]%((.+)%)")
+          or word:match("https?://[%w%-._~:/?#%[%]@!$&'()*+,;%%=]+")
+
+      if not target then
+        -- Try plain file path under cursor
+        target = vim.fn.expand("<cfile>")
+        if target == "" or target:match("^https?://") then
+          return
+        end
+        local md_dir = vim.fn.expand("%:p:h")
+        local abs_path = vim.fn.fnamemodify(md_dir .. "/" .. target, ":p")
+        if vim.fn.filereadable(abs_path) == 1 then
+          open_file_in_other_window(abs_path)
+        end
+        return
+      end
+
+      if target:match("^https?://") then
+        vim.fn.system({ "open", target })
+      else
+        local md_dir = vim.fn.expand("%:p:h")
+        local abs_path = md_dir .. "/" .. target
+        if vim.fn.filereadable(abs_path) == 1 then
+          open_file_in_other_window(abs_path)
+        end
+      end
+    end, { buffer = 0, noremap = true, silent = true })
     -- Map Ctrl-u/d to scroll by visual lines
     vim.keymap.set("n", "<C-u>", scroll_up_visual, { buffer = 0, noremap = true, silent = true })
     vim.keymap.set("n", "<C-d>", scroll_down_visual, { buffer = 0, noremap = true, silent = true })

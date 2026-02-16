@@ -37,7 +37,7 @@ if is_linux then
       model = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
     }
   }
-  M.chimeVolume = 0
+  M.chimeVolume = .01
 
   M.pkb = {
     path = "~/pkb",
