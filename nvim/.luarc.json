@@ -13,6 +13,6 @@
     "${3rd}/luassert/library",
     "/opt/homebrew/share/nvim/runtime/lua",
     "/opt/homebrew/share/nvim/runtime/lua/vim/lsp",
-    "/Users/denislantsman/.local/share/nvim/lazy/nvim-cmp/lua"
+    "/Users/mugabo/.local/share/nvim/lazy/nvim-cmp/lua"
   ]
 }
