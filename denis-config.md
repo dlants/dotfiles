@@ -144,6 +144,7 @@ Learn these first - they'll make you productive immediately:
 | `gd` | Go to definition | Jump from import to source file |
 | `gr` | Find references | See all places a function is called |
 | `<leader>k` | Show documentation | View TypeScript types |
+| `<leader>x` | See code actions
 | `<leader>r` | Rename symbol | Rename a variable everywhere |
 | `<leader>` ` | Format code | Run prettier on file |
 | `[d` / `]d` | Jump through errors | Navigate TypeScript errors |
