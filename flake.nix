@@ -33,17 +33,6 @@
           dotfilesDir = "/Users/mugabo/src/dlants-dotfiles";
           extraModules = [ ./nix/darwin.nix ];
         };
-
-        /*
-        # Ubuntu devcontainer
-        "devcontainer" = mkHomeConfig {
-          system = "aarch64-linux";
-          username = "aurelia";
-          homeDirectory = "/home/aurelia";
-          dotfilesDir = "/home/aurelia/src/dotfiles";
-          extraModules = [ ./nix/linux.nix ];
-        };
-        */
       };
     };
 }
