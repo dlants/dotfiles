@@ -49,8 +49,13 @@ All configs are symlinked from the dotfiles repo, so you can edit them in place:
 
 #### First Launch
 
+
+
 After setup completes:
 ```bash
+# Verify Nix installation
+nix-shell -p nix-info --run "nix-info -m"
+
 # Start Neovim - plugins auto-install on first run
 nvim
 
