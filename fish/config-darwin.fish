@@ -39,3 +39,6 @@ source ~/.orbstack/shell/init2.fish 2>/dev/null || true
 # macOS-specific PATH
 set -gx PATH $PATH /Users/mugabo/.local/bin
 set -gx DISPLAY :0
+
+# Potential resources
+# customization: https://travisbrady.github.io/posts/moving-to-fish-shell/
