@@ -144,6 +144,12 @@ vim.g.loaded_netrwPlugin = 1
 -- set termguicolors to enable highlight groups
 vim.opt.termguicolors = true
 
+-- Enable Treesitter-based folding
+vim.o.foldmethod = "expr"
+vim.o.foldexpr = "nvim_treesitter#foldexpr()"
+vim.o.foldlevel = 99  -- Start with all folds open
+vim.o.foldlevelstart = 99  -- Open all folds when opening a file
+
 require "config.lazy"
 require "dev"
 -- require("markdown-center").setup({ max_width = 120 })

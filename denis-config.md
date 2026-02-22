@@ -785,7 +785,40 @@ const result = calculateTotal(items, tax, discount);
 // Or: Press sd to leap directly to 'discount'
 ```
 
----
+### 9.5 Code Folding
+
+**Collapse code blocks to focus on what matters:**
+
+Code folding lets you temporarily hide functions, classes, or other code blocks to see the high-level structure of a file.
+
+**Basic folding:**
+| Key | Action |
+|-----|--------|
+| `zo` | Open fold under cursor |
+| `zc` | Close fold under cursor |
+| `za` | Toggle fold (open if closed, close if open) |
+
+**Fold all/none:**
+| Key | Action |
+|-----|--------|
+| `zR` | Open ALL folds in file |
+| `zM` | Close ALL folds in file |
+| `zr` | Reduce folding (open one level) |
+| `zm` | More folding (close one level) |
+
+**Navigate between folds:**
+| Key | Action |
+|-----|--------|
+| `zj` | Move to next fold |
+| `zk` | Move to previous fold |
+
+**Use case: Understanding a large file:**
+1. Open a file with many functions
+2. Press `zM` to close all folds - see just function signatures
+3. Navigate with `zj`/`zk` to scan through functions
+4. Press `zo` on interesting functions to open and read them
+5. Press `zc` when done to close again
+
 
 ## 10. Window Management
 
@@ -1026,6 +1059,9 @@ Example configuration:
 | `*` / `#` | Search word under cursor |
 | `f` / `F` / `t` / `T` | Find character on line |
 | `;` / `,` | Repeat/reverse last find |
+| `zo` / `zc` / `za` | Open/close/toggle fold |
+| `zR` / `zM` | Open/close all folds |
+| `zj` / `zk` | Next/previous fold |
 
 ### 12.4 Text Objects (Treesitter)
 
@@ -1744,6 +1780,7 @@ home-manager switch --flake .#macos --rollback
 - [ ] Practice `<leader>x` for quick fixes
 - [ ] Format with `<leader>` `
 - [ ] Experiment with text objects (`vif`, `vac`)
+- [ ] Try code folding (`zM` to collapse, `zo` to open)
 
 ### Week 3: Advanced
 - [ ] Learn Oil for file operations
