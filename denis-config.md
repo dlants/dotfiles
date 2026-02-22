@@ -520,6 +520,28 @@ export const currentUser = await fetchUser();
 **Auto-format on save:**
 Not enabled by default (Denis's preference), but you can add to your config.
 
+### 6.5 Comment Code
+
+**Toggle comments:** Press `gcc` in normal mode or `gc` in visual mode.
+
+**Normal mode:**
+| Key | Action |
+|-----|--------|
+| `gcc` | Toggle comment on current line |
+| `gc` + motion | Comment using motion (e.g., `gc3j` = next 3 lines) |
+| `gcap` | Comment a paragraph |
+
+**Visual mode:**
+| Key | Action |
+|-----|--------|
+| `gc` | Toggle line comments (`//` in TS/JS) |
+| `gb` | Block comment (`/* */` in TS/JS) |
+
+**Workflow:**
+1. Visual select lines with `V` + `j`/`k`
+2. Press `gc` to toggle comment
+3. Press `gc` again to uncomment
+
 ---
 
 ## 7. Fixing Errors & Debugging
@@ -1040,6 +1062,10 @@ Example configuration:
 | `<leader>e` | Toggle diagnostic virtual lines | Temporary show |
 | `<leader>` ` | Format current buffer | Prettier |
 | `[d` / `]d` | Previous/next diagnostic | Auto-shows details |
+| `gcc` | Toggle comment current line | comment.nvim |
+| `gc` + motion | Comment using motion | e.g., `gc3j` |
+| `gc` (visual) | Toggle line comments | Visual mode |
+| `gb` (visual) | Block comment | `/* */` style |
 
 ### 12.3 Motion & Scrolling
 
@@ -1779,6 +1805,7 @@ home-manager switch --flake .#macos --rollback
 - [ ] Use `<leader>r` for renaming
 - [ ] Practice `<leader>x` for quick fixes
 - [ ] Format with `<leader>` `
+- [ ] Comment/uncomment code with `gcc` and `gc`
 - [ ] Experiment with text objects (`vif`, `vac`)
 - [ ] Try code folding (`zM` to collapse, `zo` to open)
 
