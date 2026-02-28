@@ -427,15 +427,15 @@ return {
     }
   },
   -- themes
-  {
-    "folke/tokyonight.nvim",
-    lazy = false,
-    priority = 1000,
-    opts = {},
-    config = function()
-      vim.cmd("colorscheme tokyonight")
-    end
-  },
+  -- {
+  --   "folke/tokyonight.nvim",
+  --   lazy = false,
+  --   priority = 1000,
+  --   opts = {},
+  --   config = function()
+  --     vim.cmd("colorscheme tokyonight")
+  --   end
+  -- },
   -- {
   --   "nanotech/jellybeans.vim",
   --   config = function()
@@ -454,17 +454,17 @@ return {
   --     vim.cmd("colorscheme flow")
   --   end
   -- },
-  -- {
-  --   "p00f/alabaster.nvim",
-  --   lazy = false,
-  --   priority = 1000,
-  --   config = function()
-  --     vim.opt.termguicolors = true
-  --     vim.cmd("colorscheme alabaster")
-  --     -- Add missing markdown code fence highlighting (match inline code)
-  --     vim.api.nvim_set_hl(0, "@markup.raw.block", { link = "Special" })
-  --   end
-  -- },
+  {
+    "p00f/alabaster.nvim",
+    lazy = false,
+    priority = 1000,
+    config = function()
+      vim.opt.termguicolors = true
+      vim.cmd("colorscheme alabaster")
+      -- Add missing markdown code fence highlighting (match inline code)
+      vim.api.nvim_set_hl(0, "@markup.raw.block", { link = "Special" })
+    end
+  },
   -- {
   --   "rebelot/kanagawa.nvim",
   --   lazy = false,
