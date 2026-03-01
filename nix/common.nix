@@ -52,6 +52,16 @@
   # Fish shell
   programs.fish = {
     enable = true;
+    plugins = [
+      {
+        name = "pure";
+        src = pkgs.fishPlugins.pure.src;
+      }
+      {
+        name = "plugin-git";
+        src = pkgs.fishPlugins.plugin-git.src;
+      }
+    ];
   };
 
   # Starship prompt (supports git + jj via custom module)
