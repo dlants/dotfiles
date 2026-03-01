@@ -645,12 +645,102 @@ const name = "Denis"
 - Review your own work before committing
 - Understand changes when doing `git pull`
 
-### 8.2 Git Commands (vim-fugitive)
+### 8.2 Interactive Staging with vim-fugitive
 
-**Basic git workflow:**
+**Git terminology note:** Changes are grouped into **hunks** (contiguous blocks of modified lines), not "chunks" or "thunks". Each hunk represents a logical section of changes that git can stage independently.
+
+#### Interactive Status Window Workflow (Recommended)
+
+**Open interactive git status:**
+```vim
+:Git                 " Opens git status buffer
+```
+
+**In the `:Git` status window:**
+
+| Key | Action |
+|-----|--------|
+| `-` | Stage/unstage entire file |
+| `=` | Show inline diff for file under cursor |
+| `s` | Stage hunk/selection (when viewing diff) |
+| `u` | Unstage hunk/selection (when viewing diff) |
+| `cc` | Commit staged changes |
+| `ca` | Commit --amend |
+| `q` | Close status window |
+
+**Complete staging workflow:**
+
+1. **Open status:** `:Git`
+2. **Navigate to file** (use `j`/`k`)
+3. **Press `=`** to show inline diff
+4. **Stage specific hunks:**
+   - Position cursor on hunk
+   - Press `s` to stage that hunk
+   - **OR** use visual mode (`V`) to select specific lines, then `s`
+5. **Unstage if needed:**
+   - Navigate to staged hunk
+   - Press `u` to unstage
+6. **Review what's staged:**
+   - Scroll through staged files
+   - Press `=` on each to see what will be committed
+7. **Commit:** Press `cc`
+
+#### Visual Selection for Line-by-Line Control
+
+When you have a large hunk that you want to split up:
+
+```vim
+:Git              " Open status
+" Navigate to file, press =
+V                 " Visual line mode
+j j j             " Select exactly the lines you want
+s                 " Stage just the selected lines
+```
+
+This gives you complete control - stage individual lines even within a single hunk!
+
+#### Interactive Patch Mode
+
+**Stage file(s) interactively:**
+```vim
+:Git add -p          " Interactive staging for ALL modified files
+:Git add -p %        " Interactive staging for current file only (% = current file)
+```
+
+**Interactive prompts:**
+- `y` - stage this hunk
+- `n` - don't stage this hunk
+- `s` - split hunk into smaller pieces (if possible)
+- `e` - manually edit the hunk
+- `q` - quit
+- `?` - show help
+
+**Unstage interactively:**
+```vim
+:Git reset -p        " Interactive unstaging for all files
+:Git reset -p %      " Interactive unstaging for current file only
+```
+
+#### Review Staged Changes Before Committing
+
+**View what will be committed:**
+```vim
+:Git diff --cached   " Show staged changes (alias: --staged)
+:Git diff            " Show unstaged changes (working directory)
+:Git diff HEAD       " Show all changes (staged + unstaged)
+```
+
+**During commit:**
+- After pressing `cc`, the commit message buffer includes the diff at the bottom
+- Scroll down (`<C-d>` or `G`) to review changes while writing your message
+- Or open side-by-side: `:vsplit | Git diff --cached`
+
+#### Common Git Commands
+
+**Basic workflow:**
 ```vim
 :Git status          " See working tree status
-:Git add %           " Stage current file
+:Git add %           " Stage entire current file
 :Git commit          " Open commit message editor
 :Git push            " Push to remote
 :Git pull            " Pull from remote
@@ -659,17 +749,48 @@ const name = "Denis"
 **Useful commands:**
 ```vim
 :Git blame           " See line-by-line authorship
-:Git diff            " View changes
 :Git log             " View commit history
-:Git                 " Open interactive git status
+:Git log -p          " View commit history with diffs
+:Git show COMMIT     " View specific commit
 ```
 
-**Fugitive's `:Git` command:**
-- Opens git status in a buffer
-- Press `-` to stage/unstage files
-- Press `cc` to commit
-- Press `ca` to amend
-- Full vim editing for commit messages
+#### Practical Scenarios
+
+**Scenario 1: Stage related changes from multiple edits**
+```vim
+:Git                 " Open status
+" Press = on file
+" Navigate to first hunk you want
+s                    " Stage it
+" Navigate to second hunk
+s                    " Stage it
+" Leave other hunks unstaged for separate commit
+cc                   " Commit just what you staged
+```
+
+**Scenario 2: Made a mistake, need to unstage part of a file**
+```vim
+:Git                 " Open status
+" Navigate to staged file
+=                    " Show diff
+" Navigate to hunk you want to unstage
+u                    " Unstage just that hunk
+```
+
+**Scenario 3: Split work into atomic commits**
+```vim
+" You fixed a bug and added a feature in same file
+:Git
+=                    " View diff
+V                    " Visual select bug fix lines
+s                    " Stage bug fix
+cc                   " Commit: "fix: resolve authentication issue"
+:Git
+=
+V                    " Select feature lines
+s                    " Stage feature
+cc                   " Commit: "feat: add user profile validation"
+```
 
 ### 8.3 Browse on GitHub
 
@@ -1114,12 +1235,32 @@ Example configuration:
 
 ### 12.6 Git Operations
 
-| Key/Command | Action |
-|-------------|--------|
-| `]c` / `[c` | Next/previous git hunk |
-| `:Git status` | Git status |
+**Hunk navigation:**
+| Key | Action |
+|-----|--------|
+| `]c` / `[c` | Next/previous git hunk in file |
+
+**Interactive staging (in `:Git` status window):**
+| Key | Action |
+|-----|--------|
+| `-` | Stage/unstage entire file |
+| `=` | Show inline diff for file |
+| `s` | Stage hunk/selection |
+| `u` | Unstage hunk/selection |
+| `cc` | Commit staged changes |
+| `ca` | Commit --amend |
+
+**Commands:**
+| Command | Action |
+|---------|--------|
+| `:Git` | Open interactive status window |
+| `:Git status` | Git status (text output) |
 | `:Git blame` | Line-by-line authorship |
-| `:Git diff` | View changes |
+| `:Git diff` | View unstaged changes |
+| `:Git diff --cached` | View staged changes |
+| `:Git add -p` | Interactive staging (all files) |
+| `:Git add -p %` | Interactive staging (current file) |
+| `:Git reset -p` | Interactive unstaging |
 | `:Gho` | Open file on GitHub |
 | `:Ghl` | Open on GitHub with line number |
 | `:Ghom` | Open main branch on GitHub |
