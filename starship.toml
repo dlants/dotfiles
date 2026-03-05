@@ -1,0 +1,56 @@
+# Minimal prompt inspired by pure
+# https://github.com/sindresorhus/pure
+
+format = """
+$directory\
+${custom.jj}\
+${custom.git_or_jj}\
+$git_state\
+$cmd_duration\
+$line_break\
+$character"""
+
+[directory]
+style = "blue"
+
+[character]
+success_symbol = "[❯](purple)"
+error_symbol = "[❯](red)"
+
+# Only show git info when NOT in a jj repo
+[custom.git_or_jj]
+description = "Git branch + status (only in pure git repos)"
+when = "test ! -d .jj && git rev-parse --is-inside-work-tree 2>/dev/null"
+command = '''
+branch=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
+dirty=""
+if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+  dirty="*"
+fi
+echo "${branch}${dirty}"
+'''
+format = "[$output]($style) "
+style = "bright-black"
+shell = ["bash"]
+
+[git_branch]
+disabled = true
+
+[git_status]
+disabled = true
+
+[git_state]
+format = '\([$state( $progress_current/$progress_total)]($style)\) '
+style = "bright-black"
+
+[cmd_duration]
+format = "[$duration]($style) "
+style = "yellow"
+min_time = 5_000
+
+[custom.jj]
+description = "Jujutsu VCS status"
+when = "jj root --ignore-working-copy 2>/dev/null"
+command = '''jj log --no-graph --ignore-working-copy --color=never --revisions @ --template 'separate(" ", bookmarks.join(", "), change_id.shortest(), if(conflict, "conflict"), if(empty, "empty"))' 2>/dev/null'''
+format = "[$output]($style) "
+style = "bright-black"

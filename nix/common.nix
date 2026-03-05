@@ -52,12 +52,12 @@
   # Fish shell
   programs.fish = {
     enable = true;
-    plugins = [
-      {
-        name = "pure";
-        src = pkgs.fishPlugins.pure.src;
-      }
-    ];
+  };
+
+  # Starship prompt (supports git + jj via custom module)
+  programs.starship = {
+    enable = true;
+    enableFishIntegration = true;
   };
 
   # Neovim configuration
@@ -79,6 +79,7 @@
   xdg.configFile = {
     "nvim/init.lua".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/nvim/init.lua";
     "nvim/lua".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/nvim/lua";
+    "starship.toml".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/starship.toml";
   };
 
   # Magenta skills symlinks (individual per skill)
