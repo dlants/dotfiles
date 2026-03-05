@@ -108,7 +108,7 @@ The main plugin configuration file that defines all installed plugins and their 
 - **AI Integration**: Includes magenta.nvim for Claude/GPT integration with multiple profiles
 - **LSP Configuration**: Complete LSP setup for multiple languages (TypeScript, Rust, Lua, etc.)
 - **File Navigation**: FZF-lua for fast file searching and navigation
-- **Git Integration**: Gitsigns, fugitive, and related tools
+- **Git/JJ Integration**: Gitsigns, fugitive, jj.nvim, and related tools (repo uses Jujutsu/jj as VCS)
 - **Completion**: nvim-cmp with LSP integration and Copilot support
 - **Themes**: Multiple colorscheme options with Flow theme as default
 - **Treesitter**: Syntax highlighting and text objects
@@ -173,6 +173,24 @@ This chain allows you to see the actual command running on the remote (e.g., "nv
 - `ta <path>` — Create/switch to a session for a local directory
 - `ta dev` — Create/switch to a remote dev session
 
+## Version Control (Jujutsu/jj)
+
+This dotfiles repo uses **Jujutsu (jj)** as its VCS (with a git backend). Key workflow:
+
+- `jj status` — show working copy changes
+- `jj describe -m "message"` — set commit message on working copy
+- `jj bookmark set main -r @` — move the `main` bookmark to current commit
+- `jj git push` — push bookmarks to origin
+- `jj new` — create a new empty commit on top of current
+
+Typical push flow:
+```bash
+jj describe -m "my change"
+jj bookmark set main -r @
+jj git push
+```
+
+The **jj.nvim** plugin provides Neovim integration for jj operations.
 ## Tips for Effective Use
 
 1. Use VSCode's native features for insert mode, intellisense, and UI operations
