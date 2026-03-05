@@ -184,12 +184,10 @@ return {
     end,
     opts = {
       layout = {
-        height = 0.5,
-        width = 1,
-        row = 0,
-        col = nil,
-        prompt_position = 'top',    -- or 'top'
-        preview_position = 'right', -- or 'left', 'right', 'top', 'bottom'
+        height = 1.0,
+        width = 1.0,
+        prompt_position = 'top',
+        preview_position = 'right',
         preview_size = 0.5,
       },
       keymaps = {
@@ -197,32 +195,11 @@ return {
         move_down = { '<Down>', '<C-j>' },
       },
     },
-    config = function(_, opts)
-      require("fff").setup(opts)
-
-      -- Add custom keybindings for the input buffer
-      vim.api.nvim_create_autocmd("BufEnter", {
-        callback = function(ev)
-          if vim.bo[ev.buf].filetype ~= "fff_input" then return end
-          vim.schedule(function()
-            local buf = ev.buf
-            if not vim.api.nvim_buf_is_valid(buf) then return end
-            -- Jump to beginning of line (after the prompt)
-            vim.keymap.set('i', '<C-a>', '<C-o>I', { buffer = buf, silent = true })
-            -- Jump to end of line
-            vim.keymap.set('i', '<C-e>', '<C-o>A', { buffer = buf, silent = true })
-            -- Clear the line (delete all after prompt)
-            vim.keymap.set('i', '<C-l>', '<C-o>cc', { buffer = buf, silent = true })
-            vim.keymap.set('i', '<C-u>', '<C-o>cc', { buffer = buf, silent = true })
-          end)
-        end,
-      })
-    end,
     keys = {
       {
         "<leader>f",
         function()
-          require("fff").find_in_git_root()
+          require("fff").find_files()
         end,
         desc = "FFF Find files",
         silent = true
@@ -230,7 +207,7 @@ return {
       {
         "<leader>p",
         function()
-          require("fff").find_files_in_dir(vim.fn.expand("~/pkb"))
+          require("fff").find_files({ base_path = vim.fn.expand("~/pkb") })
         end,
         desc = "Find files in PKB",
         silent = true
@@ -372,6 +349,13 @@ return {
     end
   },
   { "tpope/vim-fugitive" },
+  {
+    "NicolasGB/jj.nvim",
+    lazy = false,
+    config = function()
+      require("jj").setup()
+    end
+  },
   --  { "tpope/vim-rhubarb" },
   {
     "numtostr/comment.nvim",
