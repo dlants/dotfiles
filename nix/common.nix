@@ -21,6 +21,7 @@
     gh     # GitHub CLI
     rustup
     tree-sitter
+    jujutsu  # jj version control
 
     # Language servers
     lua-language-server

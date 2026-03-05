@@ -81,10 +81,12 @@ end
 vim.api.nvim_create_autocmd("FileType", {
   pattern = { "markdown", "txt" },
   callback = function()
-    -- Enable line wrapping
+    -- Enable soft wrapping, disable hard wrapping
     vim.opt_local.wrap = true
     vim.opt_local.linebreak = true
     vim.opt_local.breakindent = true
+    vim.opt_local.textwidth = 0
+    vim.opt_local.formatoptions:remove({ "t", "c" })
 
     -- Map j and k to move by visual lines
     vim.keymap.set("n", "j", "gj", { buffer = 0, noremap = true, silent = true })
@@ -172,6 +174,17 @@ vim.wo.cursorcolumn = true
 vim.wo.colorcolumn = "120"
 
 vim.cmd "autocmd BufWritePre * StripWhitespace"
+
+-- Snapshot jj status on markdown write to track work progress
+vim.api.nvim_create_autocmd("BufWritePost", {
+  pattern = "*.md",
+  callback = function()
+    local cwd = vim.fn.getcwd()
+    if vim.fn.isdirectory(cwd .. "/.jj") == 1 then
+      vim.fn.jobstart({ "jj", "status" }, { cwd = cwd })
+    end
+  end,
+})
 
 -- panel nav
 vim.api.nvim_set_keymap("n", "<C-h>", "<C-w>h", { noremap = true })
