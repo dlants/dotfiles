@@ -141,15 +141,14 @@ return {
         desc = "FZF All Files in git root (including gitignored)",
         silent = true
       },
-
-      -- {
-      --   "<leader>f",
-      --   function()
-      --     require("fzf-lua").files()
-      --   end,
-      --   desc = "FZF Files",
-      --   silent = true
-      -- },
+      {
+        "<leader>f",
+        function()
+          require("fzf-lua").files()
+        end,
+        desc = "FZF Files",
+        silent = true
+      },
       {
         "<leader>h",
         function()
@@ -176,44 +175,48 @@ return {
       }
     }
   },
-  {
-    "dmtrKovalenko/fff.nvim",
-    lazy = false,
-    build = function()
-      require("fff.download").download_or_build_binary()
-    end,
-    opts = {
-      layout = {
-        height = 1.0,
-        width = 1.0,
-        prompt_position = 'top',
-        preview_position = 'right',
-        preview_size = 0.5,
-      },
-      keymaps = {
-        move_up = { '<Up>', '<C-k>' },
-        move_down = { '<Down>', '<C-j>' },
-      },
-    },
-    keys = {
-      {
-        "<leader>f",
-        function()
-          require("fff").find_files()
-        end,
-        desc = "FFF Find files",
-        silent = true
-      },
-      {
-        "<leader>p",
-        function()
-          require("fff").find_files({ base_path = vim.fn.expand("~/pkb") })
-        end,
-        desc = "Find files in PKB",
-        silent = true
-      },
-    }
-  },
+  -- {
+  --   "dmtrKovalenko/fff.nvim",
+  --   lazy = false,
+  --   build = function()
+  --     require("fff.download").download_or_build_binary()
+  --   end,
+  --   opts = {
+  --     layout = {
+  --       height = 1.0,
+  --       width = 1.0,
+  --       prompt_position = 'top',
+  --       preview_position = 'right',
+  --       preview_size = 0.5,
+  --     },
+  --     keymaps = {
+  --       move_up = { '<Up>', '<C-k>' },
+  --       move_down = { '<Down>', '<C-j>' },
+  --     },
+  --     debug = {
+  --       enabled = true,
+  --       show_scores = true,
+  --     },
+  --   },
+  --   keys = {
+  --     {
+  --       "<leader>f",
+  --       function()
+  --         require("fff").find_files()
+  --       end,
+  --       desc = "FFF Find files",
+  --       silent = true
+  --     },
+  --     {
+  --       "<leader>p",
+  --       function()
+  --         require("fff").find_files({ base_path = vim.fn.expand("~/pkb") })
+  --       end,
+  --       desc = "Find files in PKB",
+  --       silent = true
+  --     },
+  --   }
+  -- },
   {
     "mhinz/vim-grepper",
     config = function()
@@ -646,6 +649,8 @@ return {
 
       -- Ruff configuration for Python linting/formatting
       vim.lsp.config("ruff", default_config)
+      -- Biome configuration (JS/TS linting + formatting, activates only when biome.json exists)
+      vim.lsp.config("biome", default_config)
 
       -- Configure servers that don't need special settings
       local simple_servers = {
@@ -678,7 +683,8 @@ return {
         "lua_ls",
         "zls",
         "ty",
-        "ruff"
+        "ruff",
+        "biome"
       }
 
       vim.lsp.enable(all_servers)
@@ -690,14 +696,14 @@ return {
     config = function()
       require("conform").setup({
         formatters_by_ft = {
-          javascript = { "prettier" },
-          typescript = { "prettier" },
-          javascriptreact = { "prettier" },
-          typescriptreact = { "prettier" },
-          json = { "prettier" },
+          javascript = { "biome", "prettier", stop_after_first = true },
+          typescript = { "biome", "prettier", stop_after_first = true },
+          javascriptreact = { "biome", "prettier", stop_after_first = true },
+          typescriptreact = { "biome", "prettier", stop_after_first = true },
+          json = { "biome", "prettier", stop_after_first = true },
           yaml = { "prettier" },
           html = { "prettier" },
-          css = { "prettier" },
+          css = { "biome", "prettier", stop_after_first = true },
           scss = { "prettier" },
           markdown = { "prettier" },
           rust = { "rustfmt" },
@@ -866,7 +872,13 @@ return {
           },
           mapping = {
             ["<CR>"] = cmp.mapping(
-              cmp.mapping.confirm({ select = true, behavior = cmp.SelectBehavior.Insert }),
+              function(fallback)
+                if cmp.visible() then
+                  cmp.confirm({ select = true, behavior = cmp.SelectBehavior.Insert })
+                else
+                  fallback()
+                end
+              end,
               { "i", "c" }
             ),
             ["<Tab>"] = cmp.mapping(
