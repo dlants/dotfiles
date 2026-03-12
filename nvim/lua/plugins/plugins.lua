@@ -172,6 +172,14 @@ return {
         end,
         desc = "FZF buffers",
         silent = true
+      },
+      {
+        "<leader>p",
+        function()
+          require("fzf-lua").files({ cwd = vim.fn.expand("~/pkb") })
+        end,
+        desc = "Find files in PKB",
+        silent = true
       }
     }
   },
