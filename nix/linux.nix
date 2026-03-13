@@ -22,13 +22,19 @@
     fi
   '';
 
-  # Clone work-skills as ~/.claude/skills
+  # Clone work-skills into ~/.claude/skills (browser skill symlink added after by setupMagentaSkills)
   home.activation.cloneWorkSkills = lib.hm.dag.entryAfter ["writeBoundary"] ''
     if [ ! -d "$HOME/.claude/skills" ]; then
       mkdir -p "$HOME/.claude"
       GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh" ${pkgs.git}/bin/git clone git@github.com:benchling/work-skills.git "$HOME/.claude/skills"
     fi
   '';
+
+  # Override setupMagentaSkills from common.nix to run after cloneWorkSkills
+  home.activation.setupMagentaSkills = lib.mkForce (lib.hm.dag.entryAfter ["writeBoundary" "cloneWorkSkills"] ''
+    mkdir -p "$HOME/.claude/skills"
+    ln -sfn "${dotfilesDir}/magenta-skills/browser" "$HOME/.claude/skills/browser"
+  '');
 
   # Clone dlants-pkb as ~/pkb
   home.activation.clonePkb = lib.hm.dag.entryAfter ["writeBoundary"] ''
