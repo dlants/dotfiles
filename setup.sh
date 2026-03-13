@@ -30,8 +30,8 @@ else
     echo "==> Nix already installed"
 fi
 
-# Enable flakes
-if ! grep -q "experimental-features" ~/.config/nix/nix.conf 2>/dev/null; then
+# Enable flakes (skip if already managed by home-manager via symlink)
+if [[ ! -L ~/.config/nix/nix.conf ]] && ! grep -q "experimental-features" ~/.config/nix/nix.conf 2>/dev/null; then
     echo "==> Enabling flakes..."
     mkdir -p ~/.config/nix
     echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
