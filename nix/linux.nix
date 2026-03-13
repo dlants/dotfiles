@@ -36,6 +36,18 @@
       ${pkgs.git}/bin/git clone git@github.com:benchling/dlants-pkb.git "$HOME/pkb"
     fi
   '';
+  # Set fish as login shell
+  home.activation.setFishShell = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    FISH_PATH="$HOME/.nix-profile/bin/fish"
+    if [ -x "$FISH_PATH" ]; then
+      if ! grep -qF "$FISH_PATH" /etc/shells 2>/dev/null; then
+        echo "$FISH_PATH" | sudo tee -a /etc/shells >/dev/null
+      fi
+      if [ "$(getent passwd "$USER" | cut -d: -f7)" != "$FISH_PATH" ]; then
+        sudo chsh -s "$FISH_PATH" "$USER"
+      fi
+    fi
+  '';
   # Fish config (Linux-specific)
   xdg.configFile."fish/config.fish".source = lib.mkForce (config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/fish/config-linux.fish");
 }
