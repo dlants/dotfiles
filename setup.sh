@@ -33,9 +33,9 @@ fi
 # Enable flakes if not already configured
 if ! grep -q "experimental-features" ~/.config/nix/nix.conf 2>/dev/null; then
     echo "==> Enabling flakes..."
-    # Remove stale symlink (e.g. from a previous home-manager generation that was garbage collected)
-    [[ -L ~/.config/nix/nix.conf ]] && rm ~/.config/nix/nix.conf
-    [[ -L ~/.config/nix ]] && rm ~/.config/nix
+    # Remove broken symlinks (e.g. from a previous home-manager generation whose nix store was wiped)
+    [[ -L ~/.config/nix/nix.conf && ! -e ~/.config/nix/nix.conf ]] && rm ~/.config/nix/nix.conf
+    [[ -L ~/.config/nix && ! -e ~/.config/nix ]] && rm ~/.config/nix
     mkdir -p ~/.config/nix
     echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 fi
