@@ -16,7 +16,8 @@
   # Install pkgx via curl (brew not available on Linux)
   home.activation.pkgxInstall = lib.hm.dag.entryAfter ["writeBoundary"] ''
     if ! command -v pkgx &> /dev/null; then
-      ${pkgs.curl}/bin/curl -fsS https://pkgx.sh | sh
+      mkdir -p "$HOME/.local/bin"
+      ${pkgs.curl}/bin/curl -fsS https://pkgx.sh | PKGX_INSTALL_DIR="$HOME/.local/bin" sh
     fi
   '';
 
