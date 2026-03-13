@@ -41,10 +41,10 @@
     FISH_PATH="$HOME/.nix-profile/bin/fish"
     if [ -x "$FISH_PATH" ]; then
       if ! grep -qF "$FISH_PATH" /etc/shells 2>/dev/null; then
-        echo "$FISH_PATH" | sudo tee -a /etc/shells >/dev/null
+        echo "$FISH_PATH" | /usr/bin/sudo tee -a /etc/shells >/dev/null
       fi
       if [ "$(getent passwd "$USER" | cut -d: -f7)" != "$FISH_PATH" ]; then
-        sudo chsh -s "$FISH_PATH" "$USER"
+        /usr/bin/sudo chsh -s "$FISH_PATH" "$USER"
       fi
     fi
   '';
