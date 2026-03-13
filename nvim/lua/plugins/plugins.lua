@@ -23,7 +23,7 @@ return {
     config = function()
       local magenta_config = require("config.magenta")
       require("magenta").setup({
-        -- debug = true,
+        debug = true,
         profiles = magenta_config.profiles,
         sidebarPosition = "left",
         editPrediction = magenta_config.editPrediction,
@@ -442,29 +442,29 @@ return {
   --     -- vim.cmd.colorscheme "jellybeans"
   --   end
   -- },
-  -- {
-  --   "0xstepit/flow.nvim",
-  --   lazy = false,
-  --   config = function()
-  --     require("flow").setup {
-  --       theme = {
-  --         contrast = "high"
-  --       },
-  --     }
-  --     vim.cmd("colorscheme flow")
-  --   end
-  -- },
   {
-    "p00f/alabaster.nvim",
+    "0xstepit/flow.nvim",
     lazy = false,
-    priority = 1000,
     config = function()
-      vim.opt.termguicolors = true
-      vim.cmd("colorscheme alabaster")
-      -- Add missing markdown code fence highlighting (match inline code)
-      vim.api.nvim_set_hl(0, "@markup.raw.block", { link = "Special" })
+      require("flow").setup {
+        theme = {
+          contrast = "high"
+        },
+      }
+      vim.cmd("colorscheme flow")
     end
   },
+  -- {
+  --   "p00f/alabaster.nvim",
+  --   lazy = false,
+  --   priority = 1000,
+  --   config = function()
+  --     vim.opt.termguicolors = true
+  --     vim.cmd("colorscheme alabaster")
+  --     -- Add missing markdown code fence highlighting (match inline code)
+  --     vim.api.nvim_set_hl(0, "@markup.raw.block", { link = "Special" })
+  --   end
+  -- },
   -- {
   --   "rebelot/kanagawa.nvim",
   --   lazy = false,
