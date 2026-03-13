@@ -22,6 +22,20 @@
     fi
   '';
 
+  # Clone work-skills as ~/.claude/skills
+  home.activation.cloneWorkSkills = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    if [ ! -d "$HOME/.claude/skills" ]; then
+      mkdir -p "$HOME/.claude"
+      ${pkgs.git}/bin/git clone git@github.com:benchling/work-skills.git "$HOME/.claude/skills"
+    fi
+  '';
+
+  # Clone dlants-pkb as ~/pkb
+  home.activation.clonePkb = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    if [ ! -d "$HOME/pkb" ]; then
+      ${pkgs.git}/bin/git clone git@github.com:benchling/dlants-pkb.git "$HOME/pkb"
+    fi
+  '';
   # Fish config (Linux-specific)
   xdg.configFile."fish/config.fish".source = lib.mkForce (config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/fish/config-linux.fish");
 }
