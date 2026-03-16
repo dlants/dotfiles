@@ -21,6 +21,7 @@
   home.activation.brewInstall = lib.hm.dag.entryAfter ["writeBoundary"] ''
     if command -v brew &> /dev/null; then
       brew list --cask hammerspoon &> /dev/null || brew install --cask hammerspoon
+      brew list --cask ghostty &> /dev/null || brew install --cask ghostty
       brew list pkgx &> /dev/null || brew install pkgx
     fi
   '';
@@ -30,4 +31,7 @@
 
   # Fish config (macOS-specific)
   xdg.configFile."fish/config.fish".source = lib.mkForce (config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/fish/config-darwin.fish");
+
+  # Ghostty config (macOS-only terminal)
+  xdg.configFile."ghostty".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/ghostty";
 }
