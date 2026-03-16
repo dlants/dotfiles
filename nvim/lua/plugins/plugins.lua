@@ -94,6 +94,7 @@ return {
   --     end
   --   end
   -- },
+  -- { "jghauser/follow-md-links.nvim" },
   { "christoomey/vim-tmux-navigator" },
   { "ntpeters/vim-better-whitespace" },
   { "junegunn/fzf",                  build = "./install --bin" },
