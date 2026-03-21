@@ -24,7 +24,8 @@
 
   # Clone work-skills into ~/.claude/skills (browser skill symlink added after by setupMagentaSkills)
   home.activation.cloneWorkSkills = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    if [ ! -d "$HOME/.claude/skills" ]; then
+    if [ ! -d "$HOME/.claude/skills/.git" ]; then
+      rm -rf "$HOME/.claude/skills"
       mkdir -p "$HOME/.claude"
       GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh" ${pkgs.git}/bin/git clone git@github.com:benchling/work-skills.git "$HOME/.claude/skills"
     fi
@@ -36,12 +37,7 @@
     ln -sfn "${dotfilesDir}/magenta-skills/browser" "$HOME/.claude/skills/browser"
   '');
 
-  # Clone dlants-pkb as ~/pkb
-  home.activation.clonePkb = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    if [ ! -d "$HOME/pkb" ]; then
-      GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh" ${pkgs.git}/bin/git clone git@github.com:benchling/dlants-pkb.git "$HOME/pkb"
-    fi
-  '';
+
   # Set fish as login shell
   home.activation.setFishShell = lib.hm.dag.entryAfter ["writeBoundary"] ''
     FISH_PATH="$HOME/.nix-profile/bin/fish"

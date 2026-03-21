@@ -176,7 +176,7 @@ return {
       {
         "<leader>p",
         function()
-          require("fzf-lua").files({ cwd = vim.fn.expand("~/pkb") })
+          require("fzf-lua").files({ cwd = vim.fn.expand("~/.claude/skills/benchling-knowledgebase/knowledge") })
         end,
         desc = "Find files in PKB",
         silent = true
