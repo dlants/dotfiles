@@ -17,7 +17,7 @@ if is_linux then
       },
       thinking = {
         enabled = true,
-        budgetTokens = 4096
+        budgetTokens = 1024
       }
     },
     {
