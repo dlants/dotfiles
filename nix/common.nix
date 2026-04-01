@@ -30,6 +30,8 @@
     nodePackages.bash-language-server
     nodePackages.yaml-language-server
     nodePackages.vscode-langservers-extracted
+    terraform-ls
+    tflint
 
     # Formatters
     nodePackages.prettier

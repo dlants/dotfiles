@@ -7,6 +7,8 @@
     uv  # For installing ty (Python type checker not yet in nixpkgs)
     nodejs  # includes npm
     tmux
+    zig
+    zls  # Zig language server
   ];
 
   # Tmux config symlink

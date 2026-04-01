@@ -69,9 +69,9 @@ else
       }
     },
     {
-      name = "opus-4.6(bedrock)",
+      name = "opus-4.6(bedrock-global)",
       provider = "bedrock",
-      model = "us.anthropic.claude-opus-4-6-v1",
+      model = "global.anthropic.claude-opus-4-6-v1",
       fastModel = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
       authType = "max",
       env = {
