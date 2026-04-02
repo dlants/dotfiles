@@ -2,6 +2,7 @@
 # https://github.com/sindresorhus/pure
 
 format = """
+$hostname\
 $directory\
 ${custom.jj}\
 ${custom.git_or_jj}\
@@ -9,6 +10,11 @@ $git_state\
 $cmd_duration\
 $line_break\
 $character"""
+
+[hostname]
+ssh_only = true
+style = "bold red"
+format = "[$hostname]($style) "
 
 [directory]
 style = "blue"
