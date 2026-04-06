@@ -2,24 +2,17 @@ local M = {}
 
 M.profiles = {
   {
-    name = "opus-4.6(gateway)",
+    name = "claude haiku 4.5",
     provider = "anthropic",
-    model = "claude-opus-4-6",
-    apiKeyEnvVar = "HACKATHON_ANTHROPIC_API_KEY",
-    baseUrl = "https://internal-devci.poc.learning.amplify.com/llm-gateway/chat/completions",
-    -- authType = "max",
-    thinking = {
-      enabled = true,
-      budgetTokens = 1024
-    }
+    model = "claude-haiku-4-5",
+    fastModel = "claude-haiku-4-5",
+    authType = "keychain",
   },
   -- {
-  --   name = "sonnet-4.5(gateway)",
+  --   name = "claude opus-4.6",
   --   provider = "anthropic",
-  --   model = "claude-sonnet-4-5",
-  --   apiKeyEnvVar = "HACKATHON_ANTHROPIC_API_KEY",
-  --   baseUrl = "https://internal-devci.poc.learning.amplify.com/llm-gateway/chat/completions",
-  --   -- authType = "max",
+  --   model = "claude-opus-4-6",
+  --   authType = "keychain",
   --   thinking = {
   --     enabled = true,
   --     budgetTokens = 1024
