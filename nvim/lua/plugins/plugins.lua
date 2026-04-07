@@ -372,7 +372,22 @@ return {
       end, { expr = true, desc = 'Previous git hunk' })
     end
   },
-  { "tpope/vim-fugitive" },
+  {
+    "tpope/vim-fugitive",
+    config = function()
+      vim.keymap.set('n', '<leader>l', ':Gclog main...HEAD<CR>', { desc = 'Git log main...HEAD' })
+
+      vim.keymap.set('n', '<leader>L', function()
+        local files = vim.fn.systemlist('git diff --name-only main...HEAD')
+        local qf = {}
+        for _, f in ipairs(files) do
+          table.insert(qf, { filename = f, lnum = 1 })
+        end
+        vim.fn.setqflist(qf)
+        vim.cmd('copen')
+      end, { desc = 'PR changed files' })
+    end
+  },
   {
     "NicolasGB/jj.nvim",
     lazy = false,
