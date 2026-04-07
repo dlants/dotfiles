@@ -43,6 +43,18 @@ return {
     end
   },
   -- {
+  --   "sindrets/diffview.nvim",
+  --   dependencies = { "nvim-tree/nvim-web-devicons" },
+  --   cmd = { "DiffviewOpen", "DiffviewFileHistory", "DiffviewClose" },
+  --   config = function()
+  --     require("diffview").setup({
+  --       default_args = {
+  --         DiffviewOpen = { "--imply-local" }, -- enables LSP in the diff view
+  --       },
+  --     })
+  --   end
+  -- },
+  -- {
   --   "sphamba/smear-cursor.nvim",
   --   opts = {}
   -- },
