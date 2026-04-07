@@ -177,7 +177,7 @@ vim.cmd "autocmd BufWritePre * StripWhitespace"
 
 -- Snapshot jj status on markdown write to track work progress
 vim.api.nvim_create_autocmd("BufWritePost", {
-  pattern = "*.md",
+  pattern = vim.fn.expand("~") .. "/src/amusements/*.md",
   callback = function()
     local cwd = vim.fn.getcwd()
     if vim.fn.isdirectory(cwd .. "/.jj") == 1 then

@@ -7,6 +7,7 @@
     git
     curl
     wget
+    bubblewrap
     # Note: nodejs omitted - devcontainers typically provide their own version
   ];
 
