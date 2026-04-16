@@ -37,6 +37,7 @@
   home.activation.setupMagentaSkills = lib.mkForce (lib.hm.dag.entryAfter ["writeBoundary" "cloneWorkSkills"] ''
     mkdir -p "$HOME/.claude/skills"
     ln -sfn "${dotfilesDir}/magenta-skills/browser" "$HOME/.claude/skills/browser"
+    ln -sfn "${dotfilesDir}/magenta-skills/plan" "$HOME/.claude/skills/plan"
   '');
 
 

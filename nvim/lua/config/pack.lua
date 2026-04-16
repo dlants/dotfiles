@@ -39,6 +39,7 @@ vim.pack.add({
   "https://github.com/hrsh7th/cmp-cmdline",
   "https://github.com/rcarriga/nvim-notify",
   "https://codeberg.org/andyg/leap.nvim",
+  "https://github.com/neovim-treesitter/treesitter-parser-registry",
   { src = "https://github.com/neovim-treesitter/nvim-treesitter", version = "main" },
   "https://github.com/nvim-treesitter/nvim-treesitter-context",
   { src = "https://github.com/nvim-treesitter/nvim-treesitter-textobjects", version = "main" },

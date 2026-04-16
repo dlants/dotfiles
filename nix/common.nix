@@ -89,6 +89,7 @@
   home.activation.setupMagentaSkills = lib.hm.dag.entryAfter ["writeBoundary"] ''
     mkdir -p "$HOME/.claude/skills"
     ln -sfn "${dotfilesDir}/magenta-skills/browser" "$HOME/.claude/skills/browser"
+    ln -sfn "${dotfilesDir}/magenta-skills/plan" "$HOME/.claude/skills/plan"
   '';
 
   # Prevent rustup from creating a broken fish config (nix manages PATH)
