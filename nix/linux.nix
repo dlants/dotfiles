@@ -8,6 +8,7 @@
     curl
     wget
     bubblewrap
+    socat
     # Note: nodejs omitted - devcontainers typically provide their own version
   ];
 
