@@ -25,16 +25,17 @@
 
     # Language servers
     lua-language-server
-    nodePackages.typescript
-    nodePackages.typescript-language-server
-    nodePackages.bash-language-server
-    nodePackages.yaml-language-server
-    nodePackages.vscode-langservers-extracted
+    typescript
+    typescript-language-server
+    bash-language-server
+    yaml-language-server
+    vscode-langservers-extracted
     terraform-ls
     tflint
+    biome
 
     # Formatters
-    nodePackages.prettier
+    prettier
     stylua
   ];
 

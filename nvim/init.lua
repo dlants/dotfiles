@@ -144,7 +144,8 @@ vim.g.loaded_netrwPlugin = 1
 -- set termguicolors to enable highlight groups
 vim.opt.termguicolors = true
 
-require "config.lazy"
+require "config.pack"
+require "config.plugins"
 require "dev"
 -- require("markdown-center").setup({ max_width = 120 })
 
