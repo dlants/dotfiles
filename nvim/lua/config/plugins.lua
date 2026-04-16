@@ -525,6 +525,20 @@ require("nvim-treesitter").setup({
   install_dir = vim.fn.stdpath('data') .. '/site'
 })
 
+local ensure_installed = {
+  "lua", "typescript", "tsx", "javascript", "json", "yaml", "html", "css",
+  "rust", "bash", "markdown", "markdown_inline", "teal", "python", "nix",
+  "vim", "vimdoc", "toml", "terraform", "java", "zig", "query", "regex",
+}
+
+local installed = require('nvim-treesitter.config').get_installed()
+local to_install = vim.iter(ensure_installed)
+    :filter(function(lang) return not vim.tbl_contains(installed, lang) end)
+    :totable()
+if #to_install > 0 then
+  require('nvim-treesitter').install(to_install)
+end
+
 local ts_filetypes = {
   "lua", "typescript", "tsx", "javascript", "typescriptreact", "javascriptreact",
   "json", "yaml", "html", "css", "rust", "bash", "markdown", "teal"
