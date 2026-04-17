@@ -6,9 +6,9 @@ local M = {}
 if is_linux then
   M.profiles = {
     {
-      name = "opus-4.6(bedrock-global)",
+      name = "opus-4.7(bedrock-global)",
       provider = "bedrock",
-      model = "global.anthropic.claude-opus-4-6-v1",
+      model = "global.anthropic.claude-opus-4-7-v1",
       fastModel = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
       authType = "max",
       env = {
@@ -21,9 +21,9 @@ if is_linux then
       }
     },
     {
-      name = "opus-4.6(bedrock)",
+      name = "opus-4.7(bedrock)",
       provider = "bedrock",
-      model = "us.anthropic.claude-opus-4-6-v1",
+      model = "us.anthropic.claude-opus-4-7-v1",
       fastModel = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
       authType = "max",
       env = {
@@ -59,9 +59,9 @@ if is_linux then
 else
   M.profiles = {
     {
-      name = "opus-4.6(max)",
+      name = "opus-4.7(max)",
       provider = "anthropic",
-      model = "claude-opus-4-6",
+      model = "claude-opus-4-7",
       authType = "max",
       thinking = {
         enabled = true,
@@ -69,9 +69,9 @@ else
       }
     },
     {
-      name = "opus-4.6(bedrock-global)",
+      name = "opus-4.7(bedrock-global)",
       provider = "bedrock",
-      model = "global.anthropic.claude-opus-4-6-v1",
+      model = "global.anthropic.claude-opus-4-7-v1",
       fastModel = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
       authType = "max",
       env = {

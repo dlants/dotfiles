@@ -16,15 +16,28 @@ end
 --------------------------------------------------------------------------------
 -- magenta.nvim
 --------------------------------------------------------------------------------
+local magenta_timings = vim.env.MAGENTA_TIMINGS ~= nil
+if magenta_timings then
+  vim.notify(string.format("[magenta] pre-require: %.3fms", vim.loop.hrtime() / 1e6))
+end
 local magenta_ok, magenta = pcall(require, "magenta")
+if magenta_timings then
+  vim.notify(string.format("[magenta] post-require: %.3fms", vim.loop.hrtime() / 1e6))
+end
 if magenta_ok then
   local magenta_config = require("config.magenta")
+  if magenta_timings then
+    vim.notify(string.format("[magenta] pre-setup: %.3fms", vim.loop.hrtime() / 1e6))
+  end
   magenta.setup({
     profiles = magenta_config.profiles,
     sidebarPosition = "left",
     editPrediction = magenta_config.editPrediction,
     chimeVolume = 0,
   })
+  if magenta_timings then
+    vim.notify(string.format("[magenta] post-setup: %.3fms", vim.loop.hrtime() / 1e6))
+  end
 end
 
 --------------------------------------------------------------------------------
