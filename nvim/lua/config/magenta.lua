@@ -6,25 +6,10 @@ local M = {}
 if is_linux then
   M.profiles = {
     {
-      name = "opus-4.7(bedrock-global)",
-      provider = "bedrock",
-      model = "global.anthropic.claude-opus-4-7-v1",
-      fastModel = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
-      authType = "max",
-      env = {
-        AWS_PROFILE = "dev.ai-inference",
-        AWS_REGION = "us-west-2"
-      },
-      thinking = {
-        enabled = true,
-        budgetTokens = 1024
-      }
-    },
-    {
       name = "opus-4.7(bedrock)",
       provider = "bedrock",
-      model = "us.anthropic.claude-opus-4-7-v1",
-      fastModel = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+      model = "us.anthropic.claude-opus-4-7",
+      fastModel = "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       authType = "max",
       env = {
         AWS_PROFILE = "dev.ai-inference",
@@ -69,10 +54,10 @@ else
       }
     },
     {
-      name = "opus-4.7(bedrock-global)",
+      name = "opus-4.7(bedrock)",
       provider = "bedrock",
-      model = "global.anthropic.claude-opus-4-7-v1",
-      fastModel = "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+      model = "us.anthropic.claude-opus-4-7",
+      fastModel = "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       authType = "max",
       env = {
         AWS_PROFILE = "dev.ai-inference",
