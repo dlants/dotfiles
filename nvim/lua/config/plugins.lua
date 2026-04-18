@@ -16,28 +16,24 @@ end
 --------------------------------------------------------------------------------
 -- magenta.nvim
 --------------------------------------------------------------------------------
-local magenta_timings = vim.env.MAGENTA_TIMINGS ~= nil
-if magenta_timings then
-  vim.notify(string.format("[magenta] pre-require: %.3fms", vim.loop.hrtime() / 1e6))
-end
 local magenta_ok, magenta = pcall(require, "magenta")
-if magenta_timings then
-  vim.notify(string.format("[magenta] post-require: %.3fms", vim.loop.hrtime() / 1e6))
-end
 if magenta_ok then
+  -- Initialize magenta timings early so we can record lua-side events that
+  -- happen outside the plugin (e.g. config-level pre/post-require markers).
+  local magenta_timings = require("magenta.timings")
+  magenta_timings.init()
+  magenta_timings.record("config: magenta required")
+
   local magenta_config = require("config.magenta")
-  if magenta_timings then
-    vim.notify(string.format("[magenta] pre-setup: %.3fms", vim.loop.hrtime() / 1e6))
-  end
+  magenta_timings.record("config: magenta config loaded")
+
   magenta.setup({
     profiles = magenta_config.profiles,
     sidebarPosition = "left",
     editPrediction = magenta_config.editPrediction,
     chimeVolume = 0,
   })
-  if magenta_timings then
-    vim.notify(string.format("[magenta] post-setup: %.3fms", vim.loop.hrtime() / 1e6))
-  end
+  magenta_timings.record("config: magenta.setup() returned")
 end
 
 --------------------------------------------------------------------------------
@@ -48,6 +44,30 @@ require("snacks").setup({
   indent = {},
   rename = {},
   bigfile = { notify = true },
+  picker = {
+    matcher = {
+      filename_bonus = true,
+      frecency = true,
+      cwd_bonus = true,
+      history_bonus = true,
+    },
+    layout = {
+      layout = {
+        box = "horizontal",
+        backdrop = false,
+        row = 0,
+        width = 0,
+        height = 0.5,
+        border = "none",
+        {
+          box = "vertical",
+          { win = "input", height = 1, border = "bottom", title = "{title} {live} {flags}", title_pos = "center" },
+          { win = "list", border = "none" },
+        },
+        { win = "preview", title = "{preview}", border = "left", width = 0.5 },
+      },
+    },
+  },
 })
 
 --------------------------------------------------------------------------------
@@ -84,13 +104,14 @@ vim.keymap.set("n", "<leader>F", function()
   })
 end, { desc = "FZF All Files in git root (including gitignored)", silent = true })
 
-vim.keymap.set("n", "<leader>f", function() fzf_lua.files() end, { desc = "FZF Files", silent = true })
+vim.keymap.set("n", "<leader>f", function() require("snacks").picker.files() end, { desc = "Snacks find files", silent = true })
 vim.keymap.set("n", "<leader>h", function() fzf_lua.helptags() end, { desc = "FZF grep help", silent = true })
 vim.keymap.set("n", "<leader>/", function() fzf_lua.live_grep() end, { desc = "FZF live grep", silent = true })
 vim.keymap.set("n", "<leader>b", function() fzf_lua.buffers() end, { desc = "FZF buffers", silent = true })
 vim.keymap.set("n", "<leader>p", function()
-  fzf_lua.files({ cwd = "~/.claude/skills/benchling-knowledgebase/knowledge" })
+  require("snacks").picker.files({ cwd = vim.fn.expand("~/.claude/skills/benchling-knowledgebase/knowledge") })
 end, { desc = "Find files in PKB", silent = true })
+
 
 --------------------------------------------------------------------------------
 -- grepper

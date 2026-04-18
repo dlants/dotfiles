@@ -1,4 +1,12 @@
 -- Neovim configuration
+
+-- Capture nvim start time as epoch ms. Used by magenta (and anything else)
+-- to produce a unified timing timeline across lua and subprocesses.
+do
+  local sec, usec = vim.uv.gettimeofday()
+  vim.g.nvim_start_time_ms = sec * 1000 + usec / 1000
+end
+
 -- Set leader keys
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
