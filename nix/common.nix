@@ -4,6 +4,34 @@
 {
   home.stateVersion = "24.11";
 
+  # Override tree-sitter to a newer version (nvim-treesitter main branch
+  # requires tree-sitter-cli >= 0.26.1; nixpkgs still ships 0.25.x).
+  nixpkgs.overlays = [
+    (final: prev:
+      let
+        newSrc = prev.fetchFromGitHub {
+          owner = "tree-sitter";
+          repo = "tree-sitter";
+          tag = "v0.26.8";
+          hash = "sha256-fcFEfoALrbpBD6rWogxJ7FNVlvDQgswoX9ylRgko+8Q=";
+          fetchSubmodules = true;
+        };
+      in {
+        tree-sitter = prev.tree-sitter.overrideAttrs (old: {
+          version = "0.26.8";
+          src = newSrc;
+          # buildRustPackage extracts cargoHash from its raw args (not finalAttrs),
+          # so we must override cargoDeps directly to refetch against the new src.
+          cargoDeps = prev.rustPlatform.fetchCargoVendor {
+            src = newSrc;
+            hash = "sha256-9FeWnWWPUWmMF15Psmul8GxGv2JceHWc2WZPmOr81gw=";
+          };
+          # Nixpkgs patches target 0.25.x source layout; skip them for 0.26.
+          patches = [ ];
+        });
+      })
+  ];
+
   programs.home-manager.enable = true;
 
   # Enable flakes

@@ -71,45 +71,27 @@ require("snacks").setup({
 })
 
 --------------------------------------------------------------------------------
--- fzf-lua
+-- snacks picker keymaps
 --------------------------------------------------------------------------------
-local fzf_lua = require("fzf-lua")
-fzf_lua.setup({
-  winopts = {
-    height = 0.5,
-    width = 1.0,
-    row = 0,
-    border = "none"
-  },
-  previewers = {
-    builtin = {
-      extensions = {
-        ["png"] = false,
-        ["jpg"] = false,
-        ["jpeg"] = false,
-        ["gif"] = false,
-        ["webp"] = false,
-      }
-    }
-  }
-})
-fzf_lua.register_ui_select()
+local snacks_picker = require("snacks").picker
 
 vim.keymap.set("n", "<leader>F", function()
   local git_root = vim.fn.system('git rev-parse --show-toplevel 2>/dev/null'):gsub('\n', '')
   local cwd = vim.v.shell_error == 0 and git_root or nil
-  fzf_lua.files({
-    fd_opts = "--color=never --type f --hidden --follow --no-ignore",
+  snacks_picker.files({
+    hidden = true,
+    ignored = true,
+    follow = true,
     cwd = cwd,
   })
-end, { desc = "FZF All Files in git root (including gitignored)", silent = true })
+end, { desc = "All files in git root (including gitignored)", silent = true })
 
-vim.keymap.set("n", "<leader>f", function() require("snacks").picker.files() end, { desc = "Snacks find files", silent = true })
-vim.keymap.set("n", "<leader>h", function() fzf_lua.helptags() end, { desc = "FZF grep help", silent = true })
-vim.keymap.set("n", "<leader>/", function() fzf_lua.live_grep() end, { desc = "FZF live grep", silent = true })
-vim.keymap.set("n", "<leader>b", function() fzf_lua.buffers() end, { desc = "FZF buffers", silent = true })
+vim.keymap.set("n", "<leader>f", function() snacks_picker.files() end, { desc = "Find files", silent = true })
+vim.keymap.set("n", "<leader>h", function() snacks_picker.help() end, { desc = "Help tags", silent = true })
+vim.keymap.set("n", "<leader>/", function() snacks_picker.grep() end, { desc = "Live grep", silent = true })
+vim.keymap.set("n", "<leader>b", function() snacks_picker.buffers() end, { desc = "Buffers", silent = true })
 vim.keymap.set("n", "<leader>p", function()
-  require("snacks").picker.files({ cwd = vim.fn.expand("~/.claude/skills/benchling-knowledgebase/knowledge") })
+  snacks_picker.files({ cwd = vim.fn.expand("~/.claude/skills/benchling-knowledgebase/knowledge") })
 end, { desc = "Find files in PKB", silent = true })
 
 
@@ -292,7 +274,7 @@ local on_attach = function(_, bufnr)
   buf_set_keymap("n", "gi", vim.lsp.buf.implementation)
   buf_set_keymap("n", "gr", vim.lsp.buf.references)
   buf_set_keymap("n", "<leader>r", vim.lsp.buf.rename)
-  buf_set_keymap("n", "<leader>x", [[:FzfLua lsp_code_actions<CR>]])
+  buf_set_keymap("n", "<leader>x", function() snacks_picker.lsp_code_actions() end)
   buf_set_keymap("i", "<C-s>", vim.lsp.buf.signature_help)
   buf_set_keymap("n", "<leader>d", vim.diagnostic.setqflist)
   buf_set_keymap("n", "[d", function()
@@ -425,7 +407,7 @@ vim.api.nvim_create_autocmd("FileType", {
         vim.keymap.set("n", "gi", vim.lsp.buf.implementation)
         vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
         vim.keymap.set("n", "<leader>r", vim.lsp.buf.rename, opts)
-        vim.keymap.set("n", "<leader>x", [[:FzfLua lsp_code_actions<CR>]])
+        vim.keymap.set("n", "<leader>x", function() require("snacks").picker.lsp_code_actions() end, opts)
         vim.keymap.set("n", "<leader>d", vim.diagnostic.setqflist)
         vim.keymap.set("n", "[d", function()
           vim.diagnostic.jump({ count = -1, float = false })
