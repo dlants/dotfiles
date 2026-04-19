@@ -1,13 +1,10 @@
 #!/bin/bash
 # Attach to an existing tmux session, or start a new one
 
-# Check if argument is a remote session (host:path format where host is not a local path)
+# Check if argument is a remote session (host:path format where host is not a local path,
+# or a bare SSH host alias defined in ~/.ssh/config)
 is_remote_session() {
   local arg="$1"
-  # Match "dev" exactly, or "host:/path" where host is not a local directory
-  if [[ "$arg" == "dev" ]]; then
-    return 0
-  fi
   if [[ "$arg" =~ ^([^/:]+):(.*)$ ]]; then
     local host="${BASH_REMATCH[1]}"
     # If host portion exists as a local directory, it's not remote
@@ -15,6 +12,12 @@ is_remote_session() {
       return 1
     fi
     return 0
+  fi
+  # Bare name (no slashes, no colons): treat as remote if it's an SSH host alias
+  if [[ "$arg" != */* && "$arg" != *:* && ! -d "$arg" ]]; then
+    if grep -qiE "^[[:space:]]*Host[[:space:]]+.*\\b${arg}\\b" "$HOME/.ssh/config" 2>/dev/null; then
+      return 0
+    fi
   fi
   return 1
 }
