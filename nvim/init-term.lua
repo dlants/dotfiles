@@ -54,3 +54,6 @@ vim.api.nvim_set_keymap("n", "]f", ":cnewer<CR>", { noremap = true })
 
 vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", { noremap = true })
 vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", { noremap = true })
+
+-- having gotten into *, n/N - use ESC to remove highlights
+vim.api.nvim_set_keymap("n", "<Esc>", ":noh<CR>", { noremap = true, silent = true })
