@@ -26,6 +26,8 @@
             src = newSrc;
             hash = "sha256-9FeWnWWPUWmMF15Psmul8GxGv2JceHWc2WZPmOr81gw=";
           };
+          # tree-sitter 0.26 pulls in rquickjs-sys, which uses bindgen and needs libclang.
+          nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ prev.rustPlatform.bindgenHook ];
           # Nixpkgs patches target 0.25.x source layout; skip them for 0.26.
           patches = [ ];
         });
