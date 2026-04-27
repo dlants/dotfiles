@@ -131,47 +131,17 @@ The main plugin configuration file that defines all installed plugins and their 
 
 ### Architecture
 
-Tmux runs on the **host machine** (macOS), not inside remote dev containers. This provides:
-- Persistent sessions that survive SSH disconnects
-- Consistent keybindings and configuration across all projects
-- Fast local pane switching
+Two separate tmux instances run in parallel, each in its own ghostty window:
 
-### Remote Dev Sessions
+1. **Local tmux** on the host machine (macOS): runs `ta` directly to manage local sessions
+2. **Remote tmux** inside the dev container: SSH into dev, then run `ta` there (the container has its own copy of these dotfiles)
 
-The `ta` script (`scripts/ta`) creates special sessions for remote development:
-
-```bash
-ta dev           # Creates session "dev/src" → SSH to dev:/src
-ta dev:/infra    # Creates session "dev/infra" → SSH to dev:/infra
-```
-
-These sessions:
-1. Store remote host/path info in tmux environment variables (`TA_REMOTE_HOST`, `TA_REMOTE_PATH`)
-2. Set up an `after-new-window` hook so new windows automatically SSH to the same remote location
-3. First window SSHs into the remote path on creation
-
-### Title Propagation
-
-For the fzf session switcher to show meaningful names (not just "ssh"):
-
-1. **Fish shell** on the remote sets terminal title via `fish_title` function in `fish/config-linux.fish`:
-   ```fish
-   function fish_title
-       status current-command
-   end
-   ```
-
-2. **Tmux** is configured to allow title changes (`allow-rename on`, `automatic-rename on` in `tmux.conf`)
-
-3. **fzf switcher** (`scripts/tmux-session-using-fzf`) uses `#{pane_title}` instead of `#{pane_current_command}` to display the propagated title
-
-This chain allows you to see the actual command running on the remote (e.g., "nvim", "cargo build") instead of just "ssh" in the session picker.
+Each tmux instance is independent — sessions are not shared across hosts. The fzf session picker (`scripts/tmux-session-using-fzf`) lists sessions only from the current tmux instance.
 
 ### Session Switching
 
-- `ctrl-b o` — Opens fzf picker to switch between any pane across all sessions
-- `ta <path>` — Create/switch to a session for a local directory
-- `ta dev` — Create/switch to a remote dev session
+- `ctrl-b o` — Opens fzf picker to switch between any pane across all sessions in the current tmux
+- `ta <path>` — Create/switch to a session for a directory
 
 ## Tips for Effective Use
 

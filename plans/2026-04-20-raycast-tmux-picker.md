@@ -20,11 +20,10 @@ The goal is to build a unified tmux session picker that works across the host ma
     - remote → `ssh -t <host> 'tmux new-session -A -s <name>'`
 ## Relevant files
 
-- \`scripts/ta\` — current host-side session launcher. Will be simplified: it no longer needs the remote-session branch once Raycast drives transitions, but it remains useful for initial \`ta <path>\` invocations at a bare shell.
+- \`scripts/ta\` — current host-side session launcher. Left untouched; it still drives \`ta <path>\` and \`ta dev\` from a bare shell. The Raycast picker is an additional, parallel entry point, not a replacement.
 - \`scripts/tmux-session-using-fzf\` — current in-tmux picker. Will be deprecated once Raycast picker replaces it.
-- \`~/.ssh/config\` — source of truth for known SSH hosts; the picker reads it to enumerate remotes.
-- \`~/.config/ta/hosts\` (new) — optional override/allowlist of remote hosts to query (so we don't ssh to every alias).
-- \`~/.config/raycast/extensions/...\` — Raycast extension directory. A new extension \`tmux-picker\` will be added here.
+- \`raycast/tmux-picker/\` (new, in dotfiles repo) — source of the Raycast extension. Symlinked into \`~/.config/raycast/extensions/tmux-picker\` via \`nix/darwin.nix\` using \`mkOutOfStoreSymlink\` (same pattern as \`tmux.conf\`, \`scripts/ta\`, etc.). Remote hosts are hardcoded inside the extension (currently just \`dev\`); no separate config file.
+- \`nix/darwin.nix\` — macOS home-manager config; gains a new \`home.file\` entry that symlinks the extension directory into Raycast's extensions folder.
 
 ## Key types
 
@@ -54,22 +53,30 @@ type GhosttyState =
 
 # Implementation
 
-- [ ] **Scaffold the Raycast extension**
-  - \`npm create raycast@latest\` inside \`~/.config/raycast/extensions/tmux-picker\` (or similar path).
-  - Single no-view command \`switch-tmux-session\` that runs the full flow.
-  - Add extension to the dotfiles repo (symlinked or copied).
-  - Manual test: invoking the command shows "Hello world" toast.
+- [ ] **Scaffold the Raycast extension in the dotfiles repo**
+  - Create \`raycast/tmux-picker/\` in the dotfiles repo with a hand-rolled layout (do not use \`npm create raycast@latest\` — its scaffolding is overkill for this single-command extension).
+  - Toolchain:
+    - **Node 24** as the runtime. No experimental flags needed; native TS support is irrelevant here because we ship a bundle.
+    - **TypeScript** for source files under \`src/\`.
+    - **esbuild** to bundle each command entry point into a single CommonJS file under \`dist/\` (the format Raycast's extension loader expects).
+  - Files to create:
+    - \`package.json\` — Raycast extension manifest. Include the \`commands\` array (one no-view command \`switch-tmux-session\`), \`main\`/\`commands[].mode\` fields per Raycast's schema, \`engines.node: ">=24"\`, devDeps on \`typescript\`, \`esbuild\`, and \`@raycast/api\` as a regular dep.
+    - \`tsconfig.json\` — \`target: es2022\`, \`module: commonjs\`, \`moduleResolution: node\`, \`strict: true\`, \`jsx: react-jsx\` (Raycast UI uses JSX).
+    - \`build.mjs\` — esbuild script: bundles \`src/switch-tmux-session.tsx\` → \`switch-tmux-session.js\` at the package root (Raycast loads JS from the path declared in the manifest), with \`platform: "node"\`, \`format: "cjs"\`, \`target: "node24"\`, externals for \`@raycast/api\` and any native deps Raycast injects.
+    - \`src/switch-tmux-session.tsx\` — placeholder command that shows a "Hello world" toast.
+  - npm scripts: \`build\` (single esbuild run), \`dev\` (esbuild watch + Raycast's extension reload — likely just \`--watch\`), \`typecheck\` (\`tsc --noEmit\`).
+  - Add a \`home.file\` entry to \`nix/darwin.nix\` that symlinks the extension directory into Raycast's extensions folder, e.g.:
+    \`\`\`nix
+    home.file.".config/raycast/extensions/tmux-picker".source =
+      config.lib.file.mkOutOfStoreSymlink "\${dotfilesDir}/raycast/tmux-picker";
+    \`\`\`
+  - Run \`home-manager switch\` to materialize the symlink, then \`npm install && npm run build\` inside the extension directory.
+  - Manual test: invoking the command in Raycast shows the "Hello world" toast; editing the source and re-running \`npm run build\` is reflected on next invocation.
 
-- [ ] **Implement host configuration loading**
-  - Read \`~/.config/ta/hosts\` if present (newline-separated list of SSH aliases).
-  - If absent, fall back to parsing \`~/.ssh/config\` for \`Host\` entries, excluding patterns (\`*\`) and wildcards.
-  - Expose \`getHosts(): string[]\`.
-  - Test:
-    - Behavior: returns the explicit list when the override file exists.
-    - Setup: write a temp \`hosts\` file with \`dev\\nprod\`.
-    - Actions: call \`getHosts()\`.
-    - Expected: \`["dev", "prod"]\`.
-    - Assertions: array equality.
+- [ ] **Hardcode the remote host list**
+  - Define a constant \`REMOTE_HOSTS = ["dev"]\` in a shared module (e.g. \`src/hosts.ts\`).
+  - Expose \`getHosts(): string[]\` returning that constant. Trivial; no test needed.
+  - Adding a new remote host later means editing this file and rebuilding.
 
 - [ ] **Implement session enumeration**
   - \`listLocalSessions()\`: shell out to \`tmux list-sessions -F '#{session_name}|#{session_windows}|#{session_attached}'\`; return \`Session[]\` with \`kind: "local"\`.
@@ -128,11 +135,6 @@ type GhosttyState =
   - Document the hotkey in \`context.md\`.
   - Manual test: press hotkey from anywhere; picker appears; selecting a session transitions the Ghostty window.
 
-- [ ] **Simplify \`scripts/ta\`**
-  - Remove the remote-session branch (\`create_remote_session\`, \`is_remote_session\`) — now handled by the picker.
-  - Keep the local-directory branch (\`ta <path>\`) for shell-level session creation.
-  - Update \`context.md\` to describe the new architecture.
-  - Manual test: \`ta ~/src/dotfiles\` still creates/attaches a local tmux session.
 
 - [ ] **Deprecate \`scripts/tmux-session-using-fzf\`**
   - Remove the in-tmux binding that invokes it from the tmux config.
@@ -142,8 +144,7 @@ type GhosttyState =
   - Add a section to \`context.md\` describing:
     - The Raycast extension and hotkey.
     - Required \`~/.ssh/config\` ControlMaster stanza for low-latency session listing.
-    - Optional \`~/.config/ta/hosts\` format.
-    - How to add a new remote host.
+    - How to add a new remote host (edit \`REMOTE_HOSTS\` in \`raycast/tmux-picker/src/hosts.ts\` and rebuild).
 
 ## Open questions
 

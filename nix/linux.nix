@@ -12,8 +12,6 @@
     # Note: nodejs omitted - devcontainers typically provide their own version
   ];
 
-  # Reminder script for ta (tmux lives on host, not in container)
-  home.file.".local/bin/ta".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/ta-container-reminder";
 
   # Install pkgx binary directly to ~/.local/bin (no sudo needed)
   home.activation.pkgxInstall = lib.hm.dag.entryAfter ["writeBoundary"] ''

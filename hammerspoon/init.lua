@@ -81,6 +81,39 @@ hs.hotkey.bind({ "cmd", "alt" }, "k", function()
     win:setFrame({ x = screen.x, y = screen.y, w = screen.w, h = screen.h })
   end
 end)
+
+-- Move focused window to a specific Mission Control space (and follow it).
+-- hs.spaces.moveWindowToSpace is broken on macOS Sequoia, so we simulate a
+-- title-bar drag while switching spaces — macOS carries the window with us.
+local function moveCurrentWindowToSpace(n)
+  local win = hs.window.focusedWindow()
+  if not win then return end
+  local screen = win:screen()
+  local spaces = hs.spaces.spacesForScreen(screen)
+  if not (spaces and spaces[n]) then
+    hs.alert.show("No desktop " .. n)
+    return
+  end
+
+  local zoom = win:zoomButtonRect()
+  if not zoom then return end
+  local clickPoint = {
+    x = zoom.x + zoom.w + 40,
+    y = zoom.y + zoom.h / 2,
+  }
+
+  local mouseOrigin = hs.mouse.absolutePosition()
+  hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseDown, clickPoint):post()
+  hs.timer.usleep(50000)
+  hs.spaces.gotoSpace(spaces[n])
+  hs.timer.doAfter(0.6, function()
+    hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseUp, clickPoint):post()
+    hs.mouse.absolutePosition(mouseOrigin)
+  end)
+end
+
+hs.hotkey.bind({ "cmd", "shift" }, "1", function() moveCurrentWindowToSpace(1) end)
+hs.hotkey.bind({ "cmd", "shift" }, "2", function() moveCurrentWindowToSpace(2) end)
 -- Fuzzy matching function
 local function fuzzyMatch(str, pattern)
   if pattern == "" then return true end

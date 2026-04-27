@@ -1,80 +1,8 @@
 #!/bin/bash
 # Attach to an existing tmux session, or start a new one
 
-# Check if argument is a remote session (host:path format where host is not a local path,
-# or a bare SSH host alias defined in ~/.ssh/config)
-is_remote_session() {
-  local arg="$1"
-  if [[ "$arg" =~ ^([^/:]+):(.*)$ ]]; then
-    local host="${BASH_REMATCH[1]}"
-    # If host portion exists as a local directory, it's not remote
-    if [ -d "$host" ]; then
-      return 1
-    fi
-    return 0
-  fi
-  # Bare name (no slashes, no colons): treat as remote if it's an SSH host alias
-  if [[ "$arg" != */* && "$arg" != *:* && ! -d "$arg" ]]; then
-    if grep -qiE "^[[:space:]]*Host[[:space:]]+.*\\b${arg}\\b" "$HOME/.ssh/config" 2>/dev/null; then
-      return 0
-    fi
-  fi
-  return 1
-}
-
-# Handle remote session (e.g., "dev" or "dev:/infra")
-create_remote_session() {
-  local arg="$1"
-  local host remote_path session_name
-
-  # Start clipboard sync daemon (singleton - will exit if already running)
-  "$HOME/.local/bin/clipboard-sync" &
-  disown
-
-  if [[ "$arg" =~ ^([^/:]+):(.+)$ ]]; then
-    host="${BASH_REMATCH[1]}"
-    remote_path="${BASH_REMATCH[2]}"
-  else
-    host="$arg"
-    remote_path="/src"
-  fi
-
-  # Strip trailing slashes for consistent session names
-  remote_path="${remote_path%/}"
-
-  session_name=$(echo "${host}${remote_path}" | tr '.' '_')
-
-  # Create the session if it doesn't exist
-  if ! tmux has-session -t "$session_name" 2>/dev/null; then
-    tmux new-session -ds "$session_name"
-
-    # Store remote info in session environment
-    tmux set-environment -t "$session_name" TA_REMOTE_HOST "$host"
-    tmux set-environment -t "$session_name" TA_REMOTE_PATH "$remote_path"
-
-    # Set up hook for new windows in this session to auto-SSH
-    tmux set-hook -t "$session_name" after-new-window \
-      "run-shell 'tmux send-keys \"ssh -o RemoteCommand=none -t $host \\\"cd $remote_path && exec \\\\\\\$SHELL\\\"\" Enter'"
-
-    # SSH into the first window
-    tmux send-keys -t "$session_name" "ssh -o RemoteCommand=none -t $host \"cd $remote_path && exec \\\$SHELL\"" Enter
-  fi
-
-  # Attach or switch to the session
-  if [ -n "$TMUX" ]; then
-    exec tmux switch-client -t "$session_name"
-  else
-    exec tmux attach -t "$session_name"
-  fi
-}
-
 # With a path argument: create/attach to a session for that directory
 if [ -n "$1" ]; then
-  # Check if this is a remote session
-  if is_remote_session "$1"; then
-    create_remote_session "$1"
-  fi
-
   dir="$1"
   session_name=$(basename -- "$dir" | tr '.' '_')
 

@@ -157,6 +157,7 @@ vim.opt.termguicolors = true
 require "config.pack"
 require "config.plugins"
 require "dev"
+require("dashboard").setup()
 -- require("markdown-center").setup({ max_width = 120 })
 
 vim.cmd "filetype plugin indent on"
