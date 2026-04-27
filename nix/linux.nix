@@ -9,8 +9,14 @@
     wget
     bubblewrap
     socat
+    tmux
     # Note: nodejs omitted - devcontainers typically provide their own version
   ];
+  # Tmux config symlink
+  home.file.".tmux.conf".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/tmux.conf";
+  # Tmux helper scripts
+  home.file.".local/bin/ta".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/ta";
+  home.file.".local/bin/tmux-session-using-fzf".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/tmux-session-using-fzf";
 
 
   # Install pkgx binary directly to ~/.local/bin (no sudo needed)
