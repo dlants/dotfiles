@@ -375,7 +375,7 @@ return {
   {
     "tpope/vim-fugitive",
     config = function()
-      vim.keymap.set('n', '<leader>l', ':Gclog main...HEAD<CR>', { desc = 'Git log main...HEAD' })
+      vim.keymap.set('n', '<leader>l', ':Gclog --no-merges main..HEAD<CR>', { desc = 'PR commits (no merges)' })
 
       vim.keymap.set('n', '<leader>L', function()
         local files = vim.fn.systemlist('git diff --name-only main...HEAD')
@@ -456,6 +456,22 @@ return {
   },
   -- themes
   -- {
+  --   "zenbones-theme/zenbones.nvim",
+  --   -- Optionally install Lush. Allows for more configuration or extending the colorscheme
+  --   -- If you don't want to install lush, make sure to set g:zenbones_compat = 1
+  --   -- In Vim, compat mode is turned on as Lush only works in Neovim.
+  --   dependencies = "rktjmp/lush.nvim",
+  --   lazy = false,
+  --   priority = 1000,
+  --   -- you can set set configuration options here
+  --   config = function()
+  --     vim.g.zenbones_darken_comments = 45
+  --     vim.cmd("set termguicolors")
+  --     vim.cmd("set background=light")
+  --     vim.cmd.colorscheme('zenbones')
+  --   end
+  -- },
+  -- {
   --   "folke/tokyonight.nvim",
   --   lazy = false,
   --   priority = 1000,
@@ -470,18 +486,25 @@ return {
   --     -- vim.cmd.colorscheme "jellybeans"
   --   end
   -- },
+  -- trying this one for light-mode
   {
-    "0xstepit/flow.nvim",
-    lazy = false,
-    config = function()
-      require("flow").setup {
-        theme = {
-          contrast = "high"
-        },
-      }
-      vim.cmd("colorscheme flow")
-    end
+    "catppuccin/nvim",
+    name = "catppuccin",
+    priority = 1000
   },
+  -- this one is my preferred night-mode
+  -- {
+  --   "0xstepit/flow.nvim",
+  --   lazy = false,
+  --   config = function()
+  --     require("flow").setup {
+  --       theme = {
+  --         contrast = "high"
+  --       },
+  --     }
+  --     vim.cmd("colorscheme flow")
+  --   end
+  -- },
   -- {
   --   "p00f/alabaster.nvim",
   --   lazy = false,

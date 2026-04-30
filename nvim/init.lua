@@ -247,6 +247,11 @@ vim.api.nvim_set_keymap("n", "]f", ":cnewer<CR>", { noremap = true })
 
 vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", { noremap = true })
 vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "<leader>.", ":vertical resize +5<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "<leader>,", ":vertical resize -5<CR>", { noremap = true })
+
+-- having gotten into *, n/N - use ESC to remove highlights
+vim.api.nvim_set_keymap("n", "<Esc>", ":noh<CR>", { noremap = true, silent = true })
 
 -- GitHub browse commands using gh CLI
 local function gh_browse(opts)
@@ -295,3 +300,13 @@ vim.api.nvim_create_user_command("Ghl", function(opts) gh_browse_lines(opts) end
 vim.api.nvim_create_user_command("Ghlm",
   function(opts) gh_browse_lines({ range = opts.range, line1 = opts.line1, line2 = opts.line2, branch = "main" }) end,
   { range = true })
+
+-- gh PR review commands (optional PR number; defaults to current branch's PR)
+vim.api.nvim_create_user_command("Ghpr", function(opts)
+  vim.cmd("!gh pr view " .. opts.args ..
+    [[ --json commits --jq '.commits[] | "\(.oid[:11]) \(.messageHeadline)"']])
+end, { nargs = "?", desc = "PR commits (no merges)" })
+
+vim.api.nvim_create_user_command("Ghprv", function(opts)
+  vim.cmd("!gh pr view " .. opts.args .. " --json title,headRefName,baseRefName,commits")
+end, { nargs = "?", desc = "PR view with metadata" })
