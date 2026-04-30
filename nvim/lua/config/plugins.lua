@@ -86,23 +86,19 @@ vim.keymap.set("n", "<leader>F", function()
   })
 end, { desc = "All files in git root (including gitignored)", silent = true })
 
-vim.keymap.set("n", "<leader>f", function() snacks_picker.files() end, { desc = "Find files", silent = true })
-vim.keymap.set("n", "<leader>h", function() snacks_picker.help() end, { desc = "Help tags", silent = true })
-vim.keymap.set("n", "<leader>/", function() snacks_picker.grep() end, { desc = "Live grep", silent = true })
-vim.keymap.set("n", "<leader>b", function() snacks_picker.buffers() end, { desc = "Buffers", silent = true })
+vim.keymap.set("n", "<leader>f", function() require("needle").files() end, { desc = "Find files (needle)", silent = true })
+vim.keymap.set("n", "<leader>h", function() require("needle").help() end, { desc = "Help tags (needle)", silent = true })
+vim.keymap.set("n", "<leader>b", function() require("needle").buffers() end, { desc = "Buffers (needle)", silent = true })
 vim.keymap.set("n", "<leader>p", function()
-  snacks_picker.files({ cwd = vim.fn.expand("~/.claude/skills/benchling-knowledgebase/knowledge") })
-end, { desc = "Find files in PKB", silent = true })
+  require("needle").files({ cwd = vim.fn.expand("~/.claude/skills/benchling-knowledgebase/knowledge") })
+end, { desc = "Find files in PKB (needle)", silent = true })
 
 
 --------------------------------------------------------------------------------
--- grepper
+-- shuck
 --------------------------------------------------------------------------------
-vim.g.grepper = {
-  prompt_quote = 0,
-  tools = { "rg" }
-}
-vim.keymap.set("n", "<leader>g", ":Grepper<CR>", { desc = "Open Grepper", noremap = true, silent = true })
+vim.keymap.set("n", "<leader>g", function() require("shuck").toggle({}) end,
+  { desc = "Toggle shuck", noremap = true, silent = true })
 
 --------------------------------------------------------------------------------
 -- oil.nvim
@@ -495,6 +491,9 @@ cmp.setup({
     }
   }
 })
+
+cmp.setup.filetype("needle", { enabled = false })
+cmp.setup.filetype("shuck",  { enabled = false })
 
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "lua",

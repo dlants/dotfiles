@@ -12,6 +12,7 @@ custom-shader = shaders/glitchy.glsl
 # custom-shader = shaders/debug_cursor_static.glsl
 # custom-shader = shaders/manga_slash.glsl
 keybind = shift+enter=text:\n
+keybind = ctrl+enter=csi:13;5u
 keybind = ctrl+[=write_screen_file:paste
 keybind = shift+command+[=previous_tab
 keybind = shift+command+]=next_tab

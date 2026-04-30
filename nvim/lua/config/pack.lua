@@ -15,7 +15,6 @@ vim.pack.add({
   { src = "https://github.com/junegunn/fzf", build = "./install --bin" },
   "https://github.com/nvim-tree/nvim-web-devicons",
   "https://github.com/ibhagwan/fzf-lua",
-  "https://github.com/mhinz/vim-grepper",
   "https://github.com/stevearc/oil.nvim",
   "https://github.com/hoob3rt/lualine.nvim",
   "https://github.com/nvim-lua/plenary.nvim",
