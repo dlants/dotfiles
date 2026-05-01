@@ -138,9 +138,12 @@ local function refresh_git_status(cwd)
     end
     vim.schedule(function()
       for path, e in pairs(cache) do
-        if path:sub(1, #cwd + 1) == cwd .. "/" then
-          e.git_dirty = dirty[path] == true
-        end
+        if e.git_dirty and not dirty[path] then e.git_dirty = false end
+      end
+      for path in pairs(dirty) do
+        local e = cache[path] or {}
+        e.git_dirty = true
+        cache[path] = e
       end
     end)
   end)
