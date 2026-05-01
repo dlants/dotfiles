@@ -2,6 +2,7 @@
 local M = {}
 local uv = vim.uv or vim.loop
 local api = vim.api
+local score = require("needle.score")
 
 -- ============================================================================
 -- Config
@@ -169,61 +170,8 @@ local function refresh_visible_mtimes(entries)
   end
 end
 
--- ============================================================================
--- Match scoring (greedy fzy-style)
--- ============================================================================
-
-local BSLASH, BDASH, BUNDER, BDOT, BSPACE = 47, 45, 95, 46, 32
-local BUA, BUZ, BLA, BLZ = 65, 90, 97, 122
-
-local function bonus_at(haystack, idx)
-  if idx == 1 then return 3 end
-  local prev = haystack:byte(idx - 1)
-  local cur  = haystack:byte(idx)
-  if prev == BSLASH then return 5 end
-  if prev == BUNDER or prev == BDASH or prev == BDOT or prev == BSPACE then return 2 end
-  if cur >= BUA and cur <= BUZ and prev >= BLA and prev <= BLZ then return 2 end
-  return 0
-end
-
-local function find_last_slash(s)
-  for i = #s, 1, -1 do
-    if s:byte(i) == BSLASH then return i end
-  end
-  return 0
-end
-
-local function score_match(needle, needle_lower, haystack, haystack_lower)
-  local n = #needle
-  local h = #haystack
-  if n == 0 then return 0, nil end
-  if n > h then return nil end
-  local positions = {}
-  local h_idx = 1
-  local prev_match = -10
-  local score = 0
-  for i = 1, n do
-    local nc = needle_lower:byte(i)
-    local found
-    while h_idx <= h do
-      if haystack_lower:byte(h_idx) == nc then found = h_idx; break end
-      h_idx = h_idx + 1
-    end
-    if not found then return nil end
-    local b = bonus_at(haystack, found)
-    if found == prev_match + 1 then b = b + 2 end
-    if needle:byte(i) == haystack:byte(found) then b = b + 0.5 end
-    score = score + 1 + b
-    positions[#positions + 1] = found
-    prev_match = found
-    h_idx = h_idx + 1
-  end
-  local last_slash = find_last_slash(haystack)
-  if positions[1] > last_slash then score = score + 8 end
-  local span = positions[#positions] - positions[1]
-  score = score - span * 0.1
-  return score, positions
-end
+-- Byte value for "/", used by the proximity logic below.
+local BSLASH = 47
 
 -- ============================================================================
 -- Ranking signals
@@ -689,7 +637,7 @@ function FilesSource:filter(p)
     for i = 1, #cands do
       local pp = cands[i]
       local h_lower = pp:lower()
-      local ms, positions = score_match(prompt, p_lower, pp, h_lower)
+      local ms, positions = score.score_match(prompt, p_lower, pp, h_lower)
       if ms then
         local abs = cwd .. "/" .. pp
         if not visible[abs] then
@@ -776,7 +724,7 @@ function BuffersSource:filter(p)
       local c = cands[i]
       local display = (c.name:sub(1, #c.cwd + 1) == c.cwd .. "/")
         and c.name:sub(#c.cwd + 2) or c.name
-      local ms, positions = score_match(prompt, p_lower, display, display:lower())
+      local ms, positions = score.score_match(prompt, p_lower, display, display:lower())
       if ms then
         results[#results + 1] = {
           score = ms - i * 0.01,
@@ -850,7 +798,7 @@ function HelpSource:filter(p)
   local p_lower = prompt:lower()
   for i = 1, #cands do
     local pp = cands[i]
-    local ms, positions = score_match(prompt, p_lower, pp, pp:lower())
+    local ms, positions = score.score_match(prompt, p_lower, pp, pp:lower())
     if ms then
       results[#results + 1] = { score = ms, text = pp, positions = positions }
     end
