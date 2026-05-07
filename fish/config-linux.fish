@@ -24,3 +24,8 @@ end
 
 # Linux-specific PATH
 set -gx PATH $PATH $HOME/.local/bin
+
+# Point `ty` (and other Python tooling) at the monolith's in-container venv so
+# LSP-based type checking can resolve imports without committing repo config.
+set -gx VIRTUAL_ENV /src/.venv
+fish_add_path -g /src/.venv/bin
