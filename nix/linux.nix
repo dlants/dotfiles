@@ -42,6 +42,8 @@
     mkdir -p "$HOME/.claude/skills"
     ln -sfn "${dotfilesDir}/magenta-skills/browser" "$HOME/.claude/skills/browser"
     ln -sfn "${dotfilesDir}/magenta-skills/plan" "$HOME/.claude/skills/plan"
+    ln -sfn "${dotfilesDir}/magenta-skills/search" "$HOME/.claude/skills/search"
+    ln -sfn "${dotfilesDir}/magenta-skills/fetch" "$HOME/.claude/skills/fetch"
   '');
 
 
