@@ -315,11 +315,23 @@ local function close_picker()
     pcall(function() picker.flush_timer:stop() end)
     pcall(function() picker.flush_timer:close() end)
   end
-  for _, win in ipairs({ picker.prompt_win, picker.results_win }) do
-    if win and api.nvim_win_is_valid(win) then pcall(api.nvim_win_close, win, true) end
+  if picker.prompt_win and api.nvim_win_is_valid(picker.prompt_win) then
+    pcall(api.nvim_win_close, picker.prompt_win, true)
   end
-  for _, buf in ipairs({ picker.prompt_buf, picker.results_buf }) do
-    if buf and api.nvim_buf_is_valid(buf) then pcall(api.nvim_buf_delete, buf, { force = true }) end
+  if picker.results_win and api.nvim_win_is_valid(picker.results_win) then
+    pcall(api.nvim_set_current_win, picker.results_win)
+    if picker.prev_buf and api.nvim_buf_is_valid(picker.prev_buf) then
+      pcall(api.nvim_win_set_buf, picker.results_win, picker.prev_buf)
+    end
+    if picker.orig_cursorline ~= nil then
+      pcall(api.nvim_set_option_value, "cursorline", picker.orig_cursorline, { win = picker.results_win })
+    end
+    if picker.orig_wrap ~= nil then
+      pcall(api.nvim_set_option_value, "wrap", picker.orig_wrap, { win = picker.results_win })
+    end
+  end
+  if picker.prompt_buf and api.nvim_buf_is_valid(picker.prompt_buf) then
+    pcall(api.nvim_buf_delete, picker.prompt_buf, { force = true })
   end
   picker = nil
   save_state()
@@ -332,11 +344,11 @@ end
 
 local function update_title()
   if not picker or not api.nvim_win_is_valid(picker.prompt_win) then return end
-  local cfg = api.nvim_win_get_config(picker.prompt_win)
   local entries = picker.filtered or {}
-  cfg.title = string.format(" needle %s %d/%d ",
+  local title = string.format(" needle %s %d/%d",
     picker.source:title(), #entries, #picker.candidates)
-  pcall(api.nvim_win_set_config, picker.prompt_win, cfg)
+  local escaped = title:gsub("%%", "%%%%")
+  pcall(api.nvim_set_option_value, "winbar", escaped, { win = picker.prompt_win })
 end
 
 local function render_results()
@@ -410,12 +422,10 @@ end
 -- ============================================================================
 
 local function open_windows()
-  local total_w = vim.o.columns
-  local total_h = vim.o.lines
-  local width   = total_w - 2
-  local height  = math.min(20, math.max(10, math.floor(total_h * 0.5)))
-  local col     = 0
-  local row     = 0
+  local results_win = api.nvim_get_current_win()
+  local prev_buf = api.nvim_win_get_buf(results_win)
+  local orig_cursorline = api.nvim_get_option_value("cursorline", { win = results_win })
+  local orig_wrap = api.nvim_get_option_value("wrap", { win = results_win })
 
   local results_buf = api.nvim_create_buf(false, true)
   local prompt_buf  = api.nvim_create_buf(false, true)
@@ -426,26 +436,29 @@ local function open_windows()
   api.nvim_set_option_value("filetype", "needle", { buf = results_buf })
   api.nvim_set_option_value("filetype", "needle", { buf = prompt_buf })
 
-  local prompt_win = api.nvim_open_win(prompt_buf, true, {
-    relative = "editor", width = width, height = 1,
-    row = row, col = col,
-    style = "minimal", border = "rounded",
-    title = " needle ", title_pos = "center",
-  })
-
-  local results_win = api.nvim_open_win(results_buf, false, {
-    relative = "editor", width = width, height = height,
-    row = row + 3, col = col, style = "minimal", border = "rounded",
-    focusable = false,
-  })
+  api.nvim_win_set_buf(results_win, results_buf)
   api.nvim_set_option_value("cursorline", false, { win = results_win })
   api.nvim_set_option_value("wrap", false, { win = results_win })
+
+  -- Split results_win, placing a 1-row tall prompt window above.
+  vim.cmd("aboveleft 1split")
+  local prompt_win = api.nvim_get_current_win()
+  api.nvim_win_set_buf(prompt_win, prompt_buf)
+  api.nvim_win_set_height(prompt_win, 1)
+  api.nvim_set_option_value("winfixheight", true, { win = prompt_win })
+  api.nvim_set_option_value("number",         false, { win = prompt_win })
+  api.nvim_set_option_value("relativenumber", false, { win = prompt_win })
+  api.nvim_set_option_value("signcolumn",     "no",  { win = prompt_win })
+  api.nvim_set_option_value("cursorline",     false, { win = prompt_win })
+  api.nvim_set_option_value("wrap",           false, { win = prompt_win })
+  api.nvim_set_option_value("winbar",         " needle ", { win = prompt_win })
+
   api.nvim_buf_set_extmark(prompt_buf, NS_PROMPT, 0, 0, {
     virt_text = { { "🔍 ", "Special" } },
     virt_text_pos = "inline",
     right_gravity = false,
   })
-  return prompt_buf, prompt_win, results_buf, results_win
+  return prompt_buf, prompt_win, results_buf, results_win, prev_buf, orig_cursorline, orig_wrap
 end
 
 local function move_selection(delta)
@@ -500,15 +513,6 @@ local function gather_buffer_set()
   return set
 end
 
-local function gather_visible_set()
-  local set = {}
-  for _, win in ipairs(api.nvim_list_wins()) do
-    local buf = api.nvim_win_get_buf(win)
-    local name = api.nvim_buf_get_name(buf)
-    if name ~= "" then set[name] = true end
-  end
-  return set
-end
 
 -- ============================================================================
 -- Sources
@@ -572,7 +576,6 @@ function FilesSource.new(opts)
   local self = setmetatable({
     cwd = opts.cwd or vim.fn.getcwd(),
     unrestricted = opts.unrestricted == true,
-    visible_set = {},
     buffer_set = {},
     same_dir_set = {},
     ancestor_scores = {},
@@ -586,7 +589,6 @@ function FilesSource:title()
 end
 
 function FilesSource:before_open(_)
-  self.visible_set = gather_visible_set()
   self.buffer_set = gather_buffer_set()
   local buffer_paths = {}
   for path in pairs(self.buffer_set) do buffer_paths[#buffer_paths + 1] = path end
@@ -612,7 +614,6 @@ function FilesSource:filter(p)
   local prompt = p.prompt
   local cands  = p.candidates
   local cwd    = self.cwd
-  local visible = self.visible_set
   local ctx = {
     now             = os.time(),
     same_dir_set    = self.same_dir_set,
@@ -624,13 +625,11 @@ function FilesSource:filter(p)
     for i = 1, #cands do
       local pp = cands[i]
       local abs = cwd .. "/" .. pp
-      if not visible[abs] then
-        local prox = proximity_score(abs, ctx)
-        results[#results + 1] = {
-          score = rank_score(abs, 0, prox, ctx),
-          text = pp, abs = abs, proximity = prox,
-        }
-      end
+      local prox = proximity_score(abs, ctx)
+      results[#results + 1] = {
+        score = rank_score(abs, 0, prox, ctx),
+        text = pp, abs = abs, proximity = prox,
+      }
     end
   else
     local p_lower = prompt:lower()
@@ -640,13 +639,11 @@ function FilesSource:filter(p)
       local ms, positions = score.score_match(prompt, p_lower, pp, h_lower)
       if ms then
         local abs = cwd .. "/" .. pp
-        if not visible[abs] then
-          local prox = proximity_score(abs, ctx)
-          results[#results + 1] = {
-            score = rank_score(abs, ms, prox, ctx),
-            text = pp, abs = abs, positions = positions, proximity = prox,
-          }
-        end
+        local prox = proximity_score(abs, ctx)
+        results[#results + 1] = {
+          score = rank_score(abs, ms, prox, ctx),
+          text = pp, abs = abs, positions = positions, proximity = prox,
+        }
       end
     end
   end
@@ -822,18 +819,21 @@ end
 
 local function open_with_source(source)
   if picker then close_picker() end
-  local prompt_buf, prompt_win, results_buf, results_win = open_windows()
+  local prompt_buf, prompt_win, results_buf, results_win, prev_buf, orig_cursorline, orig_wrap = open_windows()
 
   picker = {
-    source       = source,
-    candidates   = {},
-    filtered     = {},
-    prompt       = "",
-    selected     = 1,
-    prompt_buf   = prompt_buf,
-    prompt_win   = prompt_win,
-    results_buf  = results_buf,
-    results_win  = results_win,
+    source          = source,
+    candidates      = {},
+    filtered        = {},
+    prompt          = "",
+    selected        = 1,
+    prompt_buf      = prompt_buf,
+    prompt_win      = prompt_win,
+    results_buf     = results_buf,
+    results_win     = results_win,
+    prev_buf        = prev_buf,
+    orig_cursorline = orig_cursorline,
+    orig_wrap       = orig_wrap,
   }
 
   if source.before_open then source:before_open(picker) end
@@ -851,7 +851,7 @@ local function open_with_source(source)
   })
 
   api.nvim_create_autocmd("WinClosed", {
-    pattern = tostring(prompt_win),
+    pattern = { tostring(prompt_win), tostring(results_win) },
     callback = function() vim.schedule(close_picker) end,
   })
 

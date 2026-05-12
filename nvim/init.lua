@@ -255,6 +255,8 @@ vim.api.nvim_set_keymap("n", "]f", ":cnewer<CR>", { noremap = true })
 
 vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", { noremap = true })
 vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", { noremap = true })
+vim.api.nvim_set_keymap("n", "<leader>nw", ":botright vsplit | enew<CR>",
+  { noremap = true, silent = true, desc = "New buffer in rightmost vertical split" })
 
 -- GitHub browse commands using gh CLI
 local function gh_browse(opts)
