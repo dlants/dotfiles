@@ -401,3 +401,128 @@ function selectGhosttyTab(windowId, tabIndex)
     return false
   end
 end
+
+-- Command palette
+local function handleApp(name)
+  local app = hs.application.find(name)
+  if not app then
+    hs.application.launchOrFocus(name)
+    return
+  end
+  for _, win in ipairs(app:allWindows()) do
+    if win:isMinimized() then
+      win:unminimize()
+    end
+  end
+  app:activate()
+end
+
+local function handleGhostty()
+  local ghostty = hs.application.find("Ghostty")
+
+  if ghostty then
+    local currentSpace = hs.spaces.focusedSpace()
+    for _, win in ipairs(ghostty:allWindows()) do
+      local winSpaces = hs.spaces.windowSpaces(win) or {}
+      for _, sp in ipairs(winSpaces) do
+        if sp == currentSpace then
+          if win:isMinimized() then
+            win:unminimize()
+          end
+          win:focus()
+          return
+        end
+      end
+    end
+  end
+
+  hs.application.launchOrFocus("Ghostty")
+end
+
+local function openInChrome(url)
+  hs.task.new("/usr/bin/open", nil, { "-a", "Google Chrome", url }):start()
+end
+
+local commandPaletteItems = {
+  {
+    text = "ghostty",
+    subText = "Ghostty on current desktop",
+    handler = handleGhostty,
+  },
+  {
+    text = "slack",
+    subText = "Switch to Slack",
+    handler = function() handleApp("Slack") end,
+  },
+  {
+    text = "chrome",
+    subText = "Switch to Chrome",
+    handler = function() handleApp("Google Chrome") end,
+  },
+  {
+    text = "firefox",
+    subText = "Switch to Firefox",
+    handler = function() handleApp("Firefox") end,
+  },
+  {
+    text = "aurelia",
+    subText = "github.com/benchling/aurelia/pulls",
+    handler = function() openInChrome("https://github.com/benchling/aurelia/pulls") end,
+  },
+  {
+    text = "infra",
+    subText = "github.com/benchling/infra/pulls",
+    handler = function() openInChrome("https://github.com/benchling/infra/pulls") end,
+  },
+  {
+    text = "confluence",
+    subText = "Search Confluence",
+    handler = function() openInChrome("https://benchling.atlassian.net/wiki/search?text=") end,
+  },
+  {
+    text = "jira",
+    subText = "Jira For You",
+    handler = function() openInChrome("https://benchling.atlassian.net/jira/for-you") end,
+  },
+}
+
+local function buildCommandPaletteChoices()
+  local choices = {}
+  for i, item in ipairs(commandPaletteItems) do
+    table.insert(choices, {
+      text = item.text,
+      subText = item.subText,
+      itemIndex = i,
+    })
+  end
+  return choices
+end
+
+local commandPaletteChooser = hs.chooser.new(function(choice)
+  if not choice then return end
+  local item = commandPaletteItems[choice.itemIndex]
+  if item then
+    item.handler()
+  end
+end)
+
+commandPaletteChooser:queryChangedCallback(function(query)
+  local allChoices = buildCommandPaletteChoices()
+  if query == "" then
+    commandPaletteChooser:choices(allChoices)
+    return
+  end
+
+  local filtered = {}
+  for _, choice in ipairs(allChoices) do
+    if fuzzyMatch(choice.text .. " " .. choice.subText, query) then
+      table.insert(filtered, choice)
+    end
+  end
+  commandPaletteChooser:choices(filtered)
+end)
+
+hs.hotkey.bind({ "cmd" }, "space", function()
+  commandPaletteChooser:choices(buildCommandPaletteChoices())
+  commandPaletteChooser:show()
+end)
