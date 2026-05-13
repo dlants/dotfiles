@@ -565,6 +565,24 @@ local function stream_lines_into_picker(cmd, cwd, on_done)
   return function() pcall(function() sys_obj:kill("sigterm") end) end
 end
 
+-- When `opts_cwd` is provided we use it as-is. Otherwise we pick a search root
+-- based on the current buffer: prefer cwd if the buffer lives under it, then
+-- the nearest git root walking up from the buffer's directory, and finally the
+-- buffer's own directory.
+local function discover_search_dir(opts_cwd)
+  if opts_cwd and opts_cwd ~= "" then return opts_cwd end
+  local current_cwd = vim.fn.getcwd()
+  local buf_name = api.nvim_buf_get_name(api.nvim_get_current_buf())
+  if buf_name == "" or buf_name:match("^%w+://") then return current_cwd end
+  if buf_name == current_cwd or buf_name:sub(1, #current_cwd + 1) == current_cwd .. "/" then
+    return current_cwd
+  end
+  local buf_dir = vim.fs.dirname(buf_name)
+  local found = vim.fs.find(".git", { upward = true, path = buf_dir })
+  if found and #found > 0 then return vim.fs.dirname(found[1]) end
+  return buf_dir
+end
+
 -- ----------------------------------------------------------------------------
 -- Files source: signal-aware file picker (fd/rg/find driven).
 -- ----------------------------------------------------------------------------
@@ -574,7 +592,7 @@ FilesSource.__index = FilesSource
 function FilesSource.new(opts)
   opts = opts or {}
   local self = setmetatable({
-    cwd = opts.cwd or vim.fn.getcwd(),
+    cwd = discover_search_dir(opts.cwd),
     unrestricted = opts.unrestricted == true,
     buffer_set = {},
     same_dir_set = {},
