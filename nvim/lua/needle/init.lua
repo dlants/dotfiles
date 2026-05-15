@@ -422,6 +422,19 @@ end
 -- ============================================================================
 
 local function open_windows()
+  -- If the current window isn't full height (something above or below it),
+  -- or is a floating window (not part of the main layout), create a new
+  -- full-height vertical split (with an empty buffer) so the picker doesn't
+  -- squash into a partial pane. The empty buffer becomes the "previous"
+  -- state we restore to when the picker closes.
+  local is_floating = api.nvim_win_get_config(0).relative ~= ""
+  if is_floating
+    or vim.fn.winnr("k") ~= vim.fn.winnr()
+    or vim.fn.winnr("j") ~= vim.fn.winnr()
+  then
+    vim.cmd("botright vsplit | enew")
+  end
+
   local results_win = api.nvim_get_current_win()
   local prev_buf = api.nvim_win_get_buf(results_win)
   local orig_cursorline = api.nvim_get_option_value("cursorline", { win = results_win })
@@ -473,9 +486,19 @@ local function accept_selection(open_cmd)
   if not picker or #picker.filtered == 0 then close_picker(); return end
   local entry = picker.filtered[picker.selected]
   local source = picker.source
+  -- Capture the target window before tearing down the picker, and use
+  -- `nvim_win_call` below so the :edit runs there regardless of focus changes
+  -- (e.g. a floating notification stealing focus between teardown and accept).
+  local target_win = picker.results_win
   close_picker()
   vim.schedule(function()
-    source:accept(entry, open_cmd)
+    if target_win and api.nvim_win_is_valid(target_win) then
+      api.nvim_win_call(target_win, function()
+        source:accept(entry, open_cmd)
+      end)
+    else
+      source:accept(entry, open_cmd)
+    end
   end)
 end
 

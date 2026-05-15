@@ -14,6 +14,7 @@ if is_linux then
         AWS_PROFILE = "dev.ai-inference",
         AWS_REGION = "us-west-2"
       },
+      tokenRefreshCommand = "dev aws login",
       thinking = {
         enabled = true,
         effort = "max"
@@ -52,6 +53,7 @@ else
         AWS_PROFILE = "dev.ai-inference",
         AWS_REGION = "us-west-2"
       },
+      tokenRefreshCommand = "aws sso login --profile dev.ai-inference",
       thinking = {
         enabled = true,
         effort = "max"
