@@ -37,8 +37,7 @@ local function kill_child()
 end
 
 local function set_title()
-  if not state or not api.nvim_win_is_valid(state.prompt_win) then return end
-  local cfg = api.nvim_win_get_config(state.prompt_win)
+  if not state or not api.nvim_win_is_valid(state.results_win) then return end
   local n = #state.output_lines
   local marker
   if state.running then
@@ -52,8 +51,7 @@ local function set_title()
   else
     title = string.format(" shuck %s %d lines ", marker, n)
   end
-  cfg.title = title
-  pcall(api.nvim_win_set_config, state.prompt_win, cfg)
+  pcall(api.nvim_set_option_value, "winbar", title, { win = state.results_win })
 end
 
 local function close_picker()
@@ -448,37 +446,33 @@ end
 -- ============================================================================
 
 local function open_windows()
-  local total_w = vim.o.columns
   local total_h = vim.o.lines
-  local width = total_w - 2
-  local height = math.min(20, math.max(10, math.floor(total_h * 0.5)))
-  local col = 0
-  local row = 0
+  local picker_height = math.max(math.floor(total_h * 0.3), 6)
+  local results_height = picker_height - 1
 
-  local results_buf = api.nvim_create_buf(false, true)
   local prompt_buf = api.nvim_create_buf(false, true)
-  api.nvim_set_option_value("buftype", "nofile", { buf = results_buf })
+  local results_buf = api.nvim_create_buf(false, true)
   api.nvim_set_option_value("buftype", "nofile", { buf = prompt_buf })
-  api.nvim_set_option_value("bufhidden", "wipe", { buf = results_buf })
+  api.nvim_set_option_value("buftype", "nofile", { buf = results_buf })
   api.nvim_set_option_value("bufhidden", "wipe", { buf = prompt_buf })
-  api.nvim_set_option_value("filetype", "shuck", { buf = results_buf })
+  api.nvim_set_option_value("bufhidden", "wipe", { buf = results_buf })
   api.nvim_set_option_value("filetype", "shuck", { buf = prompt_buf })
+  api.nvim_set_option_value("filetype", "shuck", { buf = results_buf })
 
-  local prompt_win = api.nvim_open_win(prompt_buf, true, {
-    relative = "editor", width = width, height = 1,
-    row = row, col = col,
-    style = "minimal", border = "rounded",
-    title = " shuck ", title_pos = "center",
-  })
+  vim.cmd("topleft 1split")
+  local prompt_win = api.nvim_get_current_win()
+  api.nvim_win_set_buf(prompt_win, prompt_buf)
+  api.nvim_set_option_value("winfixheight", true, { win = prompt_win })
 
-  local results_win = api.nvim_open_win(results_buf, false, {
-    relative = "editor", width = width, height = height,
-    row = row + 3, col = col,
-    style = "minimal", border = "rounded",
-    focusable = false,
-  })
+  vim.cmd("belowright " .. results_height .. "split")
+  local results_win = api.nvim_get_current_win()
+  api.nvim_win_set_buf(results_win, results_buf)
   api.nvim_set_option_value("cursorline", false, { win = results_win })
   api.nvim_set_option_value("wrap", false, { win = results_win })
+  api.nvim_set_option_value("winfixheight", true, { win = results_win })
+  api.nvim_set_option_value("winbar", " shuck ", { win = results_win })
+
+  api.nvim_set_current_win(prompt_win)
 
   return prompt_buf, prompt_win, results_buf, results_win
 end
@@ -595,7 +589,7 @@ function M.open(opts)
   })
 
   api.nvim_create_autocmd("WinClosed", {
-    pattern = tostring(prompt_win),
+    pattern = { tostring(prompt_win), tostring(results_win) },
     callback = function() vim.schedule(close_picker) end,
   })
 
