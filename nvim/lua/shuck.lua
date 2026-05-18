@@ -21,6 +21,7 @@ M.config = {
 
 local state = nil
 local NS_HL = api.nvim_create_namespace("shuck_hl")
+local NS_PROMPT = api.nvim_create_namespace("shuck_prompt")
 local SPINNER_FRAMES = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 
 -- ============================================================================
@@ -73,6 +74,20 @@ local function close_picker()
     if buf and api.nvim_buf_is_valid(buf) then pcall(api.nvim_buf_delete, buf, { force = true }) end
   end
   state = nil
+end
+
+local function discover_search_dir(opts_cwd)
+  if opts_cwd and opts_cwd ~= "" then return opts_cwd end
+  local current_cwd = vim.fn.getcwd()
+  local buf_name = api.nvim_buf_get_name(api.nvim_get_current_buf())
+  if buf_name == "" or buf_name:match("^%w+://") then return current_cwd end
+  if buf_name == current_cwd or buf_name:sub(1, #current_cwd + 1) == current_cwd .. "/" then
+    return current_cwd
+  end
+  local buf_dir = vim.fs.dirname(buf_name)
+  local found = vim.fs.find(".git", { upward = true, path = buf_dir })
+  if found and #found > 0 then return vim.fs.dirname(found[1]) end
+  return buf_dir
 end
 
 -- ============================================================================
@@ -189,6 +204,15 @@ end
 -- Streaming chunk handler
 -- ============================================================================
 
+local function maybe_rewrite_path(line)
+  if not state or not state.rewrite_paths then return line end
+  local file, rest = line:match("^([^:]+)(:.*)$")
+  if file and file:sub(1, 1) ~= "/" then
+    return state.cwd .. "/" .. file .. rest
+  end
+  return line
+end
+
 local function handle_chunk(chunk, pending_field, prefix)
   if not state then return false end
   local cap = M.config.max_results
@@ -204,6 +228,7 @@ local function handle_chunk(chunk, pending_field, prefix)
     local line = pending:sub(start, nl - 1)
     start = nl + 1
     if line ~= "" then
+      if prefix == nil then line = maybe_rewrite_path(line) end
       state.output_lines[#state.output_lines + 1] = (prefix or "") .. line
       if #state.output_lines >= cap then hit = true; break end
     end
@@ -239,6 +264,7 @@ local function run_command()
   state.running = true
   state.truncated = false
   state.stale = false
+  state.rewrite_paths = (state.cwd ~= vim.fn.getcwd())
 
   api.nvim_set_option_value("modifiable", true, { buf = state.results_buf })
   api.nvim_buf_set_lines(state.results_buf, 0, -1, false, {})
@@ -287,7 +313,7 @@ local function run_command()
       if not state or state.run_epoch ~= epoch then return end
       local cap = M.config.max_results
       if state.pending_chunk ~= "" and #state.output_lines < cap then
-        state.output_lines[#state.output_lines + 1] = state.pending_chunk
+        state.output_lines[#state.output_lines + 1] = maybe_rewrite_path(state.pending_chunk)
       end
       state.pending_chunk = ""
       if state.stderr_pending ~= "" and #state.output_lines < cap then
@@ -527,7 +553,7 @@ function M.open(opts)
   opts = opts or {}
   if state then close_picker() end
 
-  local cwd = opts.cwd or vim.fn.getcwd()
+  local cwd = discover_search_dir(opts.cwd)
   local prompt_buf, prompt_win, results_buf, results_win = open_windows()
 
   state = {
@@ -560,6 +586,16 @@ function M.open(opts)
   local default_cmd = opts.cmd or M.config.default_cmd
   api.nvim_buf_set_lines(prompt_buf, 0, -1, false, { default_cmd })
   state.cmd_string = default_cmd
+
+  local main_cwd = vim.fn.getcwd()
+  if cwd ~= main_cwd then
+    local display_dir = vim.fn.fnamemodify(cwd, ":~")
+    api.nvim_buf_set_extmark(prompt_buf, NS_PROMPT, 0, 0, {
+      virt_text = { { string.format("cd %s && ", display_dir), "Comment" } },
+      virt_text_pos = "inline",
+      right_gravity = false,
+    })
+  end
 
   setup_keymaps(prompt_buf)
 
