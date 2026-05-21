@@ -350,12 +350,22 @@ local function open_selected(open_cmd)
   lnum = tonumber(lnum)
   col = tonumber(col)
   local cwd = state.cwd
+  local origin_win = state.origin_win
+  local origin_full_height = state.origin_full_height
+  open_cmd = open_cmd or "edit"
   close_picker()
   local abs = file
   if file:sub(1, 1) ~= "/" then
     abs = cwd .. "/" .. file
   end
-  vim.cmd((open_cmd or "edit") .. " " .. vim.fn.fnameescape(abs))
+  local valid_origin = origin_win and api.nvim_win_is_valid(origin_win)
+  if valid_origin then
+    api.nvim_set_current_win(origin_win)
+  end
+  if open_cmd == "edit" and (not valid_origin or not origin_full_height) then
+    vim.cmd("botright vsplit")
+  end
+  vim.cmd(open_cmd .. " " .. vim.fn.fnameescape(abs))
   pcall(api.nvim_win_set_cursor, 0, { lnum, math.max(0, col - 1) })
   pcall(vim.cmd, "normal! zz")
 end
@@ -553,6 +563,12 @@ function M.open(opts)
   opts = opts or {}
   if state then close_picker() end
 
+  local origin_win = api.nvim_get_current_win()
+  local is_floating = api.nvim_win_get_config(origin_win).relative ~= ""
+  local origin_full_height = (not is_floating)
+    and vim.fn.winnr("k") == vim.fn.winnr()
+    and vim.fn.winnr("j") == vim.fn.winnr()
+
   local cwd = discover_search_dir(opts.cwd)
   local prompt_buf, prompt_win, results_buf, results_win = open_windows()
 
@@ -581,6 +597,8 @@ function M.open(opts)
     history_filtered = nil,
     picker_mode      = false,
     picker_selected  = 1,
+    origin_win         = origin_win,
+    origin_full_height = origin_full_height,
   }
 
   local default_cmd = opts.cmd or M.config.default_cmd

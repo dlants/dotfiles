@@ -200,11 +200,20 @@ vim.api.nvim_create_autocmd("BufWritePost", {
   end,
 })
 
--- panel nav
-vim.api.nvim_set_keymap("n", "<C-h>", "<C-w>h", { noremap = true })
-vim.api.nvim_set_keymap("n", "<C-l>", "<C-w>l", { noremap = true })
-vim.api.nvim_set_keymap("n", "<C-k>", "<C-w>k", { noremap = true })
-vim.api.nvim_set_keymap("n", "<C-j>", "<C-w>j", { noremap = true })
+-- Escalating pane navigation: neovim splits → tmux panes → macOS windows.
+-- Falls through to the pane-nav helper script when at the edge of nvim splits.
+local function pane_navigate(wincmd, tmux_dir)
+  local cur_win = vim.api.nvim_get_current_win()
+  vim.cmd("wincmd " .. wincmd)
+  if cur_win == vim.api.nvim_get_current_win() then
+    vim.fn.jobstart({ "pane-nav", tmux_dir }, { detach = true })
+  end
+end
+
+vim.keymap.set("n", "<C-h>", function() pane_navigate("h", "L") end, { noremap = true, silent = true })
+vim.keymap.set("n", "<C-j>", function() pane_navigate("j", "D") end, { noremap = true, silent = true })
+vim.keymap.set("n", "<C-k>", function() pane_navigate("k", "U") end, { noremap = true, silent = true })
+vim.keymap.set("n", "<C-l>", function() pane_navigate("l", "R") end, { noremap = true, silent = true })
 
 -- replicate unimpaired bindings
 vim.api.nvim_set_keymap("n", "[j", "<C-O>", { noremap = true })
@@ -258,22 +267,55 @@ vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", { noremap = true })
 vim.api.nvim_set_keymap("n", "<leader>n", ":botright vsplit | enew<CR>",
   { noremap = true, silent = true, desc = "New buffer in rightmost vertical split" })
 
--- GitHub browse commands using gh CLI
-local function gh_browse(opts)
-  local file = vim.fn.expand("%")
-  local branch = opts.branch
+local default_branch_cache = {}
 
-  local cmd = "gh browse " .. vim.fn.shellescape(file)
-  if branch then
-    cmd = cmd .. " -b " .. branch
+local function get_default_branch()
+  local toplevel = vim.trim(vim.fn.system("git rev-parse --show-toplevel"))
+  if default_branch_cache[toplevel] then
+    return default_branch_cache[toplevel]
   end
+  local result = vim.trim(vim.fn.system("gh repo view --json defaultBranchRef --jq .defaultBranchRef.name"))
+  default_branch_cache[toplevel] = result
+  return result
+end
 
+local function get_current_branch()
+  local branch = vim.trim(vim.fn.system("git branch --show-current"))
+  if branch == "" then
+    branch = vim.trim(vim.fn.system("git rev-parse HEAD"))
+  end
+  return branch
+end
+
+local function get_repo_relative_path()
+  local abs_path = vim.fn.expand("%:p")
+  local toplevel = vim.trim(vim.fn.system("git rev-parse --show-toplevel"))
+  if toplevel ~= "" and vim.startswith(abs_path, toplevel .. "/") then
+    return abs_path:sub(#toplevel + 2)
+  end
+  return vim.fn.expand("%")
+end
+
+-- GitHub browse commands using gh CLI
+local function resolve_branch(opts)
+  if opts.branch == "default" then
+    return get_default_branch()
+  end
+  return get_current_branch()
+end
+
+local function gh_browse(opts)
+  local file = get_repo_relative_path()
+  local branch = resolve_branch(opts)
+  local toplevel = vim.trim(vim.fn.system("git rev-parse --show-toplevel"))
+  local cmd = "cd " .. vim.fn.shellescape(toplevel) .. " && gh browse "
+      .. vim.fn.shellescape(file) .. " -b " .. vim.fn.shellescape(branch)
   vim.fn.system(cmd)
 end
 
 local function gh_browse_lines(opts)
-  local file = vim.fn.expand("%")
-  local branch = opts.branch
+  local file = get_repo_relative_path()
+  local branch = resolve_branch(opts)
   local start_line, end_line
 
   if opts.range > 0 then
@@ -291,17 +333,15 @@ local function gh_browse_lines(opts)
     file_with_lines = file .. ":" .. start_line .. "-" .. end_line
   end
 
-  local cmd = "gh browse " .. vim.fn.shellescape(file_with_lines)
-  if branch then
-    cmd = cmd .. " -b " .. branch
-  end
-
+  local toplevel = vim.trim(vim.fn.system("git rev-parse --show-toplevel"))
+  local cmd = "cd " .. vim.fn.shellescape(toplevel) .. " && gh browse "
+      .. vim.fn.shellescape(file_with_lines) .. " -b " .. vim.fn.shellescape(branch)
   vim.fn.system(cmd)
 end
 
 vim.api.nvim_create_user_command("Gho", function() gh_browse({}) end, {})
-vim.api.nvim_create_user_command("Ghom", function() gh_browse({ branch = "main" }) end, {})
+vim.api.nvim_create_user_command("Ghom", function() gh_browse({ branch = "default" }) end, {})
 vim.api.nvim_create_user_command("Ghl", function(opts) gh_browse_lines(opts) end, { range = true })
 vim.api.nvim_create_user_command("Ghlm",
-  function(opts) gh_browse_lines({ range = opts.range, line1 = opts.line1, line2 = opts.line2, branch = "main" }) end,
+  function(opts) gh_browse_lines({ range = opts.range, line1 = opts.line1, line2 = opts.line2, branch = "default" }) end,
   { range = true })

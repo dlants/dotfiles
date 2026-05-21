@@ -17,6 +17,7 @@
   # Tmux helper scripts
   home.file.".local/bin/ta".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/ta";
   home.file.".local/bin/tmux-session-using-fzf".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/tmux-session-using-fzf";
+  home.file.".local/bin/pane-nav".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/pane-nav";
 
 
   # Install pkgx binary directly to ~/.local/bin (no sudo needed)

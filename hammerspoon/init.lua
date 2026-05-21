@@ -402,6 +402,143 @@ function selectGhosttyTab(windowId, tabIndex)
   end
 end
 
+-- Window switching across visible (and minimized) windows on the current space.
+-- Called from scripts/pane-nav via `hs -c "switchWindow('left'|'right')"`.
+-- Cycles through visible windows sorted by their left x-coord; when at the edge,
+-- starts unminimizing windows on the same space so they re-enter the cycle.
+local function isOnCurrentSpace(win, currentSpace)
+  local spaces = hs.spaces.windowSpaces(win) or {}
+  for _, sp in ipairs(spaces) do
+    if sp == currentSpace then return true end
+  end
+  return false
+end
+
+local function windowSortKey(a, b)
+  local fa, fb = a:frame(), b:frame()
+  if math.abs(fa.x - fb.x) > 1 then return fa.x < fb.x end
+  return fa.y < fb.y
+end
+
+function switchWindow(direction)
+  local currentSpace = hs.spaces.focusedSpace()
+  if not currentSpace then return end
+
+  local visible = {}
+  local minimized = {}
+  for _, win in ipairs(hs.window.allWindows()) do
+    if win:isStandard() and isOnCurrentSpace(win, currentSpace) then
+      if win:isMinimized() then
+        table.insert(minimized, win)
+      else
+        table.insert(visible, win)
+      end
+    end
+  end
+
+  -- Also pick up minimized windows of apps that have at least one visible
+  -- window on this space (hs.spaces.windowSpaces is unreliable for minimized
+  -- windows, so we treat them as belonging to the space that owns the app's
+  -- other windows).
+  local appsOnSpace = {}
+  for _, w in ipairs(visible) do
+    local app = w:application()
+    if app then appsOnSpace[app:pid()] = true end
+  end
+  for _, win in ipairs(hs.window.allWindows()) do
+    if win:isMinimized() and win:isStandard() then
+      local app = win:application()
+      if app and appsOnSpace[app:pid()] then
+        local already = false
+        for _, m in ipairs(minimized) do
+          if m:id() == win:id() then already = true; break end
+        end
+        if not already then table.insert(minimized, win) end
+      end
+    end
+  end
+
+  table.sort(visible, windowSortKey)
+  table.sort(minimized, windowSortKey)
+
+  local focused = hs.window.focusedWindow()
+  local currentIdx = nil
+  if focused then
+    for i, w in ipairs(visible) do
+      if w:id() == focused:id() then currentIdx = i; break end
+    end
+  end
+
+  local function restoreMinimized(pickLast)
+    if #minimized == 0 then return false end
+    local target = pickLast and minimized[#minimized] or minimized[1]
+    target:unminimize()
+    target:focus()
+    return true
+  end
+
+  if direction == "left" then
+    if currentIdx and currentIdx > 1 then
+      visible[currentIdx - 1]:focus()
+    elseif not currentIdx and #visible > 0 then
+      visible[#visible]:focus()
+    else
+      restoreMinimized(true)
+    end
+  elseif direction == "right" then
+    if currentIdx and currentIdx < #visible then
+      visible[currentIdx + 1]:focus()
+    elseif not currentIdx and #visible > 0 then
+      visible[1]:focus()
+    else
+      restoreMinimized(false)
+    end
+  end
+end
+
+-- Pane-nav signal bridge for dev containers. The container's pane-nav script
+-- can't call the `hs` CLI, so it appends tokens ("left"/"right") to a file
+-- under the shared mount. We track the last byte we read so reloads don't
+-- replay history, and reset to 0 if the file shrinks (was truncated).
+local paneNavSignalFile = os.getenv("HOME") .. "/dev-in-docker-shared-files/pane-nav-signal"
+local paneNavLastPos = 0
+do
+  local attrs = hs.fs.attributes(paneNavSignalFile)
+  if attrs then paneNavLastPos = attrs.size end
+end
+
+local function processPaneNavSignal()
+  local attrs = hs.fs.attributes(paneNavSignalFile)
+  if not attrs then return end
+  if attrs.size < paneNavLastPos then paneNavLastPos = 0 end
+  local f = io.open(paneNavSignalFile, "r")
+  if not f then return end
+  f:seek("set", paneNavLastPos)
+  for line in f:lines() do
+    local token = line:match("(%S+)")
+    if token == "left" or token == "right" then
+      switchWindow(token)
+    end
+  end
+  paneNavLastPos = f:seek()
+  f:close()
+end
+
+local paneNavWatcher
+do
+  local dir = os.getenv("HOME") .. "/dev-in-docker-shared-files"
+  if hs.fs.attributes(dir) then
+    paneNavWatcher = hs.pathwatcher.new(dir, function(paths)
+      for _, p in ipairs(paths) do
+        if p:match("pane%-nav%-signal$") then
+          processPaneNavSignal()
+          return
+        end
+      end
+    end):start()
+  end
+end
+
 -- Command palette
 local function handleApp(name)
   local app = hs.application.find(name)
@@ -417,12 +554,12 @@ local function handleApp(name)
   app:activate()
 end
 
-local function handleGhostty()
-  local ghostty = hs.application.find("Ghostty")
+local function handleAppOnCurrentDesktop(name)
+  local app = hs.application.find(name)
 
-  if ghostty then
+  if app then
     local currentSpace = hs.spaces.focusedSpace()
-    for _, win in ipairs(ghostty:allWindows()) do
+    for _, win in ipairs(app:allWindows()) do
       local winSpaces = hs.spaces.windowSpaces(win) or {}
       for _, sp in ipairs(winSpaces) do
         if sp == currentSpace then
@@ -436,7 +573,15 @@ local function handleGhostty()
     end
   end
 
-  hs.application.launchOrFocus("Ghostty")
+  hs.application.launchOrFocus(name)
+end
+
+local function handleGhostty()
+  handleAppOnCurrentDesktop("Ghostty")
+end
+
+local function openSpotlight()
+  hs.application.launchOrFocus("/System/Library/CoreServices/Spotlight.app")
 end
 
 local function openInChrome(url)
@@ -463,6 +608,21 @@ local commandPaletteItems = {
     text = "firefox",
     subText = "Switch to Firefox",
     handler = function() handleApp("Firefox") end,
+  },
+  {
+    text = "1password",
+    subText = "Switch to 1Password",
+    handler = function() handleAppOnCurrentDesktop("1Password") end,
+  },
+  {
+    text = "activity monitor",
+    subText = "Switch to Activity Monitor",
+    handler = function() handleAppOnCurrentDesktop("Activity Monitor") end,
+  },
+  {
+    text = "spotlight",
+    subText = "Open Spotlight",
+    handler = openSpotlight,
   },
   {
     text = "aurelia",
@@ -526,3 +686,128 @@ hs.hotkey.bind({ "cmd" }, "space", function()
   commandPaletteChooser:choices(buildCommandPaletteChoices())
   commandPaletteChooser:show()
 end)
+
+-- Drag lock: F19 toggles left mouse button held state.
+-- ESC or right/middle click also releases.
+local dragLocked = false
+local dragTap = nil
+local dragKillTap = nil
+
+local function stopDragLock()
+  if not dragLocked then return end
+  local types = hs.eventtap.event.types
+  local pos = hs.mouse.absolutePosition()
+  hs.eventtap.event.newMouseEvent(types.leftMouseUp, pos):post()
+  dragLocked = false
+  if dragTap then dragTap:stop(); dragTap = nil end
+  if dragKillTap then dragKillTap:stop(); dragKillTap = nil end
+  hs.alert.show("drag lock off", 0.5)
+end
+
+local function startDragLock()
+  if dragLocked then return end
+  local types = hs.eventtap.event.types
+  local pos = hs.mouse.absolutePosition()
+  hs.eventtap.event.newMouseEvent(types.leftMouseDown, pos):post()
+  dragLocked = true
+  hs.alert.show("drag lock on", 0.5)
+
+  -- Rewrite subsequent mouse moves as drags so apps see a real drag gesture
+  dragTap = hs.eventtap.new({ types.mouseMoved }, function(e)
+    e:setType(types.leftMouseDragged)
+    return false
+  end)
+  dragTap:start()
+
+  dragKillTap = hs.eventtap.new({
+    types.keyDown,
+    types.rightMouseDown,
+    types.otherMouseDown,
+  }, function(e)
+    if e:getType() == types.keyDown and e:getKeyCode() ~= hs.keycodes.map.escape then
+      return false
+    end
+    stopDragLock()
+    return false
+  end)
+  dragKillTap:start()
+end
+
+local function toggleDragLock()
+  if dragLocked then stopDragLock() else startDragLock() end
+end
+
+hs.hotkey.bind({}, "F19", toggleDragLock)
+
+-- Scroll lock: F20 toggles 2D scroll mode (trackball motion → scroll wheel events)
+local SCROLL_GAIN = 1.0  -- linear scroll per delta unit; controls low-end speed
+local SCROLL_ACCEL = 0.05 -- multiplier on the accel term; controls high-end boost
+local SCROLL_EXP = 2.0   -- accel exponent; >1 = larger sweeps amplify proportionally
+
+local function accel(d)
+  if d == 0 then return 0 end
+  local sign = d > 0 and 1 or -1
+  local abs_d = math.abs(d)
+  return sign * (abs_d * SCROLL_GAIN + abs_d ^ SCROLL_EXP * SCROLL_ACCEL)
+end
+
+local scrollLocked = false
+local scrollTap = nil
+local scrollKillTap = nil
+local accX, accY = 0, 0  -- accumulators for fractional deltas
+
+local function stopScrollLock()
+  if not scrollLocked then return end
+  scrollLocked = false
+  if scrollTap then scrollTap:stop(); scrollTap = nil end
+  if scrollKillTap then scrollKillTap:stop(); scrollKillTap = nil end
+  hs.alert.show("scroll lock off", 0.5)
+end
+
+local function startScrollLock()
+  if scrollLocked then return end
+  local types = hs.eventtap.event.types
+  local props = hs.eventtap.event.properties
+
+  scrollLocked = true
+  accX, accY = 0, 0
+  hs.alert.show("scroll lock on", 0.5)
+
+  scrollTap = hs.eventtap.new({ types.mouseMoved }, function(e)
+    local dx = e:getProperty(props.mouseEventDeltaX)
+    local dy = e:getProperty(props.mouseEventDeltaY)
+    -- Accumulate, then emit only the integer part (keeps fractions for next tick)
+    accX = accX + accel(dx)
+    accY = accY + accel(dy)
+    local intX, fracX = math.modf(accX)
+    local intY, fracY = math.modf(accY)
+    accX, accY = fracX, fracY
+    if intX ~= 0 or intY ~= 0 then
+      -- Negate so direction matches natural scrolling. Flip signs if backwards.
+      hs.eventtap.event.newScrollEvent({ -intX, -intY }, {}, "pixel"):post()
+    end
+    return true -- consume the mouseMoved so the cursor doesn't drift while scrolling
+  end)
+  scrollTap:start()
+
+  -- ESC or any mouse button click cancels scroll lock (event still passes through)
+  scrollKillTap = hs.eventtap.new({
+    types.keyDown,
+    types.leftMouseDown,
+    types.rightMouseDown,
+    types.otherMouseDown,
+  }, function(e)
+    if e:getType() == types.keyDown and e:getKeyCode() ~= hs.keycodes.map.escape then
+      return false
+    end
+    stopScrollLock()
+    return false
+  end)
+  scrollKillTap:start()
+end
+
+local function toggleScrollLock()
+  if scrollLocked then stopScrollLock() else startScrollLock() end
+end
+
+hs.hotkey.bind({}, "F20", toggleScrollLock)

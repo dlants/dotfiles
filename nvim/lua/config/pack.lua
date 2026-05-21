@@ -31,7 +31,6 @@ vim.api.nvim_create_autocmd("PackChanged", {
 -- Remote plugins managed by vim.pack
 vim.pack.add({
   "https://github.com/folke/snacks.nvim",
-  "https://github.com/christoomey/vim-tmux-navigator",
   "https://github.com/ntpeters/vim-better-whitespace",
   "https://github.com/junegunn/fzf",
   "https://github.com/nvim-tree/nvim-web-devicons",
