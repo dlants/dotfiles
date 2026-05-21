@@ -22,6 +22,11 @@
     if command -v brew &> /dev/null; then
       brew list --cask hammerspoon &> /dev/null || brew install --cask hammerspoon
       brew list --cask ghostty &> /dev/null || brew install --cask ghostty
+      brew list --cask claude-code &> /dev/null || brew install --cask claude-code
+      brew list --cask kanri &> /dev/null || brew install --cask kanri
+      brew list --cask superwhisper &> /dev/null || brew install --cask superwhisper
+      brew list --cask keycastr &> /dev/null || brew install --cask keycastr
+      brew list --cask wireshark &> /dev/null || brew install --cask wireshark
       brew list pkgx &> /dev/null || brew install pkgx
     fi
   '';
