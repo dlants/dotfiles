@@ -406,13 +406,6 @@ end
 -- Called from scripts/pane-nav via `hs -c "switchWindow('left'|'right')"`.
 -- Cycles through visible windows sorted by their left x-coord; when at the edge,
 -- starts unminimizing windows on the same space so they re-enter the cycle.
-local function isOnCurrentSpace(win, currentSpace)
-  local spaces = hs.spaces.windowSpaces(win) or {}
-  for _, sp in ipairs(spaces) do
-    if sp == currentSpace then return true end
-  end
-  return false
-end
 
 local function windowSortKey(a, b)
   local fa, fb = a:frame(), b:frame()
@@ -424,37 +417,41 @@ function switchWindow(direction)
   local currentSpace = hs.spaces.focusedSpace()
   if not currentSpace then return end
 
+  -- One fast call instead of hs.spaces.windowSpaces(win) per window.
+  local idsOnSpace = {}
+  for _, id in ipairs(hs.spaces.windowsForSpace(currentSpace) or {}) do
+    idsOnSpace[id] = true
+  end
+
+  -- Single pass through allWindows. Categorize by visible vs minimized,
+  -- and track which apps have a visible window on this space (used to
+  -- claim minimized windows whose space membership is unreliable).
   local visible = {}
-  local minimized = {}
+  local minimizedOnSpace = {}
+  local minimizedMaybe = {}
+  local appsOnSpace = {}
   for _, win in ipairs(hs.window.allWindows()) do
-    if win:isStandard() and isOnCurrentSpace(win, currentSpace) then
+    if win:isStandard() then
+      local onSpace = idsOnSpace[win:id()]
       if win:isMinimized() then
-        table.insert(minimized, win)
-      else
+        if onSpace then
+          table.insert(minimizedOnSpace, win)
+        else
+          table.insert(minimizedMaybe, win)
+        end
+      elseif onSpace then
         table.insert(visible, win)
+        local app = win:application()
+        if app then appsOnSpace[app:pid()] = true end
       end
     end
   end
 
-  -- Also pick up minimized windows of apps that have at least one visible
-  -- window on this space (hs.spaces.windowSpaces is unreliable for minimized
-  -- windows, so we treat them as belonging to the space that owns the app's
-  -- other windows).
-  local appsOnSpace = {}
-  for _, w in ipairs(visible) do
-    local app = w:application()
-    if app then appsOnSpace[app:pid()] = true end
-  end
-  for _, win in ipairs(hs.window.allWindows()) do
-    if win:isMinimized() and win:isStandard() then
-      local app = win:application()
-      if app and appsOnSpace[app:pid()] then
-        local already = false
-        for _, m in ipairs(minimized) do
-          if m:id() == win:id() then already = true; break end
-        end
-        if not already then table.insert(minimized, win) end
-      end
+  local minimized = minimizedOnSpace
+  for _, win in ipairs(minimizedMaybe) do
+    local app = win:application()
+    if app and appsOnSpace[app:pid()] then
+      table.insert(minimized, win)
     end
   end
 
@@ -496,6 +493,37 @@ function switchWindow(direction)
   end
 end
 
+-- Global C-h / C-l for switching between macOS windows.
+-- Skips Ghostty so tmux/nvim can handle it locally and escalate back
+-- via pane-nav when at the edge.
+local paneNavKeyTap
+paneNavKeyTap = hs.eventtap.new({ hs.eventtap.event.types.keyDown }, function(e)
+  local flags = e:getFlags()
+  if not flags.ctrl or flags.cmd or flags.alt or flags.shift or flags.fn then
+    return false
+  end
+  local key = hs.keycodes.map[e:getKeyCode()]
+  if key ~= "h" and key ~= "l" then
+    return false
+  end
+  local app = hs.application.frontmostApplication()
+  if app and app:name() == "Ghostty" then
+    return false
+  end
+  -- Defer so the callback returns immediately; macOS kills slow taps.
+  hs.timer.doAfter(0, function()
+    switchWindow(key == "h" and "left" or "right")
+  end)
+  return true
+end)
+paneNavKeyTap:start()
+
+-- If macOS disables the tap (slow callback, sleep, etc.), re-enable it.
+hs.timer.doEvery(5, function()
+  if paneNavKeyTap and not paneNavKeyTap:isEnabled() then
+    paneNavKeyTap:start()
+  end
+end)
 -- Pane-nav signal bridge for dev containers. The container's pane-nav script
 -- can't call the `hs` CLI, so it appends tokens ("left"/"right") to a file
 -- under the shared mount. We track the last byte we read so reloads don't
