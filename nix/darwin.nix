@@ -39,6 +39,9 @@
     clone_if_absent "$HOME/src/amplify-education/desmos-classroom" "git@github.com:amplify-education/desmos-classroom.git"
     clone_if_absent "$HOME/src/amplify-education/terraform-config" "git@github.com:amplify-education/terraform-config.git"
     clone_if_absent "$HOME/src/magenta.nvim" "git@github.com:dlants/magenta.nvim.git"
+
+    # Convenience symlink: ~/classroom → desmos-classroom repo
+    ln -sfn "$HOME/src/amplify-education/desmos-classroom" "$HOME/classroom"
   '';
 
   # Hammerspoon config (macOS-only, uses ~/.hammerspoon not XDG)

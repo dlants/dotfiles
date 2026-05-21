@@ -92,11 +92,15 @@
     "starship.toml".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/starship.toml";
   };
 
-  # Magenta skills symlinks (individual per skill, via activation so ordering works with linux clone)
-  home.activation.setupMagentaSkills = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    mkdir -p "$HOME/.claude/skills"
-    ln -sfn "${dotfilesDir}/magenta-skills/browser" "$HOME/.claude/skills/browser"
-  '';
+  # TODO(mugabo): REVISIT — Denis's browser automation skill (Puppeteer DSL).
+  # Symlinks ~/src/dotfiles/magenta-skills/browser → ~/.claude/skills/browser.
+  # Disabled for now — not using it yet. See skill.md in the source dir for what it does.
+  # Re-enable by uncommenting the activation block below.
+  #
+  # home.activation.setupMagentaSkills = lib.hm.dag.entryAfter ["writeBoundary"] ''
+  #   mkdir -p "$HOME/.claude/skills"
+  #   ln -sfn "${dotfilesDir}/magenta-skills/browser" "$HOME/.claude/skills/browser"
+  # '';
 
   # Prevent rustup from creating a broken fish config (nix manages PATH)
   home.file.".config/fish/conf.d/rustup.fish".text = "";
