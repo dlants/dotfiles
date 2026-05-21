@@ -18,9 +18,9 @@ tmux start-server
 # # 9 is for tsc
 # tmux new-window -t logan:9 -n tsc
 
-cd ~/src/dlants-dotfiles
-tmux new-session -d -s dlants-dotfiles
+cd ~/src/dotfiles
+tmux new-session -d -s dotfiles
 # 0 is for vim
 tmux send-keys "vi" C-m
 # 1 is for terminal
-tmux new-window -t dlants-dotfiles:1
+tmux new-window -t dotfiles:1

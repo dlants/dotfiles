@@ -34,7 +34,7 @@
 
 - [ ] Install Hammerspoon (`brew install hammerspoon`) — configured but app not installed
 - [ ] Decide on fish as default shell or remove from active config
-- [ ] Sync with upstream (`git fetch upstream && git merge upstream/main`) — check for useful updates from dlants
+- [x] ~~Sync with upstream~~ — **Decision (2026-04-30):** don't rebase/merge upstream wholesale. `mine` has diverged enough to be its own config. Keep `upstream` remote for browsing (`git fetch upstream`) and cherry-pick selectively if something interesting comes up. Never `git merge upstream/main`.
 
 ## Future ideas
 

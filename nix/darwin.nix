@@ -26,6 +26,21 @@
     fi
   '';
 
+  # Clone work repos if absent
+  home.activation.cloneRepos = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    clone_if_absent() {
+      local dir="$1" url="$2"
+      if [ ! -d "$dir" ]; then
+        mkdir -p "$(dirname "$dir")"
+        git clone "$url" "$dir"
+      fi
+    }
+
+    clone_if_absent "$HOME/src/amplify-education/desmos-classroom" "git@github.com:amplify-education/desmos-classroom.git"
+    clone_if_absent "$HOME/src/amplify-education/terraform-config" "git@github.com:amplify-education/terraform-config.git"
+    clone_if_absent "$HOME/src/magenta.nvim" "git@github.com:dlants/magenta.nvim.git"
+  '';
+
   # Hammerspoon config (macOS-only, uses ~/.hammerspoon not XDG)
   home.file.".hammerspoon".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/hammerspoon";
 

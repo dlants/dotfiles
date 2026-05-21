@@ -52,7 +52,7 @@ From `nix/darwin.nix` (macOS only):
 ### Configuration Architecture
 
 ```
-~/.config/nvim/ -> symlinks to /Users/mugabo/src/dlants-dotfiles/nvim/
+~/.config/nvim/ -> symlinks to /Users/mugabo/src/dotfiles/nvim/
 ~/.config/fish/ -> symlinks to nix store + this repo
 ~/.config/git/  -> managed by home-manager
 ~/.config/ghostty/ -> symlink to this repo (ghostty/)
@@ -65,7 +65,7 @@ From `nix/darwin.nix` (macOS only):
 If starting from scratch:
 
 ```bash
-cd ~/src/dlants-dotfiles
+cd ~/src/dotfiles
 ./setup.sh
 ```
 
@@ -131,7 +131,7 @@ Edit `nix/common.nix` or `nix/darwin.nix`, then:
 
 ```bash
 # Re-run home-manager
-nix run home-manager/master -- switch --flake ~/src/dlants-dotfiles#macos -b backup
+nix run home-manager/master -- switch --flake ~/src/dotfiles#macos -b backup
 ```
 
 ### Editing Config Files
@@ -169,7 +169,7 @@ If missing, they're defined in `nix/common.nix:25-31`.
 You need to run home-manager switch:
 
 ```bash
-nix run home-manager/master -- switch --flake ~/src/dlants-dotfiles#macos -b backup
+nix run home-manager/master -- switch --flake ~/src/dotfiles#macos -b backup
 ```
 
 ### fish config changes don't work
@@ -384,5 +384,5 @@ Based on your current state, I recommend:
 
 4. **Update if needed**: If packages are missing:
    ```bash
-   nix run home-manager/master -- switch --flake ~/src/dlants-dotfiles#macos -b backup
+   nix run home-manager/master -- switch --flake ~/src/dotfiles#macos -b backup
    ```

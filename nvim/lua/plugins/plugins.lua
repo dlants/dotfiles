@@ -486,25 +486,26 @@ return {
   --     -- vim.cmd.colorscheme "jellybeans"
   --   end
   -- },
-  -- trying this one for light-mode
-  {
-    "catppuccin/nvim",
-    name = "catppuccin",
-    priority = 1000
-  },
-  -- this one is my preferred night-mode
+  -- trying this one for light-mode - this is still night-mode.
+  -- need catppuccin-frappe or something.
   -- {
-  --   "0xstepit/flow.nvim",
-  --   lazy = false,
-  --   config = function()
-  --     require("flow").setup {
-  --       theme = {
-  --         contrast = "high"
-  --       },
-  --     }
-  --     vim.cmd("colorscheme flow")
-  --   end
+  --   "catppuccin/nvim",
+  --   name = "catppuccin",
+  --   priority = 1000
   -- },
+  -- this one is my preferred night-mode
+  {
+    "0xstepit/flow.nvim",
+    lazy = false,
+    config = function()
+      require("flow").setup {
+        theme = {
+          contrast = "high"
+        },
+      }
+      vim.cmd("colorscheme flow")
+    end
+  },
   -- {
   --   "p00f/alabaster.nvim",
   --   lazy = false,
@@ -1150,5 +1151,58 @@ return {
         move.goto_previous_start("@parameter.inner", "textobjects")
       end)
     end
-  }
+  },
+
+  {
+    "folke/which-key.nvim",
+    event = "VeryLazy",
+    config = function(_, opts)
+      require("which-key").setup(opts)
+      -- fix contrast for flow.nvim theme
+      vim.api.nvim_set_hl(0, "WhichKey", { fg = "#e2e2e5" })           -- key text
+      vim.api.nvim_set_hl(0, "WhichKeyDesc", { fg = "#b4b4b8" })       -- description text
+      vim.api.nvim_set_hl(0, "WhichKeyGroup", { fg = "#78a9ff" })      -- group name (+prefix)
+      vim.api.nvim_set_hl(0, "WhichKeySeparator", { fg = "#6e6e6e" })  -- separator (→)
+      vim.api.nvim_set_hl(0, "WhichKeyNormal", { bg = "#1a1a2e" })     -- popup background
+      vim.api.nvim_set_hl(0, "WhichKeyBorder", { fg = "#555555" })     -- border
+    end,
+    opts = {
+      -- preset: "classic" (full-width bottom bar, no border)
+      --         "modern" (90% width, centered, rounded border)
+      --         "helix" (smaller floating window, bottom-right, rounded border)
+      preset = "helix",
+
+      -- delay before showing the popup (ms). Can be a number or a function.
+      -- delay = function(ctx)
+      --   return ctx.plugin and 0 or 200
+      -- end,
+
+      -- plugins = {
+      --   marks = true,       -- shows marks on ' and `
+      --   registers = true,   -- shows registers on " in NORMAL or <C-r> in INSERT
+      --   spelling = {
+      --     enabled = true,   -- show WhichKey when pressing z= for spelling suggestions
+      --     suggestions = 20,
+      --   },
+      --   presets = {
+      --     operators = true,    -- help for operators like d, y, c, >, <, =
+      --     motions = true,      -- help for motions
+      --     text_objects = true,  -- help for text objects after entering an operator
+      --     windows = true,      -- default bindings on <C-w>
+      --     nav = true,          -- misc bindings to work with windows
+      --     z = true,            -- folds (zo/zc/za), spelling (z=), scroll (zt/zz/zb)
+      --     g = true,            -- go-to commands (gd, gf, gg, gx, gc, ...)
+      --   },
+      -- },
+    },
+    keys = {
+      {
+        "<leader>?",
+        function()
+          require("which-key").show({ global = false })
+        end,
+        desc = "Buffer Local Keymaps (which-key)",
+      },
+    },
+  },
 }

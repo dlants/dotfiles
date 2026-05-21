@@ -16,8 +16,8 @@ These dotfiles use **Nix + Home Manager** for reproducible, automated configurat
 
 ```bash
 # Clone the repository
-git clone https://github.com/dlants/dotfiles ~/src/dlants-dotfiles
-cd ~/src/dlants-dotfiles
+git clone https://github.com/dlants/dotfiles ~/src/dotfiles
+cd ~/src/dotfiles
 
 # grep dotfiles to personalize parametrized directory names & home path
 
@@ -47,9 +47,9 @@ cd ~/src/dlants-dotfiles
 **Live configuration:**
 All configs are symlinked from the dotfiles repo, so you can edit them in place:
 
-- `~/src/dlants-dotfiles/nvim/` → `~/.config/nvim/`
-- `~/src/dlants-dotfiles/fish/` → `~/.config/fish/`
-- `~/src/dlants-dotfiles/tmux.conf` → `~/tmux.conf`
+- `~/src/dotfiles/nvim/` → `~/.config/nvim/`
+- `~/src/dotfiles/fish/` → `~/.config/fish/`
+- `~/src/dotfiles/tmux.conf` → `~/tmux.conf`
 
 #### First Launch
 
@@ -1161,13 +1161,13 @@ Want to add a language server not in the defaults?
 
 ```bash
 # 1. Edit the Nix configuration
-nvim ~/src/dlants-dotfiles/nix/common.nix
+nvim ~/src/dotfiles/nix/common.nix
 
 # 2. Add package to home.packages (search nixpkgs for available servers)
 # Example: pkgs.rust-analyzer
 
 # 3. Rebuild Home Manager
-cd ~/src/dlants-dotfiles
+cd ~/src/dotfiles
 home-manager switch --flake .#macos  # or .#devcontainer
 ```
 
@@ -1557,7 +1557,7 @@ When editing `.md` or `.txt` files, navigation becomes **visual-line aware**:
 **Configuration management:**
 
 - Configs are **live-linked** from dotfiles repo (not copied to Nix store)
-- Edit files directly in `~/src/dlants-dotfiles/`
+- Edit files directly in `~/src/dotfiles/`
 - Most config changes take effect immediately (just reload app)
 - Package changes require Home Manager rebuild
 
@@ -1617,7 +1617,7 @@ which typescript-language-server
 **Rebuild if needed:**
 
 ```bash
-cd ~/src/dlants-dotfiles
+cd ~/src/dotfiles
 home-manager switch --flake .#macos  # or .#devcontainer for Linux
 ```
 
@@ -1629,7 +1629,7 @@ home-manager switch --flake .#macos  # or .#devcontainer for Linux
 - **Package changes** (nix/\*.nix) require rebuild:
 
 ```bash
-cd ~/src/dlants-dotfiles
+cd ~/src/dotfiles
 home-manager switch --flake .#macos  # or .#devcontainer
 ```
 
@@ -1671,7 +1671,7 @@ which typescript-language-server
 # Should show: /nix/store/.../bin/typescript-language-server
 
 # If not found, rebuild Home Manager
-cd ~/src/dlants-dotfiles
+cd ~/src/dotfiles
 home-manager switch --flake .#macos
 ```
 
@@ -1937,7 +1937,7 @@ This repository includes a complete development environment. Here's what else is
 Config is live-linked, so edit directly:
 
 ```bash
-nvim ~/src/dlants-dotfiles/fish/config-darwin.fish
+nvim ~/src/dotfiles/fish/config-darwin.fish
 # Changes take effect in new shell sessions
 ```
 
@@ -2055,7 +2055,7 @@ See `notes/clipboard-setup.md` and `tmux-clipboard-debug.md` in the repo.
 
 ```bash
 # Edit directly - changes take effect immediately
-nvim ~/src/dlants-dotfiles/nvim/init.lua
+nvim ~/src/dotfiles/nvim/init.lua
 # Restart Neovim to apply changes
 ```
 
@@ -2063,10 +2063,10 @@ nvim ~/src/dlants-dotfiles/nvim/init.lua
 
 ```bash
 # 1. Edit Nix configuration
-nvim ~/src/dlants-dotfiles/nix/common.nix
+nvim ~/src/dotfiles/nix/common.nix
 
 # 2. Rebuild Home Manager
-cd ~/src/dlants-dotfiles
+cd ~/src/dotfiles
 home-manager switch --flake .#macos  # or .#devcontainer
 
 # 3. New packages are now in PATH

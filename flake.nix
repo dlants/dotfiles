@@ -30,7 +30,7 @@
           system = "aarch64-darwin";
           username = "mugabo";
           homeDirectory = "/Users/mugabo";
-          dotfilesDir = "/Users/mugabo/src/dlants-dotfiles";
+          dotfilesDir = "/Users/mugabo/src/dotfiles";
           extraModules = [ ./nix/darwin.nix ];
         };
       };
