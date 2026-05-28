@@ -17,7 +17,7 @@ if is_linux then
       tokenRefreshCommand = "dev aws login",
       thinking = {
         enabled = true,
-        effort = "max"
+        effort = "low"
       }
     },
     {
@@ -27,7 +27,7 @@ if is_linux then
       authType = "max",
       thinking = {
         enabled = true,
-        effort = "max"
+        effort = "low"
       }
     }
   }
@@ -41,7 +41,7 @@ else
       authType = "max",
       thinking = {
         enabled = true,
-        effort = "max"
+        effort = "low"
       }
     },
     {
@@ -56,7 +56,7 @@ else
       tokenRefreshCommand = "aws sso login --profile dev.ai-inference",
       thinking = {
         enabled = true,
-        effort = "max"
+        effort = "low"
       }
     },
   }

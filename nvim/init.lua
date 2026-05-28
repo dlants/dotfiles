@@ -200,13 +200,13 @@ vim.api.nvim_create_autocmd("BufWritePost", {
   end,
 })
 
--- Escalating pane navigation: neovim splits → tmux panes → macOS windows.
--- Falls through to the pane-nav helper script when at the edge of nvim splits.
+-- Pane navigation: neovim splits → tmux panes (no further escalation;
+-- cross-window navigation is handled by AeroSpace via super-hjkl).
 local function pane_navigate(wincmd, tmux_dir)
   local cur_win = vim.api.nvim_get_current_win()
   vim.cmd("wincmd " .. wincmd)
   if cur_win == vim.api.nvim_get_current_win() then
-    vim.fn.jobstart({ "pane-nav", tmux_dir }, { detach = true })
+    vim.fn.jobstart({ "tmux", "select-pane", "-" .. tmux_dir }, { detach = true })
   end
 end
 

@@ -15,123 +15,269 @@ end)
 hs.alert.show("Config loaded")
 
 
--- Window management helpers
-local TOLERANCE = 20
 
-local function isApprox(a, b)
-  return math.abs(a - b) <= TOLERANCE
+-- Stateless window management.
+--
+-- Move keys (cmd-shift-h / cmd-shift-l) reposition the focused window
+-- through half-slots across all monitors (mon0-left, mon0-right,
+-- mon1-left, ...). Full windows step between whole monitors.
+--
+-- Focus keys (cmd-h / cmd-l) walk all windows on the current space
+-- sorted by on-screen position (top-left, then bottom-right).
+--
+-- Size toggle (cmd-shift-k) flips between half and full on whichever
+-- monitor the window currently occupies.
+
+local function physicalScreensLeftToRight()
+  local screens = {}
+  for _, s in ipairs(hs.screen.allScreens()) do table.insert(screens, s) end
+  table.sort(screens, function(a, b) return a:frame().x < b:frame().x end)
+  return screens
 end
 
-local function isLeftHalf(win, screen)
+local function halfSlots(physScreens)
+  local slots = {}
+  for _, ps in ipairs(physScreens) do
+    local sf = ps:frame()
+    table.insert(slots, { x = sf.x, y = sf.y, w = sf.w / 2, h = sf.h })
+    table.insert(slots, { x = sf.x + sf.w / 2, y = sf.y, w = sf.w / 2, h = sf.h })
+  end
+  return slots
+end
+
+local function windowMonitorIndex(win, physScreens)
   local f = win:frame()
-  local s = screen:frame()
-  return isApprox(f.x, s.x) and isApprox(f.y, s.y) and isApprox(f.w, s.w / 2) and isApprox(f.h, s.h)
+  local cx = f.x + f.w / 2
+  local cy = f.y + f.h / 2
+  for i, ps in ipairs(physScreens) do
+    local sf = ps:frame()
+    if cx >= sf.x and cx < sf.x + sf.w and cy >= sf.y and cy < sf.y + sf.h then
+      return i
+    end
+  end
+  return 1
 end
 
-local function isRightHalf(win, screen)
+local function classifyWindow(win, physScreens)
   local f = win:frame()
-  local s = screen:frame()
-  return isApprox(f.x, s.x + s.w / 2) and isApprox(f.y, s.y) and isApprox(f.w, s.w / 2) and isApprox(f.h, s.h)
+  local idx = windowMonitorIndex(win, physScreens)
+  local sf = physScreens[idx]:frame()
+  if f.w > sf.w * 0.75 then return "full", idx end
+  if (f.x + f.w / 2) > (sf.x + sf.w / 2) then return "right", idx end
+  return "left", idx
 end
 
-local function moveToLeftHalf(win, screen)
-  win:moveToScreen(screen)
-  local s = screen:frame()
-  win:setFrame({ x = s.x, y = s.y, w = s.w / 2, h = s.h })
+local function setWindowFrame(win, frame)
+  if win:isMinimized() then return end
+  win:setFrame(frame)
 end
 
-local function moveToRightHalf(win, screen)
-  win:moveToScreen(screen)
-  local s = screen:frame()
-  win:setFrame({ x = s.x + s.w / 2, y = s.y, w = s.w / 2, h = s.h })
-end
-
-hs.hotkey.bind({ "cmd", "alt" }, "h", function()
+local function moveFocusedWindow(direction)
   local win = hs.window.focusedWindow()
-  if not win then return end
+  if not win or not win:isStandard() then return end
+  local physScreens = physicalScreensLeftToRight()
+  local N = #physScreens
+  if N == 0 then return end
+  local kind, monIdx = classifyWindow(win, physScreens)
 
-  local currentScreen = win:screen()
-  local westScreen = currentScreen:toWest()
-
-  if isLeftHalf(win, currentScreen) and westScreen then
-    moveToRightHalf(win, westScreen)
-  else
-    moveToLeftHalf(win, currentScreen)
-  end
-end)
-
-hs.hotkey.bind({ "cmd", "alt" }, "l", function()
-  local win = hs.window.focusedWindow()
-  if not win then return end
-
-  local currentScreen = win:screen()
-  local eastScreen = currentScreen:toEast()
-
-  if isRightHalf(win, currentScreen) and eastScreen then
-    moveToLeftHalf(win, eastScreen)
-  else
-    moveToRightHalf(win, currentScreen)
-  end
-end)
-
-hs.hotkey.bind({ "cmd", "alt" }, "k", function()
-  local win = hs.window.focusedWindow()
-  if win then
-    local screen = win:screen():frame()
-    win:setFrame({ x = screen.x, y = screen.y, w = screen.w, h = screen.h })
-  end
-end)
-
--- Move focused window to a specific Mission Control space (and follow it).
--- hs.spaces.moveWindowToSpace is broken on macOS Sequoia, so we simulate a
--- title-bar drag while switching spaces — macOS carries the window with us.
-local function moveCurrentWindowToSpace(n)
-  local win = hs.window.focusedWindow()
-  if not win then return end
-  local screen = win:screen()
-  local spaces = hs.spaces.spacesForScreen(screen)
-  if not (spaces and spaces[n]) then
-    hs.alert.show("No desktop " .. n)
+  if kind == "full" then
+    local sf = physScreens[monIdx]:frame()
+    if direction == "left" then
+      setWindowFrame(win, { x = sf.x, y = sf.y, w = sf.w / 2, h = sf.h })
+    else
+      setWindowFrame(win, { x = sf.x + sf.w / 2, y = sf.y, w = sf.w / 2, h = sf.h })
+    end
     return
   end
 
-  local zoom = win:zoomButtonRect()
-  if not zoom then return end
-  local clickPoint = {
-    x = zoom.x + zoom.w + 40,
-    y = zoom.y + zoom.h / 2,
-  }
-
-  local mouseOrigin = hs.mouse.absolutePosition()
-  hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseDown, clickPoint):post()
-  hs.timer.usleep(50000)
-  hs.spaces.gotoSpace(spaces[n])
-  hs.timer.doAfter(0.6, function()
-    hs.eventtap.event.newMouseEvent(hs.eventtap.event.types.leftMouseUp, clickPoint):post()
-    hs.mouse.absolutePosition(mouseOrigin)
-  end)
+  local slots = halfSlots(physScreens)
+  local curSlotIdx = (monIdx - 1) * 2 + (kind == "left" and 1 or 2)
+  local target = curSlotIdx + (direction == "right" and 1 or -1)
+  if target < 1 or target > #slots then return end
+  setWindowFrame(win, slots[target])
 end
 
-hs.hotkey.bind({ "cmd", "shift" }, "1", function() moveCurrentWindowToSpace(1) end)
-hs.hotkey.bind({ "cmd", "shift" }, "2", function() moveCurrentWindowToSpace(2) end)
--- Fuzzy matching function
-local function fuzzyMatch(str, pattern)
-  if pattern == "" then return true end
+local function toggleSize()
+  local win = hs.window.focusedWindow()
+  if not win or not win:isStandard() then return end
+  local physScreens = physicalScreensLeftToRight()
+  local kind, monIdx = classifyWindow(win, physScreens)
+  local sf = physScreens[monIdx]:frame()
+  if kind == "full" then
+    setWindowFrame(win, { x = sf.x, y = sf.y, w = sf.w / 2, h = sf.h })
+  else
+    setWindowFrame(win, { x = sf.x, y = sf.y, w = sf.w, h = sf.h })
+  end
+end
 
-  local strLower = string.lower(str)
-  local patternLower = string.lower(pattern)
+local function slotRect(physScreen, side)
+  local sf = physScreen:frame()
+  if side == "left" then
+    return { x = sf.x, y = sf.y, w = sf.w / 2, h = sf.h }
+  end
+  return { x = sf.x + sf.w / 2, y = sf.y, w = sf.w / 2, h = sf.h }
+end
 
-  local strIdx = 1
-  local patternIdx = 1
+local function frameOverlapsRect(f, r)
+  local x1 = math.max(f.x, r.x)
+  local y1 = math.max(f.y, r.y)
+  local x2 = math.min(f.x + f.w, r.x + r.w)
+  local y2 = math.min(f.y + f.h, r.y + r.h)
+  if x2 <= x1 or y2 <= y1 then return false end
+  return (x2 - x1) * (y2 - y1) > (r.w * r.h * 0.4)
+end
 
-  while strIdx <= #strLower and patternIdx <= #patternLower do
-    if string.sub(strLower, strIdx, strIdx) == string.sub(patternLower, patternIdx, patternIdx) then
-      patternIdx = patternIdx + 1
+local function windowsInSlot(physScreens, monIdx, side, onSpace)
+  local rect = slotRect(physScreens[monIdx], side)
+  local result = {}
+  for _, w in ipairs(hs.window.orderedWindows()) do
+    if onSpace[w:id()] and w:isStandard() and not w:isMinimized()
+        and frameOverlapsRect(w:frame(), rect) then
+      table.insert(result, w)
     end
-    strIdx = strIdx + 1
+  end
+  return result
+end
+
+-- Focus model: each slot is (monitor, side). Moving right from a left
+-- half goes to the right half of the same monitor; from a right half
+-- crosses to the left half of the next monitor. Full windows are treated
+-- as occupying the side matching the move direction. Past the outermost
+-- edge, we cycle through stacked windows on the current side.
+local function focusNeighbor(direction)
+  local win = hs.window.focusedWindow()
+  if not win or not win:isStandard() then return end
+  local physScreens = physicalScreensLeftToRight()
+  local N = #physScreens
+  if N == 0 then return end
+
+  local spaceId = hs.spaces.focusedSpace()
+  if not spaceId then return end
+  local onSpace = {}
+  for _, id in ipairs(hs.spaces.windowsForSpace(spaceId) or {}) do onSpace[id] = true end
+
+  local kind, monIdx = classifyWindow(win, physScreens)
+  local curSide
+  if kind == "full" then
+    curSide = (direction == "right") and "right" or "left"
+  else
+    curSide = kind
   end
 
-  return patternIdx > #patternLower
+  local targetMon, targetSide
+  if direction == "right" then
+    if curSide == "left" then
+      targetMon, targetSide = monIdx, "right"
+    elseif monIdx < N then
+      targetMon, targetSide = monIdx + 1, "left"
+    else
+      targetMon, targetSide = monIdx, "right"
+    end
+  else
+    if curSide == "right" then
+      targetMon, targetSide = monIdx, "left"
+    elseif monIdx > 1 then
+      targetMon, targetSide = monIdx - 1, "right"
+    else
+      targetMon, targetSide = monIdx, "left"
+    end
+  end
+
+  local candidates = windowsInSlot(physScreens, targetMon, targetSide, onSpace)
+  if #candidates == 0 then return end
+
+  local sameSlot = (targetMon == monIdx and targetSide == curSide)
+  if sameSlot then
+    for i, w in ipairs(candidates) do
+      if w:id() == win:id() then
+        candidates[(i % #candidates) + 1]:focus()
+        return
+      end
+    end
+    candidates[1]:focus()
+    return
+  end
+
+  for _, w in ipairs(candidates) do
+    if w:id() ~= win:id() then
+      w:focus()
+      return
+    end
+  end
+end
+
+hs.hotkey.bind({ "cmd" }, "h", function() focusNeighbor("left") end)
+hs.hotkey.bind({ "cmd" }, "l", function() focusNeighbor("right") end)
+hs.hotkey.bind({ "cmd", "shift" }, "h", function() moveFocusedWindow("left") end)
+hs.hotkey.bind({ "cmd", "shift" }, "l", function() moveFocusedWindow("right") end)
+hs.hotkey.bind({ "cmd", "shift" }, "k", toggleSize)
+
+-- Fuzzy scoring (Forrest Smith-style). Returns a numeric score, or nil if
+-- the pattern's chars don't all appear in `target` in order.
+local FUZZY_FIRST_LETTER = 15
+local FUZZY_SEPARATOR = 30
+local FUZZY_CAMEL = 30
+local FUZZY_SEQUENTIAL = 15
+local FUZZY_LEADING = -5
+local FUZZY_LEADING_MAX = -15
+local FUZZY_UNMATCHED = -1
+
+local function isFuzzySeparator(c)
+  return c == " " or c == "_" or c == "-" or c == "." or c == "/"
+end
+
+local function fuzzyScore(target, pattern)
+  if pattern == nil or pattern == "" then return 0 end
+  if target == nil or target == "" then return nil end
+  local tLen = #target
+  local pLen = #pattern
+  if pLen > tLen then return nil end
+
+  local tLower = target:lower()
+  local pLower = pattern:lower()
+
+  local score = 0
+  local pIdx = 1
+  local prevMatched = false
+  local prevLower = false
+  local prevSeparator = true
+  local firstMatchIdx = nil
+
+  for tIdx = 1, tLen do
+    local rawT = target:sub(tIdx, tIdx)
+    local tChar = tLower:sub(tIdx, tIdx)
+    local matched = false
+
+    if pIdx <= pLen and tChar == pLower:sub(pIdx, pIdx) then
+      matched = true
+      if not firstMatchIdx then
+        firstMatchIdx = tIdx
+        score = score + math.max(FUZZY_LEADING_MAX, FUZZY_LEADING * (tIdx - 1))
+      end
+      if tIdx == 1 then score = score + FUZZY_FIRST_LETTER end
+      if prevSeparator then score = score + FUZZY_SEPARATOR end
+      if prevLower and rawT >= "A" and rawT <= "Z" then score = score + FUZZY_CAMEL end
+      if prevMatched then score = score + FUZZY_SEQUENTIAL end
+      pIdx = pIdx + 1
+    elseif firstMatchIdx then
+      score = score + FUZZY_UNMATCHED
+    end
+
+    prevMatched = matched
+    prevLower = rawT >= "a" and rawT <= "z"
+    prevSeparator = isFuzzySeparator(tChar)
+  end
+
+  if pIdx <= pLen then return nil end
+  return score
+end
+
+local function fuzzyScoreFields(text, subText, query)
+  local s = fuzzyScore(text, query)
+  if s ~= nil then return s end
+  local sub = fuzzyScore(subText, query)
+  if sub ~= nil then return sub - 20 end
+  return nil
 end
 
 -- Track tab focus times for sorting
@@ -160,14 +306,22 @@ ghosttyChooser:queryChangedCallback(function(query)
     return
   end
 
-  local filtered = {}
+  local scored = {}
   for _, choice in ipairs(allGhosttyTabs) do
-    local searchText = choice.text .. " " .. choice.subText
-    if fuzzyMatch(searchText, query) then
-      table.insert(filtered, choice)
+    local s = fuzzyScoreFields(choice.text, choice.subText, query)
+    if s then
+      table.insert(scored, { choice = choice, score = s })
     end
   end
+  table.sort(scored, function(a, b)
+    if a.score ~= b.score then return a.score > b.score end
+    return (a.choice.focusTime or 0) > (b.choice.focusTime or 0)
+  end)
 
+  local filtered = {}
+  for _, item in ipairs(scored) do
+    table.insert(filtered, item.choice)
+  end
   ghosttyChooser:choices(filtered)
 end)
 
@@ -402,170 +556,6 @@ function selectGhosttyTab(windowId, tabIndex)
   end
 end
 
--- Window switching across visible (and minimized) windows on the current space.
--- Called from scripts/pane-nav via `hs -c "switchWindow('left'|'right')"`.
--- Cycles through visible windows sorted by their left x-coord; when at the edge,
--- starts unminimizing windows on the same space so they re-enter the cycle.
-
-local function windowSortKey(a, b)
-  local fa, fb = a:frame(), b:frame()
-  if math.abs(fa.x - fb.x) > 1 then return fa.x < fb.x end
-  return fa.y < fb.y
-end
-
-function switchWindow(direction)
-  local currentSpace = hs.spaces.focusedSpace()
-  if not currentSpace then return end
-
-  -- One fast call instead of hs.spaces.windowSpaces(win) per window.
-  local idsOnSpace = {}
-  for _, id in ipairs(hs.spaces.windowsForSpace(currentSpace) or {}) do
-    idsOnSpace[id] = true
-  end
-
-  -- Single pass through allWindows. Categorize by visible vs minimized,
-  -- and track which apps have a visible window on this space (used to
-  -- claim minimized windows whose space membership is unreliable).
-  local visible = {}
-  local minimizedOnSpace = {}
-  local minimizedMaybe = {}
-  local appsOnSpace = {}
-  for _, win in ipairs(hs.window.allWindows()) do
-    if win:isStandard() then
-      local onSpace = idsOnSpace[win:id()]
-      if win:isMinimized() then
-        if onSpace then
-          table.insert(minimizedOnSpace, win)
-        else
-          table.insert(minimizedMaybe, win)
-        end
-      elseif onSpace then
-        table.insert(visible, win)
-        local app = win:application()
-        if app then appsOnSpace[app:pid()] = true end
-      end
-    end
-  end
-
-  local minimized = minimizedOnSpace
-  for _, win in ipairs(minimizedMaybe) do
-    local app = win:application()
-    if app and appsOnSpace[app:pid()] then
-      table.insert(minimized, win)
-    end
-  end
-
-  table.sort(visible, windowSortKey)
-  table.sort(minimized, windowSortKey)
-
-  local focused = hs.window.focusedWindow()
-  local currentIdx = nil
-  if focused then
-    for i, w in ipairs(visible) do
-      if w:id() == focused:id() then currentIdx = i; break end
-    end
-  end
-
-  local function restoreMinimized(pickLast)
-    if #minimized == 0 then return false end
-    local target = pickLast and minimized[#minimized] or minimized[1]
-    target:unminimize()
-    target:focus()
-    return true
-  end
-
-  if direction == "left" then
-    if currentIdx and currentIdx > 1 then
-      visible[currentIdx - 1]:focus()
-    elseif not currentIdx and #visible > 0 then
-      visible[#visible]:focus()
-    else
-      restoreMinimized(true)
-    end
-  elseif direction == "right" then
-    if currentIdx and currentIdx < #visible then
-      visible[currentIdx + 1]:focus()
-    elseif not currentIdx and #visible > 0 then
-      visible[1]:focus()
-    else
-      restoreMinimized(false)
-    end
-  end
-end
-
--- Global C-h / C-l for switching between macOS windows.
--- Skips Ghostty so tmux/nvim can handle it locally and escalate back
--- via pane-nav when at the edge.
-local paneNavKeyTap
-paneNavKeyTap = hs.eventtap.new({ hs.eventtap.event.types.keyDown }, function(e)
-  local flags = e:getFlags()
-  if not flags.ctrl or flags.cmd or flags.alt or flags.shift or flags.fn then
-    return false
-  end
-  local key = hs.keycodes.map[e:getKeyCode()]
-  if key ~= "h" and key ~= "l" then
-    return false
-  end
-  local app = hs.application.frontmostApplication()
-  if app and app:name() == "Ghostty" then
-    return false
-  end
-  -- Defer so the callback returns immediately; macOS kills slow taps.
-  hs.timer.doAfter(0, function()
-    switchWindow(key == "h" and "left" or "right")
-  end)
-  return true
-end)
-paneNavKeyTap:start()
-
--- If macOS disables the tap (slow callback, sleep, etc.), re-enable it.
-hs.timer.doEvery(5, function()
-  if paneNavKeyTap and not paneNavKeyTap:isEnabled() then
-    paneNavKeyTap:start()
-  end
-end)
--- Pane-nav signal bridge for dev containers. The container's pane-nav script
--- can't call the `hs` CLI, so it appends tokens ("left"/"right") to a file
--- under the shared mount. We track the last byte we read so reloads don't
--- replay history, and reset to 0 if the file shrinks (was truncated).
-local paneNavSignalFile = os.getenv("HOME") .. "/dev-in-docker-shared-files/pane-nav-signal"
-local paneNavLastPos = 0
-do
-  local attrs = hs.fs.attributes(paneNavSignalFile)
-  if attrs then paneNavLastPos = attrs.size end
-end
-
-local function processPaneNavSignal()
-  local attrs = hs.fs.attributes(paneNavSignalFile)
-  if not attrs then return end
-  if attrs.size < paneNavLastPos then paneNavLastPos = 0 end
-  local f = io.open(paneNavSignalFile, "r")
-  if not f then return end
-  f:seek("set", paneNavLastPos)
-  for line in f:lines() do
-    local token = line:match("(%S+)")
-    if token == "left" or token == "right" then
-      switchWindow(token)
-    end
-  end
-  paneNavLastPos = f:seek()
-  f:close()
-end
-
-local paneNavWatcher
-do
-  local dir = os.getenv("HOME") .. "/dev-in-docker-shared-files"
-  if hs.fs.attributes(dir) then
-    paneNavWatcher = hs.pathwatcher.new(dir, function(paths)
-      for _, p in ipairs(paths) do
-        if p:match("pane%-nav%-signal$") then
-          processPaneNavSignal()
-          return
-        end
-      end
-    end):start()
-  end
-end
 
 -- Command palette
 local function handleApp(name)
@@ -604,8 +594,40 @@ local function handleAppOnCurrentDesktop(name)
   hs.application.launchOrFocus(name)
 end
 
-local function handleGhostty()
-  handleAppOnCurrentDesktop("Ghostty")
+local function userSpacesOnPrimary()
+  local primary = hs.screen.primaryScreen()
+  if not primary then return {} end
+  local all = hs.spaces.allSpaces() or {}
+  local list = all[primary:getUUID()] or {}
+  local result = {}
+  for _, sid in ipairs(list) do
+    if hs.spaces.spaceType(sid) == "user" then table.insert(result, sid) end
+  end
+  return result
+end
+
+local function handleGhosttyOnDesktop(index)
+  local spaces = userSpacesOnPrimary()
+  local target = spaces[index]
+  local ghostty = hs.application.find("Ghostty")
+
+  if target and ghostty then
+    for _, win in ipairs(ghostty:allWindows()) do
+      for _, sp in ipairs(hs.spaces.windowSpaces(win) or {}) do
+        if sp == target then
+          hs.spaces.gotoSpace(target)
+          if win:isMinimized() then win:unminimize() end
+          win:focus()
+          return
+        end
+      end
+    end
+  end
+
+  if target then hs.spaces.gotoSpace(target) end
+  hs.timer.doAfter(target and 0.3 or 0, function()
+    hs.application.launchOrFocus("Ghostty")
+  end)
 end
 
 local function openSpotlight()
@@ -616,11 +638,23 @@ local function openInChrome(url)
   hs.task.new("/usr/bin/open", nil, { "-a", "Google Chrome", url }):start()
 end
 
+local function plusEncode(s)
+  if not s then return "" end
+  s = s:gsub("([^%w%-%._~ ])", function(c) return string.format("%%%02X", string.byte(c)) end)
+  s = s:gsub(" ", "+")
+  return s
+end
+
 local commandPaletteItems = {
   {
-    text = "ghostty",
-    subText = "Ghostty on current desktop",
-    handler = handleGhostty,
+    text = "ghostty1",
+    subText = "Ghostty on Desktop 1",
+    handler = function() handleGhosttyOnDesktop(1) end,
+  },
+  {
+    text = "ghostty2",
+    subText = "Ghostty on Desktop 2",
+    handler = function() handleGhosttyOnDesktop(2) end,
   },
   {
     text = "slack",
@@ -663,9 +697,13 @@ local commandPaletteItems = {
     handler = function() openInChrome("https://github.com/benchling/infra/pulls") end,
   },
   {
-    text = "confluence",
-    subText = "Search Confluence",
-    handler = function() openInChrome("https://benchling.atlassian.net/wiki/search?text=") end,
+    text = "conf",
+    subText = "Search Confluence (space + query)",
+    handler = function(arg)
+      local url = "https://benchling.atlassian.net/wiki/search?text="
+      if arg and arg ~= "" then url = url .. plusEncode(arg) end
+      openInChrome(url)
+    end,
   },
   {
     text = "jira",
@@ -674,46 +712,216 @@ local commandPaletteItems = {
   },
 }
 
+-- Scan for installed applications via mdfind (Spotlight backend)
+local function scanApps()
+  local apps = {}
+  local handle = io.popen("mdfind -onlyin /Applications -onlyin /System/Applications \"kMDItemKind == 'Application'\"")
+  if not handle then return apps end
+  for line in handle:lines() do
+    local name = line:match("([^/]+)%.app$")
+    if name then
+      table.insert(apps, {
+        text = name,
+        subText = "App: " .. line,
+        appPath = line,
+      })
+    end
+  end
+  handle:close()
+  table.sort(apps, function(a, b) return a.text:lower() < b.text:lower() end)
+  return apps
+end
+
+local appChoices = scanApps()
+
+local function openAppPath(path)
+  hs.task.new("/usr/bin/open", nil, { path }):start()
+end
+
+-- Running-app set, refreshed when the command palette is shown.
+local runningAppNames = {}
+local function refreshRunningApps()
+  runningAppNames = {}
+  for _, app in ipairs(hs.application.runningApplications()) do
+    local title = app:title()
+    if title then runningAppNames[title:lower()] = true end
+  end
+end
+
+-- Persisted recency (item text -> unix timestamp of last selection).
+local COMMAND_PALETTE_RECENCY_KEY = "commandPaletteRecency"
+local recencyData = hs.settings.get(COMMAND_PALETTE_RECENCY_KEY) or {}
+
+local function recordCommandPaletteSelection(text)
+  if not text then return end
+  recencyData[text:lower()] = os.time()
+  hs.settings.set(COMMAND_PALETTE_RECENCY_KEY, recencyData)
+end
+
+local RECENCY_BOOST_MAX = 60
+local RECENCY_HALF_LIFE = 60 * 60 * 24 -- 1 day
+local RUNNING_BOOST = 25
+
+local function recencyBoost(text)
+  local ts = recencyData[text:lower()]
+  if not ts then return 0 end
+  local age = os.time() - ts
+  if age < 0 then age = 0 end
+  return RECENCY_BOOST_MAX * math.exp(-age * math.log(2) / RECENCY_HALF_LIFE)
+end
+
+local function commandPaletteBoosts(choice)
+  local boost = recencyBoost(choice.text)
+  if runningAppNames[choice.text:lower()] then
+    boost = boost + RUNNING_BOOST
+  end
+  return boost
+end
+
 local function buildCommandPaletteChoices()
   local choices = {}
+  local seen = {}
   for i, item in ipairs(commandPaletteItems) do
+    seen[item.text:lower()] = true
     table.insert(choices, {
       text = item.text,
       subText = item.subText,
       itemIndex = i,
     })
   end
+  for _, app in ipairs(appChoices) do
+    if not seen[app.text:lower()] then
+      table.insert(choices, {
+        text = app.text,
+        subText = app.subText,
+        appPath = app.appPath,
+      })
+    end
+  end
   return choices
 end
 
 local commandPaletteChooser = hs.chooser.new(function(choice)
   if not choice then return end
+  recordCommandPaletteSelection(choice.text)
+  if choice.appPath then
+    openAppPath(choice.appPath)
+    return
+  end
   local item = commandPaletteItems[choice.itemIndex]
   if item then
-    item.handler()
+    item.handler(choice.arg)
   end
 end)
 
-commandPaletteChooser:queryChangedCallback(function(query)
-  local allChoices = buildCommandPaletteChoices()
-  if query == "" then
-    commandPaletteChooser:choices(allChoices)
+-- When the user types a space, lock the chooser to the currently-selected
+-- item so the rest of the query is passed as an argument to that item's
+-- handler instead of re-filtering. Cleared on palette reopen.
+local commandPaletteLocked = nil
+
+local function refreshCommandPaletteChoices(query)
+  local spaceIdx = query and query:find(" ", 1, true)
+  if spaceIdx then
+    if not commandPaletteLocked then
+      local current = commandPaletteChooser:selectedRowContents()
+      if current and next(current) ~= nil then
+        commandPaletteLocked = current
+      end
+    end
+    if commandPaletteLocked then
+      local arg = query:sub(spaceIdx + 1)
+      local origSub = commandPaletteLocked.subText or ""
+      local preview = {
+        text = commandPaletteLocked.text,
+        subText = arg == "" and origSub or (origSub .. " — " .. arg),
+        itemIndex = commandPaletteLocked.itemIndex,
+        appPath = commandPaletteLocked.appPath,
+        arg = arg,
+      }
+      commandPaletteChooser:choices({ preview })
+    else
+      commandPaletteChooser:choices({})
+    end
     return
   end
 
-  local filtered = {}
-  for _, choice in ipairs(allChoices) do
-    if fuzzyMatch(choice.text .. " " .. choice.subText, query) then
-      table.insert(filtered, choice)
+  commandPaletteLocked = nil
+  local allChoices = buildCommandPaletteChoices()
+  if query == nil or query == "" then
+    local sorted = {}
+    for i, c in ipairs(allChoices) do
+      table.insert(sorted, { choice = c, boost = commandPaletteBoosts(c), origIdx = i })
+    end
+    table.sort(sorted, function(a, b)
+      if a.boost ~= b.boost then return a.boost > b.boost end
+      return a.origIdx < b.origIdx
+    end)
+    local out = {}
+    for _, item in ipairs(sorted) do table.insert(out, item.choice) end
+    commandPaletteChooser:choices(out)
+    return
+  end
+
+  local scored = {}
+  for i, choice in ipairs(allChoices) do
+    local s = fuzzyScoreFields(choice.text, choice.subText, query)
+    if s then
+      table.insert(scored, {
+        choice = choice,
+        score = s + commandPaletteBoosts(choice),
+        origIdx = i,
+      })
     end
   end
+  table.sort(scored, function(a, b)
+    if a.score ~= b.score then return a.score > b.score end
+    return a.origIdx < b.origIdx
+  end)
+  local filtered = {}
+  for _, item in ipairs(scored) do table.insert(filtered, item.choice) end
   commandPaletteChooser:choices(filtered)
-end)
+end
+
+commandPaletteChooser:queryChangedCallback(refreshCommandPaletteChoices)
 
 hs.hotkey.bind({ "cmd" }, "space", function()
-  commandPaletteChooser:choices(buildCommandPaletteChoices())
+  refreshRunningApps()
+  commandPaletteLocked = nil
+  refreshCommandPaletteChoices("")
   commandPaletteChooser:show()
 end)
+
+-- ctrl-j / ctrl-k navigate any open chooser; pass through otherwise.
+local function visibleChooser()
+  if commandPaletteChooser and commandPaletteChooser:isVisible() then
+    return commandPaletteChooser
+  end
+  if ghosttyChooser and ghosttyChooser:isVisible() then
+    return ghosttyChooser
+  end
+  return nil
+end
+
+local function chooserMove(chooser, delta)
+  local current = chooser:selectedRow() or 1
+  local target = current + delta
+  if target < 1 then return end
+  local contents = chooser:selectedRowContents(target)
+  if not contents or next(contents) == nil then return end
+  chooser:selectedRow(target)
+end
+
+local chooserNavTap = hs.eventtap.new({ hs.eventtap.event.types.keyDown }, function(e)
+  local flags = e:getFlags()
+  if not flags.ctrl or flags.cmd or flags.alt or flags.shift then return false end
+  local key = hs.keycodes.map[e:getKeyCode()]
+  if key ~= "j" and key ~= "k" then return false end
+  local chooser = visibleChooser()
+  if not chooser then return false end
+  chooserMove(chooser, key == "j" and 1 or -1)
+  return true
+end)
+chooserNavTap:start()
 
 -- Drag lock: F19 toggles left mouse button held state.
 -- ESC or right/middle click also releases.
