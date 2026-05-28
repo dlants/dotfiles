@@ -13,39 +13,17 @@ When creating a plan for a complex task, follow a structured approach:
 
 ## Learning Phase
 
-Before writing the plan, you may need to learn about relevant parts of the codebase. Follow this learning process:
+Before writing the plan, ground yourself in the project as it actually is rather than guessing about the shape of things.
 
-- Identify all functions, objects and types needed for the task
-- List all entities by name
-- Explicitly state: "X, Y and Z seem relevant. I will try and learn about them."
-- Use the hover tool on each entity to see its signature and declaration location
-- If the signature is ambiguous or insufficient, look at the declaration
-- Repeat until you have learned about all relevant interfaces
-
-### Learning Phase Example
-
-The following example demonstrates the learning process:
-
-```
-user: learn about how to implement feature X in the code
-assistant: myFunction1 and myFunction2 seem relevant. I will try to
-           learn about them.
-[uses hover tool on myFunction1 - shows it's a function in myFile
- that accepts an opaque MyType argument]
-[uses hover tool on myFunction2]
-[since myFile is not part of the context, uses get_file to look at
- myFile to see full function implementation and where MyType is
- imported from]
-MyType seems relevant. I will try to learn about it.
-[uses hover on MyType]
-[... and so on, until all relevant interfaces have been gathered ...]
-```
+- Identify all the relevant interfaces, types, functions, and APIs the task touches.
+- Verify the actual signatures and declarations — don't assume. Use the hover tool and read the real definitions in the codebase.
+- Confirm the installed versions of any packages or libraries involved, and check their real APIs rather than relying on memory.
+- Study similar existing features and follow their patterns.
 
 ## Architecting the Solution
 
 When architecting your solution:
 
-- Study similar features in the codebase and follow their patterns.
 - Prefer simple, minimal data structures over complex ones.
 - In situations where performance isn't critical, prefer an approach that's easier to understand.
 - Focus on getting a clear solution of the core problem first, leaving performance and other considerations until later.
@@ -55,61 +33,86 @@ When architecting your solution:
 
 Write the plan to `plans/YYYY-MM-DD-<planName>.md` (using the current date), then yield to the parent with the location of the plan file.
 
-The plan should have two main sections:
+The goal of the plan is to communicate understanding, not to script out every keystroke. Focus on the parts of the solution that are hard to get right or easy to get wrong. Trust the implementer to figure out the mechanical details (which files to touch, in what order) from a clear description of the design.
 
-Context Section
+A good plan covers:
 
-- Briefly restate the objective
-- Explicitly define key types and interfaces
-- List relevant files with brief descriptions
+### Objective and Context
 
-Implementation Section
+- Capture everything the user has requested verbatim, without rephrasing, summarizing, or modifying it. This preserves the original intent and any details that might otherwise be lost.
+- Then restate, in your own words, what we're trying to accomplish and why.
+- Define the key types, interfaces, and entities involved, and how they relate.
+- List the relevant files with a short note on each one's role.
 
-- Provide concrete, discrete implementation steps
-- For each step, include a testing section with:
-  - Behavior: one-sentence description
-  - Setup: fixtures, custom files, options, mock configuration
-  - Actions: what triggers the behavior under test
-  - Expected output: what the system should produce
-  - Assertions: how correctness is verified
+### High-Level Design
+
+- Describe the algorithm or system at a conceptual level — the shape of the solution, the main components, and how data flows between them.
+- Explain the reasoning behind the approach, and mention alternatives that were considered and rejected.
+- State the invariants the design relies on: properties that must hold before, during, and after the change, assumptions the existing code depends on that the new code must preserve, and edge cases or failure modes that must be accounted for.
+- Keep this implementation-agnostic where possible: describe *what* happens and *why*, not the exact sequence of edits.
+
+### Staged Approach
+
+Break the work into a sequence of stages. Each stage should bring up an independent, self-contained piece of the solution that can be verified on its own before moving on to the next one. Order stages so that each builds on a foundation that has already been proven to work.
+
+For each stage, describe:
+
+- **The stage**: what piece of the solution it brings up.
+- **The goal**: what working capability exists once the stage is complete.
+- **Verification**: how we'll confirm this stage works before moving on. Identify the key behaviors needing coverage and the kind of test that fits each (unit, integration, etc.). For the important cases, sketch:
+  - Behavior: one-sentence description of what's being verified
+  - Setup: fixtures, mocks, or state needed
+  - Actions: what triggers the behavior
+  - Expected outcome: what correctness looks like
+
+At the completion of every stage, verify that the full test suite, type checks, and linting all pass before starting the next stage.
+
+### What to Leave Out
+
+- Don't prescribe an exact, ordered list of file edits unless ordering is genuinely load-bearing.
+- Don't restate code that already exists or that the implementer can easily find.
+- Don't pad the plan with mechanical detail — favor clarity about the tricky parts over completeness about the obvious ones.
 
 The following shows an example plan structure:
 
 ```markdown
-# context
+# Objective and Context
 
-The goal is to implement a new feature [feature description].
+[The user's request, captured verbatim.]
 
-The relevant files and entities are:
-[file 1]: [why is this file relevant]
-[interface]: [why is it relevant]
-[class]: why is it relevant]
-[file 2]: [why is this file relevant]
-... etc...
+[What we're building and why, in your own words.]
 
-# implementation
+[The key types, interfaces, and entities involved, and how they relate.]
 
-- [ ] amend [interface] to include a new field
-      {[fieldname]: [fieldtype]}
-  - check all references of the interface to accommodate the
-    new field
-  - check for type errors and iterate until they pass
-- [ ] write a helper class [class] that performs [function]
-  - write the class
-  - write unit tests for [class]
-    - Behavior: [class] correctly [does X] when given [input]
-    - Setup: create [fixture/mock] with [configuration]
-    - Actions: call [method] with [arguments]
-    - Expected output: [describe expected result]
-    - Assertions: verify [specific conditions]
-  - iterate until tests pass
-- [ ] wire up [class] in the sidebar flow
-  - implement the integration
-  - write integration test for [user flow]
-    - Behavior: user can [do Y] via the [UI]
-    - Setup: initialize [component] with [state/config]
-    - Actions: [trigger user action or event]
-    - Expected output: [describe what the user should see/experience]
-    - Assertions: verify [DOM state / API calls / side effects]
-  - iterate until integration tests pass
+[The relevant files, each with a one-line description of its role.]
+
+# Design
+
+[A high-level description of the algorithm or system. The main components,
+how they interact, and the data flow between them. The reasoning behind the
+approach and any alternatives considered.]
+
+Invariants:
+- [Property that must hold, e.g. "the cache must never return stale entries
+  after an invalidation"]
+- [Assumption the current code depends on that we must preserve]
+- [Edge case the design must handle]
+
+# Stages
+
+## [name of the first independent piece]
+
+- Goal: [what works once this stage is done]
+- Verification:
+  - Behavior: [what is being verified]
+  - Setup: [fixtures / mocks / state]
+  - Actions: [what triggers it]
+  - Expected outcome: [what correctness looks like]
+- Before moving on: confirm tests, type checks, and linting all pass.
+
+## [name of the next piece, building on the previous one]
+
+- Goal: [...]
+- Verification: [...]
+- Before moving on: confirm tests, type checks, and linting all pass.
 ```
