@@ -139,11 +139,10 @@ local function windowsInSlot(physScreens, monIdx, side, onSpace)
   return result
 end
 
--- Focus model: each slot is (monitor, side). Moving right from a left
--- half goes to the right half of the same monitor; from a right half
--- crosses to the left half of the next monitor. Full windows are treated
--- as occupying the side matching the move direction. Past the outermost
--- edge, we cycle through stacked windows on the current side.
+-- Focus model: each slot is (monitor, side). Moving in a direction
+-- advances through slots left-to-right (or right-to-left), skipping
+-- empty slots, until we find a window. Past the outermost edge we cycle
+-- through stacked windows on the current side.
 local function focusNeighbor(direction)
   local win = hs.window.focusedWindow()
   if not win or not win:isStandard() then return end
@@ -163,47 +162,33 @@ local function focusNeighbor(direction)
   else
     curSide = kind
   end
+  local curSlotIdx = (monIdx - 1) * 2 + (curSide == "left" and 1 or 2)
 
-  local targetMon, targetSide
-  if direction == "right" then
-    if curSide == "left" then
-      targetMon, targetSide = monIdx, "right"
-    elseif monIdx < N then
-      targetMon, targetSide = monIdx + 1, "left"
-    else
-      targetMon, targetSide = monIdx, "right"
-    end
-  else
-    if curSide == "right" then
-      targetMon, targetSide = monIdx, "left"
-    elseif monIdx > 1 then
-      targetMon, targetSide = monIdx - 1, "right"
-    else
-      targetMon, targetSide = monIdx, "left"
-    end
-  end
-
-  local candidates = windowsInSlot(physScreens, targetMon, targetSide, onSpace)
-  if #candidates == 0 then return end
-
-  local sameSlot = (targetMon == monIdx and targetSide == curSide)
-  if sameSlot then
-    for i, w in ipairs(candidates) do
-      if w:id() == win:id() then
-        candidates[(i % #candidates) + 1]:focus()
+  local step = (direction == "right") and 1 or -1
+  local total = 2 * N
+  local t = curSlotIdx + step
+  while t >= 1 and t <= total do
+    local m = math.floor((t - 1) / 2) + 1
+    local s = (((t - 1) % 2) == 0) and "left" or "right"
+    local cands = windowsInSlot(physScreens, m, s, onSpace)
+    for _, w in ipairs(cands) do
+      if w:id() ~= win:id() then
+        w:focus()
         return
       end
     end
-    candidates[1]:focus()
-    return
+    t = t + step
   end
 
-  for _, w in ipairs(candidates) do
-    if w:id() ~= win:id() then
-      w:focus()
+  local cands = windowsInSlot(physScreens, monIdx, curSide, onSpace)
+  if #cands == 0 then return end
+  for i, w in ipairs(cands) do
+    if w:id() == win:id() then
+      cands[(i % #cands) + 1]:focus()
       return
     end
   end
+  cands[1]:focus()
 end
 
 hs.hotkey.bind({ "cmd" }, "h", function() focusNeighbor("left") end)
