@@ -13,7 +13,11 @@ alias rm='rm -I'
 fish_vi_key_bindings
 
 function git-clean-branches
-    git branch --merged | grep -E -v "(^\*|master|main|dev)" | xargs git branch -d
+    set -l default_branch (git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+    if test -z "$default_branch"
+        set default_branch main
+    end
+    git branch --merged | grep -E -v "(^\*|master|main|dev|$default_branch)" | xargs -r git branch -d
 end
 
 function fish_title
