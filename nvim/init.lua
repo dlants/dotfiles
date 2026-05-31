@@ -367,13 +367,16 @@ local function gh_browse_run(target, opts)
   if not branch then return end
   local repo = get_repo_name(toplevel)
   if not repo then return end
-  local cmd = "cd " .. vim.fn.shellescape(toplevel) .. " && gh browse "
+  local cmd = "cd " .. vim.fn.shellescape(toplevel) .. " && gh browse --no-browser "
       .. vim.fn.shellescape(target) .. " -b " .. vim.fn.shellescape(branch)
       .. " -R " .. vim.fn.shellescape(repo) .. " 2>&1"
-  local out = vim.fn.system(cmd)
+  local out = vim.trim(vim.fn.system(cmd))
   if vim.v.shell_error ~= 0 then
-    gh_err("gh browse failed: " .. vim.trim(out))
+    gh_err("gh browse failed: " .. out)
+    return
   end
+  local opener = is_linux and "xdg-open" or "open"
+  vim.fn.jobstart({ opener, out }, { detach = true })
 end
 
 local function gh_browse(opts)
