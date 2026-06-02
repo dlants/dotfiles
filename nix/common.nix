@@ -115,14 +115,10 @@
     "starship.toml".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/starship.toml";
   };
 
-  # Magenta skills symlinks (individual per skill, via activation so ordering works with linux clone)
+  # Magenta skills symlinks (skill list defined in ./magenta-skills.nix)
   home.activation.setupMagentaSkills = lib.hm.dag.entryAfter ["writeBoundary"] ''
     mkdir -p "$HOME/.claude/skills"
-    ln -sfn "${dotfilesDir}/magenta-skills/browser" "$HOME/.claude/skills/browser"
-    ln -sfn "${dotfilesDir}/magenta-skills/plan" "$HOME/.claude/skills/plan"
-    ln -sfn "${dotfilesDir}/magenta-skills/search" "$HOME/.claude/skills/search"
-    ln -sfn "${dotfilesDir}/magenta-skills/fetch" "$HOME/.claude/skills/fetch"
-    ln -sfn "${dotfilesDir}/magenta-skills/code-review" "$HOME/.claude/skills/code-review"
+    ${import ./magenta-skills.nix { inherit lib dotfilesDir; }}
   '';
 
   # Prevent rustup from creating a broken fish config (nix manages PATH)
