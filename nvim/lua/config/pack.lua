@@ -13,9 +13,6 @@ end
 vim.api.nvim_create_autocmd("PackChanged", {
   callback = function(ev)
     local name, kind = ev.data.spec.name, ev.data.kind
-    if name == "fzf" and kind == "update" then
-      vim.fn.system({ "sh", "-c", "./install --bin" })
-    end
     if name == "nvim-treesitter" and kind == "update" then
       if not ev.data.active then
         vim.cmd.packadd("nvim-treesitter")
@@ -32,9 +29,7 @@ vim.api.nvim_create_autocmd("PackChanged", {
 vim.pack.add({
   "https://github.com/folke/snacks.nvim",
   "https://github.com/ntpeters/vim-better-whitespace",
-  "https://github.com/junegunn/fzf",
   "https://github.com/nvim-tree/nvim-web-devicons",
-  "https://github.com/ibhagwan/fzf-lua",
   "https://github.com/stevearc/oil.nvim",
   "https://github.com/hoob3rt/lualine.nvim",
   "https://github.com/nvim-lua/plenary.nvim",

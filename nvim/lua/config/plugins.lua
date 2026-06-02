@@ -78,12 +78,7 @@ local snacks_picker = require("snacks").picker
 vim.keymap.set("n", "<leader>F", function()
   local git_root = vim.fn.system('git rev-parse --show-toplevel 2>/dev/null'):gsub('\n', '')
   local cwd = vim.v.shell_error == 0 and git_root or nil
-  snacks_picker.files({
-    hidden = true,
-    ignored = true,
-    follow = true,
-    cwd = cwd,
-  })
+  require("needle").files({ unrestricted = true, cwd = cwd })
 end, { desc = "All files in git root (including gitignored)", silent = true })
 
 vim.keymap.set("n", "<leader>f", function() require("needle").files() end, { desc = "Find files (needle)", silent = true })
