@@ -63,3 +63,29 @@ vim.pack.add({
 if is_linux then
   vim.pack.add({ { src = "https://github.com/dlants/magenta.nvim", name = "magenta" } })
 end
+
+-- :PluginUpdate — fetch + show confirmation buffer for all managed plugins
+vim.api.nvim_create_user_command("PluginUpdate", function()
+  vim.pack.update()
+end, {})
+
+-- :PluginClean — remove installed plugins not added via vim.pack.add() this session
+vim.api.nvim_create_user_command("PluginClean", function()
+  local unused = {}
+  for _, p in ipairs(vim.pack.get()) do
+    if not p.active then
+      table.insert(unused, p.spec.name)
+    end
+  end
+  if #unused == 0 then
+    vim.notify("No unused plugins to clean", vim.log.levels.INFO)
+    return
+  end
+  vim.ui.select({ "yes", "no" }, {
+    prompt = "Delete " .. #unused .. " unused plugin(s): " .. table.concat(unused, ", "),
+  }, function(choice)
+    if choice == "yes" then
+      vim.pack.del(unused)
+    end
+  end)
+end, {})
