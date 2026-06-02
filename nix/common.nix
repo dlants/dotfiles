@@ -122,6 +122,7 @@
     ln -sfn "${dotfilesDir}/magenta-skills/plan" "$HOME/.claude/skills/plan"
     ln -sfn "${dotfilesDir}/magenta-skills/search" "$HOME/.claude/skills/search"
     ln -sfn "${dotfilesDir}/magenta-skills/fetch" "$HOME/.claude/skills/fetch"
+    ln -sfn "${dotfilesDir}/magenta-skills/code-review" "$HOME/.claude/skills/code-review"
   '';
 
   # Prevent rustup from creating a broken fish config (nix manages PATH)
