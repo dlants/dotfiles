@@ -5,15 +5,14 @@
 #   "PyYAML>=6.0",
 # ]
 # ///
-"""Build a code-review prompt for a repo by combining its Copilot review
-instructions (.github/instructions/*.instructions.md and
-.github/copilot-instructions.md) with the files changed between two git
-identifiers.
+"""List the Copilot review instruction files that apply to a changeset.
 
-Path-scoped instruction files are selected the same way Copilot selects them:
-their frontmatter `applyTo` globs are matched against the changed file paths.
-Repository-wide instructions (.github/copilot-instructions.md, or instruction
-files without an `applyTo`) are always included.
+Path-scoped instruction files (.github/instructions/*.instructions.md) are
+selected the same way Copilot selects them: their frontmatter \`applyTo\` globs
+are matched against the changed file paths. Repository-wide instructions
+(.github/copilot-instructions.md) are always included.
+
+Prints, one per line, the absolute path of each applicable instruction file.
 """
 from __future__ import annotations
 
@@ -62,10 +61,8 @@ def changed_paths(repo: Path, start: str, stop: str | None) -> list[str]:
         out = git(repo, "diff", "--name-only", f"{start}..{stop}")
         paths.update(line for line in out.splitlines() if line)
     else:
-        # start -> working tree, covers committed + staged + unstaged changes
         out = git(repo, "diff", "--name-only", start)
         paths.update(line for line in out.splitlines() if line)
-        # untracked files not yet known to git
         out = git(repo, "ls-files", "--others", "--exclude-standard")
         paths.update(line for line in out.splitlines() if line)
     return sorted(paths)
@@ -96,9 +93,9 @@ def normalize_globs(apply_to) -> list[str]:
     return [str(apply_to)]
 
 
-def matches(globs: list[str], paths: list[str]) -> list[str]:
+def matches(globs: list[str], paths: list[str]) -> bool:
     spec = pathspec.PathSpec.from_lines("gitwildmatch", globs)
-    return [p for p in paths if spec.match_file(p)]
+    return any(spec.match_file(p) for p in paths)
 
 
 def main() -> int:
@@ -113,56 +110,27 @@ def main() -> int:
     instructions_dir = repo / ".github" / "instructions"
     repo_wide = repo / ".github" / "copilot-instructions.md"
 
-    sections: list[str] = []
+    applicable: list[Path] = []
 
     if repo_wide.is_file():
-        meta, body = parse_frontmatter(repo_wide.read_text())
+        meta, _ = parse_frontmatter(repo_wide.read_text())
         if meta.get("excludeAgent") != "code-review":
-            sections.append(
-                f"## Repository-wide instructions ({repo_wide.relative_to(repo)})\n\n{body.strip()}"
-            )
+            applicable.append(repo_wide)
 
     if instructions_dir.is_dir():
         for path in sorted(instructions_dir.glob("*.instructions.md")):
-            meta, body = parse_frontmatter(path.read_text())
+            meta, _ = parse_frontmatter(path.read_text())
             if meta.get("excludeAgent") == "code-review":
                 continue
             globs = normalize_globs(meta.get("applyTo"))
             if not globs:
-                # No applyTo: Copilot ignores these path-scoped files.
                 continue
-            matched = matches(globs, paths)
-            if not matched:
-                continue
-            rel = path.relative_to(repo)
-            shown = matched[:20]
-            applies = ", ".join(shown)
-            if len(matched) > len(shown):
-                applies += f", ... (+{len(matched) - len(shown)} more)"
-            sections.append(
-                f"## {rel} (applyTo: {', '.join(globs)})\n"
-                f"Applies to {len(matched)} changed file(s): {applies}\n\n{body.strip()}"
-            )
+            if matches(globs, paths):
+                applicable.append(path)
 
-    out: list[str] = []
-    out.append("# Code Review")
-    out.append(
-        "You are reviewing the following changed files. Apply each set of "
-        "review instructions below to the files it covers. Report concrete, "
-        "actionable findings with file/line references; do not restate the "
-        "guidelines."
-    )
-    out.append("\n## Changed files\n" + "\n".join(f"- {p}" for p in paths))
-    if sections:
-        out.append("\n## Review instructions\n")
-        out.append("\n\n".join(sections))
-    else:
-        out.append(
-            "\n## Review instructions\nNo matching Copilot review instructions "
-            "were found for the changed files. Perform a general code review."
-        )
+    for path in applicable:
+        print(path.resolve())
 
-    print("\n".join(out))
     return 0
 
 
