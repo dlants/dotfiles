@@ -1,131 +1,106 @@
-# VSCode-Neovim Integration Guide
-
-## How VSCode and Neovim Interact
-
-The VSCode-Neovim extension provides true Neovim integration within Visual Studio Code. It uses:
-
-- **Neovim as a backend**: For normal mode, visual mode, and command mode operations
-- **VSCode's native features**: For insert mode, completion, and other editor features
-- **VSCode commands**: Exposed through a Lua API for integration
-
-This hybrid approach gives you the editing power of Vim with the IDE features of VSCode.
-
-## Common Issues and Solutions
-
-### Packer vs Lazy.nvim
-
-The extension initially failed with an error about `packer_compiled.lua` because there was a leftover Packer configuration while the current setup uses Lazy.nvim. Removing the old `~/.config/nvim/plugin/packer_compiled.lua` file fixed this issue.
-
-### Config Reloading
-
-There are several ways to reload the configuration:
-
-1. **Reload Window**: Use Command Palette (Ctrl+Shift+P) to run "Reload Window"
-2. **Disable/Enable Extension**: In the Extensions panel, disable and then re-enable the extension
-3. **Reload Config**: Use the `<leader>sv` mapping we added to reload just the Neovim config
-
-## VSCode-Neovim API
-
-The extension provides a Lua API for interacting with VSCode:
-
-```lua
-local vscode = require('vscode')
-```
-
-### Key Functions
-
-- `vscode.action(name, opts)`: Asynchronously execute a VSCode command
-- `vscode.call(name, opts, timeout)`: Synchronously execute a VSCode command
-- `vscode.get_config(name)`: Get a VSCode setting
-- `vscode.update_config(name, value, target)`: Update a VSCode setting
-
-### Example Usage
-
-```lua
--- Execute a VSCode command
-vscode.action('workbench.action.quickOpen')
-
--- Format document
-vscode.action('editor.action.formatDocument')
-
--- Go to definition
-vscode.action('editor.action.revealDefinition')
-```
-
-## Customized Mappings
-
-We added several helpful VSCode-specific mappings:
-
-```lua
--- File navigation
-vim.api.nvim_set_keymap("n", "gf", "<Cmd>lua require('vscode').action('workbench.action.quickOpen')<CR>", { noremap = true, silent = true })
-vim.api.nvim_set_keymap("n", "<leader>f", "<Cmd>lua require('vscode').action('workbench.action.quickOpen')<CR>", { noremap = true, silent = true })
-vim.api.nvim_set_keymap("n", "<leader>e", "<Cmd>lua require('vscode').action('workbench.action.toggleSidebarVisibility')<CR>", { noremap = true, silent = true })
-vim.api.nvim_set_keymap("n", "<leader>b", "<Cmd>lua require('vscode').action('workbench.action.showAllEditors')<CR>", { noremap = true, silent = true })
-
--- Code actions
-vim.api.nvim_set_keymap("n", "gr", "<Cmd>lua require('vscode').action('editor.action.goToReferences')<CR>", { noremap = true, silent = true })
-vim.api.nvim_set_keymap("n", "gd", "<Cmd>lua require('vscode').action('editor.action.revealDefinition')<CR>", { noremap = true, silent = true })
-vim.api.nvim_set_keymap("n", "K", "<Cmd>lua require('vscode').action('editor.action.showHover')<CR>", { noremap = true, silent = true })
-vim.api.nvim_set_keymap("n", "<leader>`", "<Cmd>lua require('vscode').action('editor.action.formatDocument')<CR>", { noremap = true, silent = true })
-
--- Workspace management
-vim.api.nvim_set_keymap("n", "Q", "<Cmd>lua require('vscode').action('workbench.action.closeEditorsInGroup')<CR>", { noremap = true, silent = true })
-```
-
-## VSCode Settings for Neovim Users
-
-### Limiting Tabs Per Group
-
-You can limit VSCode to only show one tab per editor group with these settings in `settings.json`:
-
-```json
-"workbench.editor.limit.enabled": true,
-"workbench.editor.limit.value": 1,
-"workbench.editor.limit.perEditorGroup": true
-```
-
-Alternatively, the "Single Editor Tabs" extension can be installed.
-
-## Identifying Neovim Context in Config
-
-In your `init.lua`, you can detect whether Neovim is running inside VSCode:
-
-```lua
-if vim.g.vscode then
-  -- VSCode-specific settings
-else
-  -- Standard Neovim settings
-end
-```
+# Neovim Configuration Guide
 
 ## Key Configuration Files
 
-### `nvim/lua/plugins/plugins.lua`
-The main plugin configuration file that defines all installed plugins and their settings:
+### `nvim/lua/config/pack.lua`
 
-- **Plugin Manager**: Uses Lazy.nvim for plugin management
-- **AI Integration**: Includes magenta.nvim for Claude/GPT integration with multiple profiles
+Manages plugin installation using native `vim.pack` (Neovim 0.12+). Defines the
+list of remote plugins via `vim.pack.add()` and sets up `PackChanged` autocmds
+(e.g. running `TSUpdate` for treesitter and `npm run build` for magenta).
+
+- **Plugin Manager**: Native `vim.pack` — no third-party manager
+- **magenta.nvim**: installed from GitHub on Linux, loaded from local `~/src/magenta.nvim` elsewhere
+- **Custom commands**: `:PluginUpdate` (fetch + confirm updates) and `:PluginClean` (remove unused plugins)
+
+### `nvim/lua/config/plugins.lua`
+
+Configures the plugins added in `pack.lua`:
+
 - **LSP Configuration**: Complete LSP setup for multiple languages (TypeScript, Rust, Lua, etc.)
-- **File Navigation**: FZF-lua for fast file searching and navigation
-- **Git Integration**: Gitsigns, fugitive, and related tools
-- **Completion**: nvim-cmp with LSP integration and Copilot support
-- **Themes**: Multiple colorscheme options with Flow theme as default
+- **File Navigation**: snacks.nvim and oil.nvim for files and navigation
+- **Git Integration**: Gitsigns, fugitive, jj.nvim, and related tools
+- **Completion**: nvim-cmp with LSP integration
+- **Themes**: alabaster.nvim and other colorscheme options
 - **Treesitter**: Syntax highlighting and text objects
 
+### `nvim/lua/config/magenta.lua`
+
+Configures magenta.nvim with its provider profiles.
+
 ### Plugin Highlights
+
 - **magenta.nvim**: AI assistant with multiple provider profiles (Claude, GPT, work-specific endpoints)
-- **FZF-lua**: Fast fuzzy finding for files, buffers, and live grep
 - **LSP**: Full language server support with proper keybindings
 - **Oil.nvim**: File explorer integrated with Neovim buffers
 - **Leap.nvim**: Quick navigation with 's' key for bidirectional jumping
 
-## Useful Resources
+### Custom Pickers: needle & shuck
 
-- [VSCode-Neovim GitHub Repository](https://github.com/vscode-neovim/vscode-neovim)
-- [VSCode-Neovim API Documentation](https://github.com/vscode-neovim/vscode-neovim#%EF%B8%8F-api)
-- [VSCode Command Identifier Reference](https://code.visualstudio.com/api/references/commands)
-- [VSCode Keyboard Shortcuts Reference](https://code.visualstudio.com/docs/getstarted/keybindings)
+Two homegrown pickers (in `nvim/lua/needle/` and `nvim/lua/shuck.lua`) have
+replaced fzf-lua. Both render in plain neovim splits (prompt window + results
+window), share `<C-j>/<C-k>` navigation and `<CR>`/`<C-x>`/`<C-v>`/`<C-t>` open
+actions, and pick a search root from the current buffer (cwd if the buffer is
+under it, else the nearest git root, else the buffer's dir).
+
+**needle** (`nvim/lua/needle/init.lua`) — a signal-aware fuzzy file picker.
+- Sources: files (`M.files`), buffers (`M.buffers`), and help tags (`M.help`),
+  exposed as `:Needle [dir]`, `:NeedleBuffers`, `:NeedleHelp`.
+- Files are ranked by a fuzzy match score (`needle/score.lua`) plus weighted
+  signals: in buffer list, directory proximity to open buffers, recent access
+  (decaying), recent mtime, and git-dirty. Signal flags show as a `blamg`
+  prefix column.
+- Access history is persisted to `stdpath("data")/needle/state.json`.
+- `<C-h>` toggles unrestricted (`--no-ignore`) file listing.
+- Keymaps: `<leader>f` files, `<leader>b` buffers, `<leader>h` help.
+
+**shuck** (`nvim/lua/shuck.lua`) — a streamed shell-command picker (a
+vim-grepper replacement), `:Shuck` / `<leader>g`.
+- Runs an arbitrary shell command (default `rg -H --no-heading --vimgrep `) and
+  streams stdout/stderr live into the results window.
+- Per-directory command history is persisted under `stdpath("data")/shuck/`;
+  `<Up>`/`<Down>` cycle prefix-matched history, `<C-r>` opens a history picker.
+- `<C-CR>` runs the command, `q` sends results to the quickfix list.
+
+## Nix / Home Manager Setup
+
+This dotfiles repo is managed with [Home Manager](https://github.com/nix-community/home-manager)
+via a flake (`flake.nix`). Two configurations are defined:
+
+- **`macos`** — aarch64-darwin, user `denis.lantsman`, dotfiles at `~/src/dotfiles` (uses `nix/darwin.nix`)
+- **`devcontainer`** — aarch64-linux, user `aurelia`, dotfiles at `~/src/dotfiles` (uses `nix/linux.nix`)
+
+### File Layout
+
+- `flake.nix` — defines `homeConfigurations` and the `mkHomeConfig` helper
+- `nix/common.nix` — shared config: packages, git, fish, starship, neovim, and
+  config symlinks. Configs are live-linked with `mkOutOfStoreSymlink` (edits in
+  the repo take effect immediately, no rebuild needed for plain config changes).
+- `nix/darwin.nix` — macOS extras (Homebrew casks, hammerspoon, uv, zig)
+- `nix/linux.nix` — devcontainer extras (pkgx, work-skills clone, fish login shell)
+- `nix/magenta-skills.nix` — generates magenta skill symlinks into `~/.claude/skills`
+
+### Notable details
+
+- A nixpkgs overlay in `common.nix` overrides `tree-sitter` to v0.26.8 (nvim-treesitter
+  main branch needs >= 0.26.1; nixpkgs ships 0.25.x).
+- Activation scripts clone `magenta.nvim` into `~/src`, set up magenta skills, and
+  install `ty` via `uv` when available.
+- Flakes are enabled via `~/.config/nix/nix.conf`.
+
+### Installation / Apply Commands
+
+`home-manager` should be on PATH:
+
+```sh
+home-manager switch --flake .#macos          # or .#devcontainer
+```
+
+Update flake inputs (nixpkgs, home-manager) then rebuild:
+
+```sh
+nix flake update
+home-manager switch --flake .#<config>
+```
 
 ## Tmux Setup
 
@@ -142,10 +117,3 @@ Each tmux instance is independent — sessions are not shared across hosts. The 
 
 - `ctrl-b o` — Opens fzf picker to switch between any pane across all sessions in the current tmux
 - `ta <path>` — Create/switch to a session for a directory
-
-## Tips for Effective Use
-
-1. Use VSCode's native features for insert mode, intellisense, and UI operations
-2. Use Neovim for text navigation, manipulation, and command-mode operations
-3. Limit the plugins you load in VSCode to avoid conflicts (see [Troubleshooting](https://github.com/vscode-neovim/vscode-neovim#troubleshooting))
-4. For optimal performance, disable neovim plugins that provide features already available in VSCode
