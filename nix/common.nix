@@ -119,6 +119,10 @@
   home.file.".magenta/context.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-context.md";
 
+  # Symlink magenta scripts directory (discovered by magenta at ~/.magenta/scripts)
+  home.file.".magenta/scripts".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-scripts";
+
   # Magenta skills symlinks (skill list defined in ./magenta-skills.nix)
   home.activation.setupMagentaSkills = lib.hm.dag.entryAfter ["writeBoundary"] ''
     mkdir -p "$HOME/.claude/skills"
