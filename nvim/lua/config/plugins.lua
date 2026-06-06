@@ -44,36 +44,11 @@ require("snacks").setup({
   indent = {},
   rename = {},
   bigfile = { notify = true },
-  picker = {
-    matcher = {
-      filename_bonus = true,
-      frecency = true,
-      cwd_bonus = true,
-      history_bonus = true,
-    },
-    layout = {
-      layout = {
-        box = "horizontal",
-        backdrop = false,
-        row = 0,
-        width = 0,
-        height = 0.5,
-        border = "none",
-        {
-          box = "vertical",
-          { win = "input", height = 1, border = "bottom", title = "{title} {live} {flags}", title_pos = "center" },
-          { win = "list", border = "none" },
-        },
-        { win = "preview", title = "{preview}", border = "left", width = 0.5 },
-      },
-    },
-  },
 })
 
 --------------------------------------------------------------------------------
--- snacks picker keymaps
+-- needle picker keymaps
 --------------------------------------------------------------------------------
-local snacks_picker = require("snacks").picker
 
 vim.keymap.set("n", "<leader>F", function()
   local git_root = vim.fn.system('git rev-parse --show-toplevel 2>/dev/null'):gsub('\n', '')
@@ -265,7 +240,7 @@ local on_attach = function(_, bufnr)
   buf_set_keymap("n", "gi", vim.lsp.buf.implementation)
   buf_set_keymap("n", "gr", vim.lsp.buf.references)
   buf_set_keymap("n", "<leader>r", vim.lsp.buf.rename)
-  buf_set_keymap("n", "<leader>x", function() snacks_picker.lsp_code_actions() end)
+  buf_set_keymap("n", "<leader>x", vim.lsp.buf.code_action)
   buf_set_keymap("i", "<C-s>", vim.lsp.buf.signature_help)
   buf_set_keymap("n", "<leader>d", vim.diagnostic.setqflist)
   buf_set_keymap("n", "[d", function()
@@ -398,7 +373,7 @@ vim.api.nvim_create_autocmd("FileType", {
         vim.keymap.set("n", "gi", vim.lsp.buf.implementation)
         vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
         vim.keymap.set("n", "<leader>r", vim.lsp.buf.rename, opts)
-        vim.keymap.set("n", "<leader>x", function() require("snacks").picker.lsp_code_actions() end, opts)
+        vim.keymap.set("n", "<leader>x", vim.lsp.buf.code_action, opts)
         vim.keymap.set("n", "<leader>d", vim.diagnostic.setqflist)
         vim.keymap.set("n", "[d", function()
           vim.diagnostic.jump({ count = -1, float = false })
