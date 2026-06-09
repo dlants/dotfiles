@@ -570,6 +570,14 @@ local function setup_keymaps(prompt_buf)
     if state and state.picker_mode then picker_move(-1)
     else move_selection(-1) end
   end)
+  map({"i","n"}, "<C-d>",  function()
+    if state and state.picker_mode then picker_move(10)
+    else move_selection(10) end
+  end)
+  map({"i","n"}, "<C-u>",  function()
+    if state and state.picker_mode then picker_move(-10)
+    else move_selection(-10) end
+  end)
   map({"i","n"}, "<Up>",   function()
     if state and state.picker_mode then picker_move(-1)
     else history_cycle(1) end
