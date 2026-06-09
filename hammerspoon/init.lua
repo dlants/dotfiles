@@ -196,6 +196,8 @@ hs.hotkey.bind({ "cmd" }, "l", function() focusNeighbor("right") end)
 hs.hotkey.bind({ "cmd", "shift" }, "h", function() moveFocusedWindow("left") end)
 hs.hotkey.bind({ "cmd", "shift" }, "l", function() moveFocusedWindow("right") end)
 hs.hotkey.bind({ "cmd", "shift" }, "k", toggleSize)
+hs.hotkey.bind({ "cmd", "shift" }, "1", function() moveFocusedWindowToDesktop(1) end)
+hs.hotkey.bind({ "cmd", "shift" }, "2", function() moveFocusedWindowToDesktop(2) end)
 
 -- Fuzzy scoring (Forrest Smith-style). Returns a numeric score, or nil if
 -- the pattern's chars don't all appear in `target` in order.
@@ -613,6 +615,26 @@ local function handleGhosttyOnDesktop(index)
   hs.timer.doAfter(target and 0.3 or 0, function()
     hs.application.launchOrFocus("Ghostty")
   end)
+end
+
+-- hs.spaces.moveWindowToSpace is broken on macOS 15+, so we drag the window
+-- by its titlebar and switch desktops with the cmd+<n> shortcut, which
+-- carries the in-flight drag along. This requires "Mission Control > Switch
+-- to Desktop N" keyboard shortcuts (bound to cmd+1/cmd+2) in System Settings.
+function moveFocusedWindowToDesktop(index)
+  local win = hs.window.focusedWindow()
+  if not win or not win:isStandard() then return end
+  local types = hs.eventtap.event.types
+  local f = win:frame()
+  local grab = hs.geometry.point(f.x + f.w / 2, f.y + 8)
+
+  hs.eventtap.event.newMouseEvent(types.leftMouseDown, grab):post()
+  hs.timer.usleep(40000)
+  hs.eventtap.event.newMouseEvent(types.leftMouseDragged, grab):post()
+  hs.timer.usleep(40000)
+  hs.eventtap.keyStroke({ "cmd" }, tostring(index), 0)
+  hs.timer.usleep(300000)
+  hs.eventtap.event.newMouseEvent(types.leftMouseUp, hs.mouse.absolutePosition()):post()
 end
 
 local function openSpotlight()
