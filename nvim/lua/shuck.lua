@@ -76,15 +76,22 @@ local function close_picker()
   state = nil
 end
 
-local function discover_search_dir(opts_cwd)
+local function discover_search_dir(opts_cwd, buf_name)
   if opts_cwd and opts_cwd ~= "" then return opts_cwd end
   local current_cwd = vim.fn.getcwd()
-  local buf_name = api.nvim_buf_get_name(api.nvim_get_current_buf())
-  if buf_name == "" or buf_name:match("^%w+://") then return current_cwd end
-  if buf_name == current_cwd or buf_name:sub(1, #current_cwd + 1) == current_cwd .. "/" then
+  if not buf_name or buf_name == "" then return current_cwd end
+  local buf_dir
+  local oil = buf_name:match("^oil://(.*)$")
+  if oil then
+    buf_dir = oil:gsub("/+$", "")
+  elseif buf_name:match("^%w+://") then
+    return current_cwd
+  else
+    buf_dir = vim.fs.dirname(buf_name)
+  end
+  if buf_dir == current_cwd or buf_dir:sub(1, #current_cwd + 1) == current_cwd .. "/" then
     return current_cwd
   end
-  local buf_dir = vim.fs.dirname(buf_name)
   local found = vim.fs.find(".git", { upward = true, path = buf_dir })
   if found and #found > 0 then return vim.fs.dirname(found[1]) end
   return buf_dir
@@ -149,6 +156,27 @@ local function set_prompt(text)
   if api.nvim_win_is_valid(state.prompt_win) then
     pcall(api.nvim_win_set_cursor, state.prompt_win, { 1, #text })
   end
+end
+
+-- Resolve the search root lazily (the upward `.git` walk is the slow part of
+-- startup, so we defer it off the path that paints the UI). Idempotent.
+local function resolve_cwd()
+  if not state or state.cwd_resolved then return state and state.cwd end
+  state.cwd_resolved = true
+  local cwd = discover_search_dir(state.opts_cwd, state.origin_buf_name)
+  state.cwd = cwd
+  state.history = load_history(cwd)
+  local main_cwd = vim.fn.getcwd()
+  if cwd ~= main_cwd and api.nvim_buf_is_valid(state.prompt_buf) then
+    local display_dir = vim.fn.fnamemodify(cwd, ":~")
+    api.nvim_buf_set_extmark(state.prompt_buf, NS_PROMPT, 0, 0, {
+      virt_text = { { string.format("cd %s && ", display_dir), "Comment" } },
+      virt_text_pos = "inline",
+      right_gravity = false,
+    })
+  end
+  set_title()
+  return cwd
 end
 
 -- ============================================================================
@@ -243,6 +271,7 @@ end
 
 local function run_command()
   if not state then return end
+  resolve_cwd()
   local lines = api.nvim_buf_get_lines(state.prompt_buf, 0, -1, false)
   state.cmd_string = lines[1] or ""
   if state.cmd_string:match("^%s*$") then return end
@@ -412,6 +441,7 @@ end
 
 local function history_cycle(direction)
   if not state then return end
+  resolve_cwd()
   if #state.history == 0 then return end
 
   if state.history_idx == nil then
@@ -449,7 +479,9 @@ local function history_cycle(direction)
 end
 
 local function start_history_picker()
-  if not state or #state.history == 0 then return end
+  if not state then return end
+  resolve_cwd()
+  if #state.history == 0 then return end
   pcall(vim.cmd, "stopinsert")
   state.picker_mode = true
   state.picker_selected = 1
@@ -569,7 +601,9 @@ function M.open(opts)
     and vim.fn.winnr("k") == vim.fn.winnr()
     and vim.fn.winnr("j") == vim.fn.winnr()
 
-  local cwd = discover_search_dir(opts.cwd)
+  -- Capture the originating buffer name now (cheap); the picker's own buffer
+  -- is focused by the time we resolve the search root.
+  local origin_buf_name = api.nvim_buf_get_name(api.nvim_get_current_buf())
   local prompt_buf, prompt_win, results_buf, results_win = open_windows()
 
   state = {
@@ -586,11 +620,14 @@ function M.open(opts)
     running         = false,
     truncated       = false,
     stale           = false,
-    cwd             = cwd,
+    cwd             = nil,
+    cwd_resolved    = false,
+    opts_cwd        = opts.cwd,
+    origin_buf_name = origin_buf_name,
     spinner_idx     = 0,
     run_epoch       = 0,
     child           = nil,
-    history          = load_history(cwd),
+    history          = {},
     history_idx      = nil,
     history_prefix   = nil,
     history_original = nil,
@@ -604,16 +641,6 @@ function M.open(opts)
   local default_cmd = opts.cmd or M.config.default_cmd
   api.nvim_buf_set_lines(prompt_buf, 0, -1, false, { default_cmd })
   state.cmd_string = default_cmd
-
-  local main_cwd = vim.fn.getcwd()
-  if cwd ~= main_cwd then
-    local display_dir = vim.fn.fnamemodify(cwd, ":~")
-    api.nvim_buf_set_extmark(prompt_buf, NS_PROMPT, 0, 0, {
-      virt_text = { { string.format("cd %s && ", display_dir), "Comment" } },
-      virt_text_pos = "inline",
-      right_gravity = false,
-    })
-  end
 
   setup_keymaps(prompt_buf)
 
@@ -649,6 +676,11 @@ function M.open(opts)
 
   set_title()
   vim.cmd("startinsert!")
+
+  -- Defer the search-root resolution so the prompt is interactive immediately.
+  vim.schedule(function()
+    if state then resolve_cwd() end
+  end)
 end
 
 function M.toggle(opts)

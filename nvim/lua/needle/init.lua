@@ -5,6 +5,34 @@ local api = vim.api
 local score = require("needle.score")
 
 -- ============================================================================
+-- Future: single-shot, lazily-computed async value.
+-- ============================================================================
+-- `compute(resolve)` runs at most once, on the first :get(). It must call
+-- resolve(value) exactly once (synchronously or later). Callbacks registered
+-- via :get() fire immediately if already resolved, otherwise when it resolves.
+local Future = {}
+Future.__index = Future
+
+function Future.new(compute)
+  return setmetatable({ compute = compute, waiters = {} }, Future)
+end
+
+function Future:get(cb)
+  if self.resolved then cb(self.value); return end
+  self.waiters[#self.waiters + 1] = cb
+  if self.started then return end
+  self.started = true
+  self.compute(function(value)
+    if self.resolved then return end
+    self.resolved = true
+    self.value = value
+    local waiters = self.waiters
+    self.waiters = {}
+    for _, w in ipairs(waiters) do w(value) end
+  end)
+end
+
+-- ============================================================================
 -- Config
 -- ============================================================================
 
@@ -592,15 +620,22 @@ end
 -- based on the current buffer: prefer cwd if the buffer lives under it, then
 -- the nearest git root walking up from the buffer's directory, and finally the
 -- buffer's own directory.
-local function discover_search_dir(opts_cwd)
+local function discover_search_dir(opts_cwd, buf_name)
   if opts_cwd and opts_cwd ~= "" then return opts_cwd end
   local current_cwd = vim.fn.getcwd()
-  local buf_name = api.nvim_buf_get_name(api.nvim_get_current_buf())
-  if buf_name == "" or buf_name:match("^%w+://") then return current_cwd end
-  if buf_name == current_cwd or buf_name:sub(1, #current_cwd + 1) == current_cwd .. "/" then
+  if not buf_name or buf_name == "" then return current_cwd end
+  local buf_dir
+  local oil = buf_name:match("^oil://(.*)$")
+  if oil then
+    buf_dir = oil:gsub("/+$", "")
+  elseif buf_name:match("^%w+://") then
+    return current_cwd
+  else
+    buf_dir = vim.fs.dirname(buf_name)
+  end
+  if buf_dir == current_cwd or buf_dir:sub(1, #current_cwd + 1) == current_cwd .. "/" then
     return current_cwd
   end
-  local buf_dir = vim.fs.dirname(buf_name)
   local found = vim.fs.find(".git", { upward = true, path = buf_dir })
   if found and #found > 0 then return vim.fs.dirname(found[1]) end
   return buf_dir
@@ -615,26 +650,38 @@ FilesSource.__index = FilesSource
 function FilesSource.new(opts)
   opts = opts or {}
   local self = setmetatable({
-    cwd = discover_search_dir(opts.cwd),
+    cwd = nil,                  -- resolved lazily; see cwd_future
     unrestricted = opts.unrestricted == true,
     buffer_set = {},
     same_dir_set = {},
     ancestor_scores = {},
   }, FilesSource)
+
+  -- The `.git` upward walk is the slow part of startup, so resolve the search
+  -- root off the path that paints the UI. Capture the originating buffer name
+  -- now (cheap) since the picker's own buffer is focused by the time we run.
+  local origin_buf_name = api.nvim_buf_get_name(api.nvim_get_current_buf())
+  self.cwd_future = Future.new(function(resolve)
+    vim.schedule(function()
+      local cwd = discover_search_dir(opts.cwd, origin_buf_name)
+      self.cwd = cwd
+      self.buffer_set = gather_buffer_set()
+      local buffer_paths = {}
+      for path in pairs(self.buffer_set) do buffer_paths[#buffer_paths + 1] = path end
+      self.same_dir_set, self.ancestor_scores =
+        precompute_proximity(buffer_paths, cwd)
+      refresh_git_status(cwd)
+      update_title()
+      resolve(cwd)
+    end)
+  end)
   return self
 end
 
 function FilesSource:title()
+  if not self.cwd then return "files [resolving…]" end
   local d = vim.fn.fnamemodify(self.cwd, ":~")
   return string.format("files [%s]%s", d, self.unrestricted and " (unrestricted)" or "")
-end
-
-function FilesSource:before_open(_)
-  self.buffer_set = gather_buffer_set()
-  local buffer_paths = {}
-  for path in pairs(self.buffer_set) do buffer_paths[#buffer_paths + 1] = path end
-  self.same_dir_set, self.ancestor_scores = precompute_proximity(buffer_paths, self.cwd)
-  refresh_git_status(self.cwd)
 end
 
 function FilesSource:_command()
@@ -647,8 +694,16 @@ function FilesSource:_command()
   return default_files_command(self.unrestricted)
 end
 
-function FilesSource:discover(_)
-  return stream_lines_into_picker(self:_command(), self.cwd)
+function FilesSource:discover(p)
+  local killed, inner_kill = false, nil
+  self.cwd_future:get(function(cwd)
+    if killed or not picker or picker ~= p then return end
+    inner_kill = stream_lines_into_picker(self:_command(), cwd)
+  end)
+  return function()
+    killed = true
+    if inner_kill then inner_kill() end
+  end
 end
 
 function FilesSource:filter(p)
@@ -877,8 +932,6 @@ local function open_with_source(source)
     orig_wrap       = orig_wrap,
   }
 
-  if source.before_open then source:before_open(picker) end
-
   api.nvim_create_autocmd({ "TextChangedI", "TextChanged" }, {
     buffer = prompt_buf,
     callback = function()
@@ -900,8 +953,14 @@ local function open_with_source(source)
   if source.keymaps then source:keymaps(picker) end
   vim.cmd("startinsert!")
 
-  picker.discover_kill = source:discover(picker)
+  -- Paint the (empty) UI now; defer discovery so the prompt is interactive
+  -- immediately, before any source setup (e.g. resolving the search root).
   refilter_now()
+  vim.schedule(function()
+    if not picker or picker.source ~= source then return end
+    picker.discover_kill = source:discover(picker)
+    refilter_now()
+  end)
 end
 
 function M.files(opts)   open_with_source(FilesSource.new(opts))   end
