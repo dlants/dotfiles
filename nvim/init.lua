@@ -216,8 +216,8 @@ vim.keymap.set("n", "<C-k>", function() pane_navigate("k", "U") end, { noremap =
 vim.keymap.set("n", "<C-l>", function() pane_navigate("l", "R") end, { noremap = true, silent = true })
 
 -- replicate unimpaired bindings
-vim.api.nvim_set_keymap("n", "[j", "<C-O>", { noremap = true })
-vim.api.nvim_set_keymap("n", "]j", "<C-I>", { noremap = true })
+vim.keymap.set("n", "[j", "<C-O>")
+vim.keymap.set("n", "]j", "<C-I>")
 
 -- Jump through jump list until buffer changes
 local function jump_until_buffer_changes(direction)
@@ -229,13 +229,9 @@ local function jump_until_buffer_changes(direction)
     attempts = attempts + 1
 
     -- Try to jump
-    local success = pcall(function()
-      if direction == "back" then
-        vim.cmd("normal! \23\15") -- <C-O>
-      else
-        vim.cmd("normal! \23\9")  -- <C-I>
-      end
-    end)
+    local keys = vim.api.nvim_replace_termcodes(
+      direction == "back" and "<C-O>" or "<C-I>", true, false, true)
+    local success = pcall(vim.api.nvim_feedkeys, keys, "nx", false)
 
     if not success then
       -- No more jumps available
@@ -250,22 +246,24 @@ local function jump_until_buffer_changes(direction)
   end
 end
 
-vim.api.nvim_set_keymap("n", "[J", "<Cmd>lua jump_until_buffer_changes('back')<CR>", { noremap = true, silent = true })
-vim.api.nvim_set_keymap("n", "]J", "<Cmd>lua jump_until_buffer_changes('forward')<CR>",
-  { noremap = true, silent = true })
-vim.api.nvim_set_keymap("n", "[q", ":cp<CR>", { noremap = true })
-vim.api.nvim_set_keymap("n", "]q", ":cn<CR>", { noremap = true })
-vim.api.nvim_set_keymap("n", "[l", ":lp<CR>", { noremap = true })
-vim.api.nvim_set_keymap("n", "]l", ":lne<CR>", { noremap = true })
-vim.api.nvim_set_keymap("n", "[<space>", "O<Esc>j", { noremap = true })
-vim.api.nvim_set_keymap("n", "]<space>", "o<Esc>k", { noremap = true })
-vim.api.nvim_set_keymap("n", "[f", ":colder<CR>", { noremap = true })
-vim.api.nvim_set_keymap("n", "]f", ":cnewer<CR>", { noremap = true })
+vim.keymap.set("n", "[J", function() jump_until_buffer_changes("back") end, { silent = true })
+vim.keymap.set("n", "]J", function() jump_until_buffer_changes("forward") end, { silent = true })
+vim.keymap.set({ "n", "o", "x" }, "gh", "0")
+vim.keymap.set({ "n", "o", "x" }, "gl", "$")
+vim.keymap.set({ "n", "o", "x" }, "gs", "^")
+vim.keymap.set("n", "[q", ":cp<CR>")
+vim.keymap.set("n", "]q", ":cn<CR>")
+vim.keymap.set("n", "[l", ":lp<CR>")
+vim.keymap.set("n", "]l", ":lne<CR>")
+vim.keymap.set("n", "[<space>", "O<Esc>j")
+vim.keymap.set("n", "]<space>", "o<Esc>k")
+vim.keymap.set("n", "[f", ":colder<CR>")
+vim.keymap.set("n", "]f", ":cnewer<CR>")
 
-vim.api.nvim_set_keymap("n", "<leader>=", ":resize +5<CR>", { noremap = true })
-vim.api.nvim_set_keymap("n", "<leader>-", ":resize -5<CR>", { noremap = true })
-vim.api.nvim_set_keymap("n", "<leader>n", ":botright vsplit | enew<CR>",
-  { noremap = true, silent = true, desc = "New buffer in rightmost vertical split" })
+vim.keymap.set("n", "<leader>=", ":resize +5<CR>")
+vim.keymap.set("n", "<leader>-", ":resize -5<CR>")
+vim.keymap.set("n", "<leader>n", ":botright vsplit | enew<CR>",
+  { silent = true, desc = "New buffer in rightmost vertical split" })
 
 local default_branch_cache = {}
 local repo_name_cache = {}
