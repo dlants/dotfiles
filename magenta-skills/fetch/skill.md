@@ -4,14 +4,9 @@ description: Fetch a URL and extract its main text content as markdown.
 ---
 
 ```bash
-cd ~/.claude/skills/fetch && pkgx uv run scripts/fetch.py "https://example.com"
+curl "https://r.jina.ai/https://www.example.com"
 ```
 
-### Options
-
-- `--format <fmt>` — `markdown` (default), `txt`, `html`, or `json`
-- `--include-links` — keep hyperlinks
-- `--include-images` — keep image references
-- `--with-metadata` — prepend title / author / date
-
-Uses trafilatura to strip nav/ads/boilerplate and return just the article body. For JS-rendered pages, use the `browser` skill instead.
+Uses [Jina AI's Reader](https://jina.ai/reader/) to fetch a URL and return its
+main content as clean markdown, stripping nav/ads/boilerplate. Just prefix the
+target URL with `https://r.jina.ai/`. Handles JS-rendered pages server-side.

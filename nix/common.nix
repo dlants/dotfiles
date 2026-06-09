@@ -17,6 +17,18 @@
           fetchSubmodules = true;
         };
       in {
+        # Override tmux to 3.6b (nixpkgs still ships 3.6a; 3.6b has copy-mode
+        # stability fixes). Drop this once nixpkgs catches up.
+        tmux = prev.tmux.overrideAttrs (old: {
+          version = "3.6b";
+          src = prev.fetchFromGitHub {
+            owner = "tmux";
+            repo = "tmux";
+            tag = "3.6b";
+            hash = "sha256-iW4K/OxSVpxVkyI5Dy6lzwVf/8nXyjcHtL76Ezmxavc=";
+          };
+        });
+
         tree-sitter = prev.tree-sitter.overrideAttrs (old: {
           version = "0.26.8";
           src = newSrc;
@@ -119,14 +131,16 @@
   home.file.".magenta/context.md".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-context.md";
 
-  # Symlink magenta scripts directory (discovered by magenta at ~/.magenta/scripts)
+  # Symlink the magenta scripts directory to ~/.magenta/scripts. Magenta scans
+  # each package subdirectory (e.g. magenta-scripts/dotfiles) for an index.ts
+  # and maintains a magenta-sdk shim inside each package directory.
   home.file.".magenta/scripts".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-scripts";
 
   # Magenta skills symlinks (skill list defined in ./magenta-skills.nix)
   home.activation.setupMagentaSkills = lib.hm.dag.entryAfter ["writeBoundary"] ''
     mkdir -p "$HOME/.claude/skills"
-    ${import ./magenta-skills.nix { inherit lib dotfilesDir; }}
+    ${import ./magenta-skills.nix { inherit lib dotfilesDir; includeSearch = false; }}
   '';
 
   # Prevent rustup from creating a broken fish config (nix manages PATH)
