@@ -1054,3 +1054,45 @@ local function toggleScrollLock()
 end
 
 hs.hotkey.bind({}, "F20", toggleScrollLock)
+
+-- Browser address-bar shortcuts: in Chrome/Firefox, cmd+k focuses the address
+-- bar (re-emitted as the native cmd+L) and cmd+j returns focus to the page
+-- (Escape blurs the address bar). Enabled only while a browser is frontmost.
+local browserBundleIDs = {
+  ["com.google.Chrome"] = true,
+  ["org.mozilla.firefox"] = true,
+  ["org.mozilla.firefoxdeveloperedition"] = true,
+}
+
+local function postToApp(mods, key, app)
+  if not app then return end
+  hs.eventtap.event.newKeyEvent(mods, key, true):post(app)
+  hs.eventtap.event.newKeyEvent(mods, key, false):post(app)
+end
+
+local browserAddressBarHotkey = hs.hotkey.new({ "cmd" }, "k", function()
+  local app = hs.application.frontmostApplication()
+  hs.timer.doAfter(0.02, function() postToApp({ "cmd" }, "l", app) end)
+end)
+
+local browserFocusPageHotkey = hs.hotkey.new({ "cmd" }, "j", function()
+  hs.eventtap.keyStroke({}, "escape", 0)
+end)
+
+local function updateBrowserHotkeys(app)
+  if app and browserBundleIDs[app:bundleID()] then
+    browserAddressBarHotkey:enable()
+    browserFocusPageHotkey:enable()
+  else
+    browserAddressBarHotkey:disable()
+    browserFocusPageHotkey:disable()
+  end
+end
+
+local browserHotkeyWatcher = hs.application.watcher.new(function(_, eventType, app)
+  if eventType == hs.application.watcher.activated then
+    updateBrowserHotkeys(app)
+  end
+end)
+browserHotkeyWatcher:start()
+updateBrowserHotkeys(hs.application.frontmostApplication())
