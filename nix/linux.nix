@@ -19,6 +19,11 @@
   home.file.".local/bin/tmux-session-using-fzf".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/tmux-session-using-fzf";
   home.file.".local/bin/pane-nav".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/pane-nav";
 
+  # ~/.ssh/rc keeps a stable agent socket symlink (~/.ssh/agent.sock) pointed at
+  # the latest forwarded SSH_AUTH_SOCK so reconnecting ssh doesn't break agent
+  # forwarding inside long-lived tmux sessions. tmux.conf consumes agent.sock.
+  home.file.".ssh/rc".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/scripts/ssh-rc";
+
 
   # Install pkgx binary directly to ~/.local/bin (no sudo needed)
   home.activation.pkgxInstall = lib.hm.dag.entryAfter ["writeBoundary"] ''

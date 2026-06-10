@@ -1,0 +1,9 @@
+#\!/bin/sh
+# Installed as ~/.ssh/rc on the dev container.
+# sshd runs this on each new connection. Re-point a stable agent socket at the
+# freshly forwarded SSH_AUTH_SOCK so long-lived tmux sessions (which capture a
+# static SSH_AUTH_SOCK) keep working across reconnects instead of falling back
+# to on-disk key passphrases.
+if [ -n "$SSH_AUTH_SOCK" ] && [ "$SSH_AUTH_SOCK" \!= "$HOME/.ssh/agent.sock" ]; then
+  ln -sf "$SSH_AUTH_SOCK" "$HOME/.ssh/agent.sock"
+fi
