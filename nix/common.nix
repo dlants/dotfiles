@@ -132,10 +132,29 @@
     config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-context.md";
 
   # Symlink the magenta scripts directory to ~/.magenta/scripts. Magenta scans
-  # each package subdirectory (e.g. magenta-scripts/dotfiles) for an index.ts
-  # and maintains a magenta-sdk shim inside each package directory.
+  # each package subdirectory (e.g. magenta-scripts/dotfiles) for an index.ts.
   home.file.".magenta/scripts".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-scripts";
+
+  # Each script package imports the SDK via a `magenta-sdk` symlink that magenta
+  # does not manage for us, so point it at the local magenta.nvim checkout.
+  home.activation.linkMagentaSdk = lib.hm.dag.entryAfter ["cloneMagenta"] ''
+    for pkg in "${dotfilesDir}/magenta-scripts"/*/; do
+      [ -f "$pkg/index.ts" ] || continue
+      ln -sfn "$HOME/src/magenta.nvim/sdk" "$pkg/magenta-sdk"
+    done
+  '';
+
+  # Install each script package's runtime deps (e.g. zx). node_modules is
+  # gitignored, so the forked script can only resolve them once installed.
+  home.activation.installMagentaScriptDeps = lib.hm.dag.entryAfter ["linkMagentaSdk"] ''
+    if command -v npm > /dev/null; then
+      for pkg in "${dotfilesDir}/magenta-scripts"/*/; do
+        [ -f "$pkg/package.json" ] || continue
+        ( cd "$pkg" && npm install --omit=dev --no-audit --no-fund ) || true
+      done
+    fi
+  '';
 
   # Magenta skills symlinks (skill list defined in ./magenta-skills.nix)
   home.activation.setupMagentaSkills = lib.hm.dag.entryAfter ["writeBoundary"] ''
