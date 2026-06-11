@@ -59,7 +59,7 @@ describe("buildReviewPrompt", () => {
   it("embeds the instruction body and the diff command", () => {
     const prompt = buildReviewPrompt(
       { name: ".github/instructions/ts.instructions.md", body: "Be careful." },
-      { start: "main", stop: "feature" },
+      { start: "main", stop: "feature", repo: "/repo" },
     );
     expect(prompt).toContain("git diff main..feature");
     expect(prompt).toContain("ts.instructions.md");

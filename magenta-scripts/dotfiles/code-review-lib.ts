@@ -9,11 +9,11 @@ export type CodeReviewParams = {
   start: string;
   stop?: string;
   /**
-   * Path to the git repository. Defaults to the forked script process's cwd,
-   * which magenta inherits from the neovim session (the project open in
-   * neovim), NOT this script file's directory.
+   * Absolute path to the git repository to review. Required: the forked script
+   * process's cwd is magenta's own install directory, not the project you have
+   * open, so it cannot be inferred reliably.
    */
-  repo?: string;
+  repo: string;
 };
 
 export type Finding = {
@@ -44,12 +44,10 @@ export const CODE_REVIEW_PARAM_SCHEMA = {
     },
     repo: {
       type: "string",
-      description:
-        "Path to the git repository. Defaults to the neovim session's cwd " +
-        "(the project open in neovim), not this script's directory.",
+      description: "Absolute path to the git repository to review.",
     },
   },
-  required: ["start"],
+  required: ["start", "repo"],
 } as const;
 
 export const FINDINGS_YIELD_SCHEMA = {
@@ -277,7 +275,7 @@ export async function runReview({
   thread: ThreadFn;
   log: LogFn;
 }): Promise<{ instruction: string; findings: Finding[] }[]> {
-  const repo = params.repo ?? process.cwd();
+  const repo = params.repo;
 
   const changed = await getChangedPaths(repo, params.start, params.stop);
   if (changed.length === 0) {
@@ -302,6 +300,7 @@ export async function runReview({
       const { findings } = await thread<{ findings: Finding[] }>(
         buildReviewPrompt(instruction, params),
         FINDINGS_YIELD_SCHEMA,
+        { cwd: repo },
       );
       log(`${instruction.name}: ${findings.length} finding(s).`);
       return { instruction: instruction.name, findings };

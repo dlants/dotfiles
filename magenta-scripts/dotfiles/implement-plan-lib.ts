@@ -13,11 +13,11 @@ export type ImplementPlanParams = {
   /** Path to the plan file (absolute, or relative to the repo root). */
   plan: string;
   /**
-   * Path to the git repository. Defaults to the forked script process's cwd,
-   * which magenta inherits from the neovim session (i.e. the project you have
-   * open in neovim), NOT this script file's directory.
+   * Absolute path to the git repository to implement the plan in. Required:
+   * the forked script process's cwd is magenta's own install directory, not
+   * the project you have open, so it cannot be inferred reliably.
    */
-  repo?: string;
+  repo: string;
   /** Branch to create for the implementation (defaults to a generated name). */
   branch?: string;
 };
@@ -44,8 +44,7 @@ export const IMPLEMENT_PLAN_PARAM_SCHEMA = {
     repo: {
       type: "string",
       description:
-        "Path to the git repository. Defaults to the neovim session's cwd " +
-        "(the project open in neovim), not this script's directory.",
+        "Absolute path to the git repository to implement the plan in.",
     },
     branch: {
       type: "string",
@@ -53,7 +52,7 @@ export const IMPLEMENT_PLAN_PARAM_SCHEMA = {
         "Branch to create for the implementation. Defaults to a generated name.",
     },
   },
-  required: ["plan"],
+  required: ["plan", "repo"],
 } as const;
 
 export const STAGES_YIELD_SCHEMA = {
@@ -216,7 +215,7 @@ export async function runImplementPlan({
   thread: ThreadFn;
   log: LogFn;
 }): Promise<{ branch: string; stages: Stage[] }> {
-  const repo = params.repo ?? process.cwd();
+  const repo = params.repo;
   const planAbs = path.isAbsolute(params.plan)
     ? params.plan
     : path.join(repo, params.plan);
@@ -248,7 +247,11 @@ export async function runImplementPlan({
     await thread<{ done: boolean; notes?: string }>(
       buildImplementStagePrompt(stage, n, stages.length, params.plan),
       STAGE_DONE_YIELD_SCHEMA,
-      { contextFiles: [planAbs], systemReminder: PLAN_MAINTENANCE_REMINDER },
+      {
+        cwd: repo,
+        contextFiles: [planAbs],
+        systemReminder: PLAN_MAINTENANCE_REMINDER,
+      },
     );
 
     const changed = await getChangedPaths(repo, baseRef);
@@ -272,7 +275,11 @@ export async function runImplementPlan({
     await thread<{ done: boolean; notes?: string }>(
       buildAddressReviewPrompt(results, stage, n, stages.length, params.plan),
       STAGE_DONE_YIELD_SCHEMA,
-      { contextFiles: [planAbs], systemReminder: PLAN_MAINTENANCE_REMINDER },
+      {
+        cwd: repo,
+        contextFiles: [planAbs],
+        systemReminder: PLAN_MAINTENANCE_REMINDER,
+      },
     );
     log(`Stage ${n}: review addressed.`);
   }
