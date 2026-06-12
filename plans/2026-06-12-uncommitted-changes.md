@@ -239,6 +239,14 @@ Bare committed review (`:Glean` → `main...HEAD`) stays the default and unchang
 
 - Goal: produce the floating commit's FileEntries and the combined base→work-tree
   diff, plus `merge_base`, with no UI changes.
+- Status: DONE. Added `git.worktree_diff`, `git.diff_to_worktree(base)`,
+  `git.merge_base`, and `git.untracked` to `nvim/lua/glean/git.lua`; untracked
+  files are synthesized as all-addition FileEntries (kind `"add"` to match the
+  diff parser's convention rather than the plan's `"added"`; binary/unreadable
+  files skipped via a NUL-byte check). Extended `git_test.lua` to leave a dirty
+  work tree (staged + unstaged + untracked) and assert all four helpers. Full
+  suite green. Note: repo has no stylua/luacheck config; code follows the
+  existing 2-space style.
 - Verification:
   - Behavior: `git diff HEAD` parses into FileEntries with correct new-file line
     numbers; `git diff <mergebase>` to the work tree shows committed + uncommitted

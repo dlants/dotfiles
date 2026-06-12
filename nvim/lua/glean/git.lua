@@ -83,6 +83,81 @@ function Git:commit_diff(sha, path)
   return diff.parse(out)
 end
 
+-- Parsed diff of the working tree against HEAD (`git diff HEAD`: staged +
+-- unstaged tracked changes). This is the floating commit's tracked-file content.
+-- Returns a list of FileEntries.
+function Git:worktree_diff(path)
+  local args = { "diff", "--no-color", "HEAD" }
+  if path then args[#args + 1] = "--"; args[#args + 1] = path end
+  local out, err = self:run(args)
+  if not out then return nil, err end
+  return diff.parse(out)
+end
+
+-- Parsed diff from `base` to the working tree (two-dot `git diff <base>`):
+-- everything that changed since `base`, committed and uncommitted. Used as the
+-- combined-scope net diff when the review target is the work tree. Returns a
+-- list of FileEntries.
+function Git:diff_to_worktree(base, path)
+  local args = { "diff", "--no-color", base }
+  if path then args[#args + 1] = "--"; args[#args + 1] = path end
+  local out, err = self:run(args)
+  if not out then return nil, err end
+  return diff.parse(out)
+end
+
+-- Resolve the merge base (fork point) of two refs (`git merge-base a b`).
+-- Returns the sha, or nil + stderr on failure.
+function Git:merge_base(a, b)
+  local out, err = self:run({ "merge-base", a, b })
+  if not out then return nil, err end
+  return (out:gsub("%s+$", ""))
+end
+
+-- Untracked, non-ignored files synthesized as all-addition FileEntries so they
+-- attach to the floating commit alongside tracked dirty edits. Read-only: we
+-- never `git add -N`. Each entry has kind "add" and a single hunk whose lines
+-- are the working file's lines, each an `add` with new_lnum = 1..N (no old_lnum,
+-- no deletions). Binary or unreadable files are skipped.
+function Git:untracked(path)
+  local args = { "ls-files", "--others", "--exclude-standard", "-z" }
+  if path then args[#args + 1] = "--"; args[#args + 1] = path end
+  local out, err = self:run(args)
+  if not out then return nil, err end
+  local files = {}
+  for p in out:gmatch("([^%z]+)") do
+    local full = self.repo_root .. "/" .. p
+    local ok, lines = pcall(vim.fn.readfile, full)
+    local binary = false
+    if ok and lines then
+      for _, l in ipairs(lines) do
+        if l:find("\0", 1, true) then binary = true; break end
+      end
+    end
+    if ok and lines and not binary then
+      local dlines = {}
+      for i, text in ipairs(lines) do
+        dlines[#dlines + 1] = { kind = "add", text = text, new_lnum = i }
+      end
+      local n = #lines
+      files[#files + 1] = {
+        path = p,
+        old_path = p,
+        kind = "add",
+        hunks = (n > 0) and { {
+          old_start = 0,
+          old_count = 0,
+          new_start = 1,
+          new_count = n,
+          header = ("@@ -0,0 +1,%d @@"):format(n),
+          lines = dlines,
+        } } or {},
+      }
+    end
+  end
+  return files
+end
+
 -- Parsed net diff `base...target` (three-dot: changes on target since it
 -- diverged from base — "what's in the branch that isn't in main"). Returns a
 -- list of FileEntries.
