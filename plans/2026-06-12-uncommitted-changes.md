@@ -375,6 +375,20 @@ Bare committed review (`:Glean` → `main...HEAD`) stays the default and unchang
 - Goal: jump opens the live working-tree file for floating add/context lines (LSP
   attaches) and the pre-image scratch for deletions; `:GleanDirty` (or `:Glean!`)
   opens `merge_base(trunk,HEAD)`→work tree with no args.
+- Status: DONE. `init.lua`: `jump_target` now resolves the floating commit's
+  add/context rows to the live work tree (`post_ref = WORKTREE`, `pre_ref = HEAD`
+  for deletions) and tags deletion rows `is_del = true`; `jump` opens the live
+  working-tree file only for post-image rows whose ref is `WORKTREE` or HEAD
+  (deletions always read their pre-image via `git show`, fixing a latent case
+  where a HEAD pre-image deletion would have opened the post-image work tree).
+  Added `M.resolve_dirty(git)` (`base = merge_base(default_base, HEAD)`,
+  `target = WORKTREE`) and `M.open_dirty(opts)`, wired to a new `:GleanDirty`
+  command and a `:Glean!` bang; bare `:Glean` (`main...HEAD`) is unchanged.
+  Extended `init_test.lua` (91 passing) with a dirty fixture: a floating add row
+  resolves to `WORKTREE` and jump returns the live path; a floating deletion
+  resolves to the HEAD pre-image scratch; the dirty resolver yields
+  `merge_base(main,HEAD)`→`WORKTREE`. Full suite green; no stylua/luacheck
+  config in repo.
 - Verification:
   - Behavior: floating add/context jump → live file + correct line; floating
     deletion jump → `git show HEAD:path` scratch; the convenience command resolves

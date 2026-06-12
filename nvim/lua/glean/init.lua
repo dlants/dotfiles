@@ -665,7 +665,13 @@ function Session:jump_target(row)
     local file = commit.files[target.file]
     dl = file.hunks[target.hunk].lines[target.line]
     path = file.path
-    post_ref, pre_ref = commit.sha, commit.sha .. "^"
+    -- The floating commit's add/context lines live in the live work tree; its
+    -- pre-image (deletions) resolves against HEAD.
+    if commit.sha == M.WORKTREE then
+      post_ref, pre_ref = M.WORKTREE, "HEAD"
+    else
+      post_ref, pre_ref = commit.sha, commit.sha .. "^"
+    end
   else
     if not target.cfile then return nil end
     local cf = self.combined_files[target.cfile]
@@ -675,7 +681,7 @@ function Session:jump_target(row)
   end
   if not dl then return nil end
   if dl.kind == "del" then
-    return { ref = pre_ref, path = path, lnum = dl.old_lnum or 1 }
+    return { ref = pre_ref, path = path, lnum = dl.old_lnum or 1, is_del = true }
   end
   return { ref = post_ref, path = path, lnum = dl.new_lnum or 1 }
 end
@@ -698,7 +704,11 @@ function Session:jump(row)
   if not jt then return end
   local win = self.win
   local abs = self.git.repo_root .. "/" .. jt.path
-  if self:ref_is_head(jt.ref) and vim.fn.filereadable(abs) == 1 then
+  -- Only post-image (add/context) rows live in the working tree; a deletion must
+  -- always read its pre-image via `git show`. The floating commit's post-image
+  -- ref is the live work tree directly; otherwise open live when ref is HEAD.
+  local live = not jt.is_del and (jt.ref == M.WORKTREE or self:ref_is_head(jt.ref))
+  if live and vim.fn.filereadable(abs) == 1 then
     if win and api.nvim_win_is_valid(win) then api.nvim_set_current_win(win) end
     vim.cmd("edit " .. vim.fn.fnameescape(abs))
     pcall(api.nvim_win_set_cursor, 0, { jt.lnum, 0 })
@@ -854,6 +864,27 @@ function M.open(opts)
   return session
 end
 
+-- Resolve the base/target for "current branch + dirty": the fork point from the
+-- default trunk (merge-base) up to the live work tree (the floating commit).
+-- Falls back to the default base when no merge-base exists (e.g. unrelated head).
+function M.resolve_dirty(git)
+  local base = git:merge_base(M.config.default_base, "HEAD") or M.config.default_base
+  return base, M.WORKTREE
+end
+
+-- Open a review of "current branch + dirty" with no base/target args.
+function M.open_dirty(opts)
+  opts = opts or {}
+  local repo_root = opts.repo_root
+    or git_mod.discover_repo_root(api.nvim_buf_get_name(0))
+  assert(repo_root, "glean: could not find a git repo root")
+  local git = git_mod.new({ repo_root = repo_root, run = opts.run })
+  local base, target = M.resolve_dirty(git)
+  return M.open(vim.tbl_extend("force", opts, {
+    repo_root = repo_root, base = base, target = target,
+  }))
+end
+
 function M.setup(opts)
   M.config = vim.tbl_extend("force", M.config, opts or {})
   api.nvim_set_hl(0, "GleanFileHeader", { link = "Title", default = true })
@@ -865,11 +896,18 @@ function M.setup(opts)
   api.nvim_set_hl(0, "GleanSeen", { link = "Comment", default = true })
   api.nvim_set_hl(0, "GleanComment", { link = "WarningMsg", default = true })
   api.nvim_create_user_command("Glean", function(o)
+    if o.bang then
+      M.open_dirty()
+      return
+    end
     local args = o.fargs
     local base = args[1] or M.config.default_base
     local target = args[2] or "HEAD"
     M.open({ base = base, target = target })
-  end, { nargs = "*" })
+  end, { nargs = "*", bang = true })
+  api.nvim_create_user_command("GleanDirty", function()
+    M.open_dirty()
+  end, {})
 end
 
 return M

@@ -500,4 +500,60 @@ do
     #sc.store:wt_comments_for(glean.WORKTREE, "m.txt", "D"), 1)
 end
 
+-- Stage 5 — jump-to-source for the floating commit + the convenience command.
+-- A floating add/context line opens the live working-tree file (LSP attaches);
+-- a floating deletion opens the HEAD pre-image scratch. The dirty convenience
+-- resolver yields merge_base(trunk, HEAD) -> WORKTREE.
+do
+  local jr = testutil.make_repo({
+    { msg = "base", files = { ["j.txt"] = "a\nb\nc\n" } },
+  })
+  local function write(path, content)
+    local f = assert(io.open(jr.root .. "/" .. path, "w"))
+    f:write(content)
+    f:close()
+  end
+  write("j.txt", "a\nB\nc\nz\n") -- unstaged edit (b->B) + appended line
+  local function runj(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = jr.root, env = jr.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local s = glean.open({
+    base = jr.shas[1], target = glean.WORKTREE, repo_root = jr.root, run = runj,
+    open_window = false, state_dir = vim.fn.tempname(), scope = "commits",
+  })
+
+  -- A floating add row resolves to the live work tree (ref == WORKTREE) and
+  -- jump opens the absolute working-tree path.
+  local addrow = find_row(s, function(_, line, t)
+    return t and t.commit == #s.commits and t.line and line == "+B"
+  end)
+  h.assert_true("wt jump: found +B row", addrow ~= nil)
+  local jt = s:jump_target(addrow)
+  h.assert_eq("wt jump: add ref is WORKTREE", jt.ref, glean.WORKTREE)
+  h.assert_eq("wt jump: add path", jt.path, "j.txt")
+  local opened = s:jump(addrow)
+  h.assert_eq("wt jump: opens live file", opened, jr.root .. "/j.txt")
+
+  -- A floating deletion row resolves to the HEAD pre-image scratch.
+  local delrow = find_row(s, function(_, line, t)
+    return t and t.commit == #s.commits and t.line and line:sub(1, 1) == "-"
+  end)
+  if delrow then
+    local djt = s:jump_target(delrow)
+    h.assert_eq("wt jump: del ref is HEAD", djt.ref, "HEAD")
+    local dbuf = s:jump(delrow)
+    h.assert_true("wt jump: del scratch buffer", type(dbuf) == "number")
+  end
+
+  -- The convenience resolver: merge_base(default_base, HEAD) -> WORKTREE.
+  local git = require("glean.git").new({ repo_root = jr.root, run = runj })
+  local base, tgt = glean.resolve_dirty(git)
+  h.assert_eq("dirty resolver: target is WORKTREE", tgt, glean.WORKTREE)
+  h.assert_eq("dirty resolver: base is HEAD merge-base",
+    base, git:rev_parse("HEAD"))
+end
+
 h.finish()
