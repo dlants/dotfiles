@@ -296,6 +296,28 @@ Bare committed review (`:Glean` → `main...HEAD`) stays the default and unchang
 
 - Goal: commit-by-commit scope shows the floating commit; `m`/visual `m`/`c`
   author content-hashed seen/comments through the adapter; persists and reloads.
+- Status: DONE. `init.lua`: added `M.WORKTREE` sentinel; `M.open` builds the
+  floating commit when `target == WORKTREE` (commit list = `base..HEAD` plus a
+  trailing `{ sha = WORKTREE, summary = "uncommitted changes", files }` from
+  `git diff HEAD` + synthesized untracked files; combined diff uses
+  `diff_to_worktree(base)` so open doesn't crash — combined *overlay* routing is
+  Stage 4). Introduced `Session:adapter_for(commit, path)` (range adapter for
+  real commits, hash adapter for the floating commit) and `Session:worktree_lines`
+  (cached working-tree file lines, the content the hash adapter matches against;
+  `new_lnum == file line` for both tracked-dirty and untracked files). Converted
+  `file_seen`/`commit_seen` to Session methods and routed render
+  (`emit_file_body`), `toggle_seen`, `mark_visual_range`, and comments
+  (`comment_anchor`/`add_comment_at`) through the adapter — commit scope only;
+  combined scope keeps its existing provenance/range path untouched. Persistence
+  reuses `save_commit`/`load` keyed by the `WORKTREE` id (repo-scoped shard
+  *name* still deferred to Stage 5/Persistence). Also fixed a latent Stage-2 bug:
+  `state.range_adapter.range_covered` called a nonexistent `store:range_covered`
+  → now `M.range_covered`. Extended `init_test.lua` (73 passing) with a dirty
+  fixture (unstaged edit + untracked file): floating commit renders last with its
+  summary and the untracked file; marking the file seen stores a content block,
+  renders ✓, and survives reopen; editing the underlying file drops the seen
+  flag; a comment anchors by line content and re-renders on reload. Full suite
+  green; all glean files load cleanly (no stylua/luacheck config in repo).
 - Verification:
   - Behavior: floating commit renders last; marking a hunk/visual span seen makes
     those lines render seen and survives reopen; editing the buffer's underlying

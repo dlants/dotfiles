@@ -354,4 +354,84 @@ do
   h.assert_true("jump commits: shows TWO at post-image", content:find("TWO", 1, true) ~= nil)
 end
 
+-- Stage 3 — the floating "worktree" commit in commit scope: content-hash seen
+-- marks and content-anchored comments, persisted to a repo-scoped shard.
+do
+  local wt = testutil.make_repo({
+    { msg = "base", files = { ["w.txt"] = "a\nb\nc\n" } },
+  })
+  local function write(path, content)
+    local f = assert(io.open(wt.root .. "/" .. path, "w"))
+    f:write(content)
+    f:close()
+  end
+  write("w.txt", "a\nB\nc\n") -- unstaged edit
+  write("u.txt", "alpha\nbeta\n") -- untracked
+  local function runwt(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = wt.root, env = wt.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local function openwt(d)
+    return glean.open({
+      base = wt.shas[1], target = glean.WORKTREE, repo_root = wt.root, run = runwt,
+      open_window = false, state_dir = d, scope = "commits",
+    })
+  end
+
+  local seen_dir = vim.fn.tempname()
+  -- Render: the floating commit appears last with its summary, and the untracked
+  -- file shows up as an all-addition file alongside the tracked dirty edit.
+  local s = openwt(seen_dir)
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_eq("worktree: floating commit id last", s.commits[#s.commits].sha, glean.WORKTREE)
+  h.assert_true("worktree: floating summary", joined:find("uncommitted changes", 1, true) ~= nil)
+  h.assert_true("worktree: untracked u.txt present", joined:find("u.txt", 1, true) ~= nil)
+  h.assert_true("worktree: +B shown", joined:find("\n+B", 1, true) ~= nil)
+
+  -- Mark the floating w.txt file seen: stores a content block and renders seen.
+  local frow = find_row(s, function(_, line, t)
+    return t and t.commit == #s.commits and t.file and not t.hunk and line:find("w.txt", 1, true)
+  end)
+  h.assert_true("worktree: found w.txt header", frow ~= nil)
+  s:toggle_seen(frow)
+  h.assert_true("worktree: content block stored",
+    #s.store:seen_blocks(glean.WORKTREE, "w.txt") > 0)
+  -- reopen: working file unchanged, so the content hash still matches → fully seen.
+  local s2 = openwt(seen_dir)
+  local _, fline2 = find_row(s2, function(_, line, t)
+    return t and t.commit == #s2.commits and t.file and not t.hunk and line:find("w.txt", 1, true)
+  end)
+  h.assert_true("worktree reopen: w.txt ✓", fline2:find("✓", 1, true) ~= nil)
+
+  -- Comments anchor by line content (not number) and render on the matching line.
+  local cdir = vim.fn.tempname()
+  local sc = openwt(cdir)
+  local crow = find_row(sc, function(_, line, t)
+    return t and t.commit == #sc.commits and t.line and line == "+B"
+  end)
+  h.assert_true("worktree comment: found +B row", crow ~= nil)
+  sc:add_comment_at(crow, "note on B")
+  h.assert_eq("worktree comment: stored by content",
+    #sc.store:wt_comments_for(glean.WORKTREE, "w.txt", "B"), 1)
+  local sc2 = openwt(cdir)
+  local crow2 = find_row(sc2, function(_, line, t)
+    return t and t.commit == #sc2.commits and t.line and line == "+B"
+  end)
+  local marks = api.nvim_buf_get_extmarks(sc2.buf,
+    api.nvim_create_namespace("glean_comments"), { crow2, 0 }, { crow2, -1 }, { details = true })
+  h.assert_true("worktree comment: virt_lines present",
+    #marks > 0 and marks[1][4].virt_lines ~= nil)
+
+  -- Editing the underlying file content drops the content-hash seen flag (the
+  -- stored block no longer matches any current window).
+  write("w.txt", "a\nBB\nc\n")
+  local s3 = openwt(seen_dir)
+  local _, fline3 = find_row(s3, function(_, line, t)
+    return t and t.commit == #s3.commits and t.file and not t.hunk and line:find("w.txt", 1, true)
+  end)
+  h.assert_true("worktree edit: w.txt seen dropped", fline3:find("✓", 1, true) == nil)
+end
+
 h.finish()

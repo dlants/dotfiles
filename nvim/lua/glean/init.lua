@@ -17,6 +17,11 @@ local state_mod = require("glean.state")
 local provenance = require("glean.provenance")
 local M = {}
 local api = vim.api
+
+-- Reserved non-sha id for the synthetic "floating" commit that stands in for the
+-- working tree on top of HEAD. Its reviewed units are content-addressed (hashes)
+-- rather than line ranges, since uncommitted lines have no stable line numbers.
+M.WORKTREE = "WORKTREE"
 local NS = api.nvim_create_namespace("glean_hl")
 local COMMENT_NS = api.nvim_create_namespace("glean_comments")
 
@@ -49,19 +54,42 @@ local function file_new_ranges(file)
   return ranges
 end
 
--- Is a file fully seen for (sha, path)? (every changed new-file range covered)
-local function file_seen(store, sha, path, file)
-  local seen = store:seen_ranges(sha, path)
+-- The addressing adapter for a (commit, path): real commits use the line-range
+-- adapter; the floating commit uses the content-hash adapter, supplied the
+-- working-tree file's current line texts so it can translate new_lnum ↔ content.
+function Session:adapter_for(commit, path)
+  if commit.sha == M.WORKTREE then
+    return state_mod.hash_adapter(self.store, M.WORKTREE, path, self:worktree_lines(path))
+  end
+  return state_mod.range_adapter(self.store, commit.sha, path)
+end
+
+-- The working-tree file's current lines (array indexed by new_lnum), cached.
+-- This is the live content the floating commit's content hashes are matched
+-- against; for both tracked-dirty and untracked files new_lnum == file line.
+function Session:worktree_lines(path)
+  self._wt_lines = self._wt_lines or {}
+  if self._wt_lines[path] == nil then
+    local abs = self.git.repo_root .. "/" .. path
+    local ok, lines = pcall(vim.fn.readfile, abs)
+    self._wt_lines[path] = (ok and lines) or {}
+  end
+  return self._wt_lines[path]
+end
+
+-- Is a file fully seen for (commit, path)? (every changed new-file range covered)
+function Session:file_seen(commit, file)
+  local ad = self:adapter_for(commit, file.path)
   for _, r in ipairs(file_new_ranges(file)) do
-    if not state_mod.range_covered(seen, r) then return false end
+    if not ad.range_covered(r[1], r[2]) then return false end
   end
   return true
 end
 
 -- Is a whole commit fully seen?
-local function commit_seen(store, commit)
+function Session:commit_seen(commit)
   for _, file in ipairs(commit.files) do
-    if not file_seen(store, commit.sha, file.path, file) then return false end
+    if not self:file_seen(commit, file) then return false end
   end
   return true
 end
@@ -199,7 +227,7 @@ function Session:build()
     return row
   end
 
-  local function emit_file_body(commit_sha, fi, file, target_base)
+  local function emit_file_body(adapter, fi, file, target_base)
     for hi, hunk in ipairs(file.hunks) do
       local target = vim.tbl_extend("force", target_base, { hunk = hi })
       emit(hunk.header, target, "GleanHunkHeader")
@@ -208,14 +236,13 @@ function Session:build()
         local hl = dl.kind == "add" and "GleanAdd"
           or dl.kind == "del" and "GleanDel"
           or "GleanContext"
-        if commit_sha and dl.new_lnum
-          and state_mod.covers(self.store:seen_ranges(commit_sha, file.path), dl.new_lnum) then
+        if adapter and dl.new_lnum and adapter.is_seen(dl.new_lnum) then
           hl = "GleanSeen"
         end
         local row = emit(marker .. dl.text,
           vim.tbl_extend("force", target, { line = li }), hl)
-        if commit_sha and dl.new_lnum then
-          local texts = self.store:comments_at(commit_sha, file.path, dl.new_lnum)
+        if adapter and dl.new_lnum then
+          local texts = adapter.comments_at(dl.new_lnum)
           if #texts > 0 then comments[#comments + 1] = { row = row, texts = texts } end
         end
       end
@@ -225,19 +252,20 @@ function Session:build()
   if self.scope == "commits" then
     for ci, commit in ipairs(self.commits) do
       local chevron = commit.collapsed and CHEVRON_CLOSED or CHEVRON_OPEN
-      local mark = commit_seen(self.store, commit) and "✓" or "●"
+      local mark = self:commit_seen(commit) and "✓" or "●"
       local short = commit.sha:sub(1, 8)
       emit(("%s %s %s %s"):format(chevron, mark, short, commit.summary),
         { commit = ci }, "GleanCommitHeader")
       if not commit.collapsed then
         for fi, file in ipairs(commit.files) do
           local fchev = file.collapsed and CHEVRON_CLOSED or CHEVRON_OPEN
-          local fmark = file_seen(self.store, commit.sha, file.path, file) and "✓" or " "
+          local fmark = self:file_seen(commit, file) and "✓" or " "
           local kind = file.kind and (" [" .. file.kind .. "]") or ""
           emit(("  %s %s %s%s"):format(fchev, fmark, file.path, kind),
             { commit = ci, file = fi }, "GleanFileHeader")
           if not file.collapsed then
-            emit_file_body(commit.sha, fi, file, { commit = ci, file = fi })
+            emit_file_body(self:adapter_for(commit, file.path), fi, file,
+              { commit = ci, file = fi })
           end
         end
       end
@@ -331,9 +359,9 @@ end
 -- files start collapsed so only unseen work is expanded. Never persisted.
 function Session:init_collapse()
   for _, commit in ipairs(self.commits) do
-    commit.collapsed = commit_seen(self.store, commit)
+    commit.collapsed = self:commit_seen(commit)
     for _, file in ipairs(commit.files) do
-      file.collapsed = file_seen(self.store, commit.sha, file.path, file)
+      file.collapsed = self:file_seen(commit, file)
     end
   end
 end
@@ -395,36 +423,80 @@ function Session:target_ranges(target)
   return out
 end
 
--- Toggle seen on the cursor's target: if every addressed range is already seen,
--- unmark them; otherwise mark them all. Persists the affected commit shards.
+-- The (commit, path, new_lnum list) groups a target row addresses, mirroring
+-- target_ranges but carrying the owning commit object (so the right addressing
+-- adapter is chosen) and explicit new-file line numbers. A commit header yields
+-- every file's lines; a file header that file's lines; a hunk that hunk's lines.
+function Session:target_groups(target)
+  local commit = self.commits[target.commit]
+  local groups = {}
+  local function add_file(file, ranges)
+    local lnums = {}
+    for _, r in ipairs(ranges) do
+      for l = r[1], r[2] do lnums[#lnums + 1] = l end
+    end
+    if #lnums > 0 then groups[#groups + 1] = { commit = commit, file = file, lnums = lnums } end
+  end
+  if target.file then
+    local file = commit.files[target.file]
+    if target.hunk then
+      local r = hunk_new_range(file.hunks[target.hunk])
+      add_file(file, r and { r } or {})
+    else
+      add_file(file, file_new_ranges(file))
+    end
+  else
+    for _, file in ipairs(commit.files) do add_file(file, file_new_ranges(file)) end
+  end
+  return groups
+end
+
+-- Toggle seen on the cursor's target: if every addressed line is already seen,
+-- unmark them; otherwise mark them all. Commit scope routes through the per-
+-- commit addressing adapter (range for real commits, content-hash for the
+-- floating commit); combined scope keeps the provenance range path. Persists
+-- the affected commit shards.
 function Session:toggle_seen(row)
   if row == nil then row = self:cursor_row() end
   local target = self.row_map[row]
   if not target then return end
-  local tuples
+  local touched = {}
   if self.scope == "commits" then
     if not target.commit then return end
-    tuples = self:target_ranges(target)
+    local groups = self:target_groups(target)
+    if #groups == 0 then return end
+    local all_seen = true
+    for _, g in ipairs(groups) do
+      local ad = self:adapter_for(g.commit, g.file.path)
+      for _, l in ipairs(g.lnums) do
+        if not ad.is_seen(l) then all_seen = false break end
+      end
+      if not all_seen then break end
+    end
+    for _, g in ipairs(groups) do
+      local ad = self:adapter_for(g.commit, g.file.path)
+      if all_seen then ad.unmark(g.lnums) else ad.mark(g.lnums) end
+      touched[g.commit.sha] = true
+    end
   else
     if not target.cfile then return end
-    tuples = self:combined_tuples(target)
-  end
-  if #tuples == 0 then return end
-  local all_seen = true
-  for _, t in ipairs(tuples) do
-    if not state_mod.range_covered(self.store:seen_ranges(t.sha, t.path), t.range) then
-      all_seen = false
-      break
+    local tuples = self:combined_tuples(target)
+    if #tuples == 0 then return end
+    local all_seen = true
+    for _, t in ipairs(tuples) do
+      if not state_mod.range_covered(self.store:seen_ranges(t.sha, t.path), t.range) then
+        all_seen = false
+        break
+      end
     end
-  end
-  local touched = {}
-  for _, t in ipairs(tuples) do
-    if all_seen then
-      self.store:unmark_seen(t.sha, t.path, t.range)
-    else
-      self.store:mark_seen(t.sha, t.path, t.range)
+    for _, t in ipairs(tuples) do
+      if all_seen then
+        self.store:unmark_seen(t.sha, t.path, t.range)
+      else
+        self.store:mark_seen(t.sha, t.path, t.range)
+      end
+      touched[t.sha] = true
     end
-    touched[t.sha] = true
   end
   for sha in pairs(touched) do self.store:save_commit(sha) end
   self:render()
@@ -435,34 +507,49 @@ end
 -- Deletion-only rows contribute no new-file line and are skipped.
 function Session:mark_visual_range(srow, erow)
   if srow > erow then srow, erow = erow, srow end
-  local groups = {}
-  local function add(sha, path, lnum)
-    local key = sha .. "\0" .. path
-    groups[key] = groups[key] or { sha = sha, path = path, lnums = {} }
-    groups[key].lnums[#groups[key].lnums + 1] = lnum
-  end
-  for row = srow, erow do
-    local target = self.row_map[row]
-    if self.scope == "commits" then
+  local touched = {}
+  if self.scope == "commits" then
+    -- Group by (commit, file), collect new_lnums, and mark via the adapter so
+    -- the floating commit's content hashing kicks in for uncommitted lines.
+    local groups = {}
+    for row = srow, erow do
+      local target = self.row_map[row]
       if target and target.commit and target.file and target.line then
         local commit = self.commits[target.commit]
         local file = commit.files[target.file]
         local dl = file.hunks[target.hunk].lines[target.line]
-        if dl.new_lnum then add(commit.sha, file.path, dl.new_lnum) end
+        if dl.new_lnum then
+          local key = target.commit .. "\0" .. file.path
+          groups[key] = groups[key] or { commit = commit, file = file, lnums = {} }
+          groups[key].lnums[#groups[key].lnums + 1] = dl.new_lnum
+        end
       end
-    elseif target and target.cfile and target.hunk and target.line then
-      local cf = self.combined_files[target.cfile]
-      local dl = cf.hunks[target.hunk].lines[target.line]
-      local p = dl.new_lnum and self:provenance(cf.path)[dl.new_lnum]
-      if p then add(p.sha, cf.path, p.orig_lnum) end
     end
-  end
-  local touched = {}
-  for _, g in pairs(groups) do
-    for _, l in ipairs(g.lnums) do
-      self.store:mark_seen(g.sha, g.path, { l, l })
+    for _, g in pairs(groups) do
+      self:adapter_for(g.commit, g.file.path).mark(g.lnums)
+      touched[g.commit.sha] = true
     end
-    touched[g.sha] = true
+  else
+    local groups = {}
+    for row = srow, erow do
+      local target = self.row_map[row]
+      if target and target.cfile and target.hunk and target.line then
+        local cf = self.combined_files[target.cfile]
+        local dl = cf.hunks[target.hunk].lines[target.line]
+        local p = dl.new_lnum and self:provenance(cf.path)[dl.new_lnum]
+        if p then
+          local key = p.sha .. "\0" .. cf.path
+          groups[key] = groups[key] or { sha = p.sha, path = cf.path, lnums = {} }
+          groups[key].lnums[#groups[key].lnums + 1] = p.orig_lnum
+        end
+      end
+    end
+    for _, g in pairs(groups) do
+      for _, l in ipairs(g.lnums) do
+        self.store:mark_seen(g.sha, g.path, { l, l })
+      end
+      touched[g.sha] = true
+    end
   end
   for sha in pairs(touched) do self.store:save_commit(sha) end
   self:render()
@@ -488,6 +575,10 @@ local function anchor_lnum(hunk, idx)
   return nil
 end
 
+-- Resolve a row to (adapter, new_lnum, save_sha): the addressing adapter to
+-- author the comment through, the new-file line number to anchor it to, and the
+-- shard id to persist. Commit scope picks the owning commit's adapter; combined
+-- scope routes to the provenance owner via a range adapter.
 function Session:comment_anchor(row)
   local target = self.row_map[row]
   if not target or not target.line then return nil end
@@ -497,24 +588,24 @@ function Session:comment_anchor(row)
     local file = commit.files[target.file]
     local lnum = anchor_lnum(file.hunks[target.hunk], target.line)
     if not lnum then return nil end
-    return commit.sha, file.path, lnum
+    return self:adapter_for(commit, file.path), lnum, commit.sha
   else
     if not target.cfile then return nil end
     local cf = self.combined_files[target.cfile]
     local lnum = anchor_lnum(cf.hunks[target.hunk], target.line)
     local p = lnum and self:provenance(cf.path)[lnum]
     if not p then return nil end
-    return p.sha, cf.path, p.orig_lnum
+    return state_mod.range_adapter(self.store, p.sha, cf.path), p.orig_lnum, p.sha
   end
 end
 
 function Session:add_comment_at(row, text)
   if row == nil then row = self:cursor_row() end
   if not text or text == "" then return end
-  local sha, path, lnum = self:comment_anchor(row)
-  if not sha then return end
-  self.store:add_comment(sha, path, lnum, text)
-  self.store:save_commit(sha)
+  local ad, lnum, save_sha = self:comment_anchor(row)
+  if not ad then return end
+  ad.add_comment(lnum, text)
+  self.store:save_commit(save_sha)
   self:render()
 end
 
@@ -653,16 +744,42 @@ function M.open(opts)
   assert(repo_root, "glean: could not find a git repo root")
   local git = git_mod.new({ repo_root = repo_root, run = opts.run })
 
-  local files, err = git:combined_diff(opts.base, opts.target)
+  -- When the target is the floating commit, the working tree is the net target:
+  -- the combined diff runs base->work tree and the commit list is base..HEAD with
+  -- the floating commit appended last (combined overlay routing lands in Stage 4).
+  local worktree = opts.target == M.WORKTREE
+  local files, err
+  if worktree then
+    files, err = git:diff_to_worktree(opts.base)
+  else
+    files, err = git:combined_diff(opts.base, opts.target)
+  end
   if not files then error("glean: combined_diff failed: " .. tostring(err)) end
   for _, f in ipairs(files) do f.collapsed = false end
 
-  local commit_list, cerr = git:commits(opts.base, opts.target)
+  local commit_target = worktree and "HEAD" or opts.target
+  local commit_list, cerr = git:commits(opts.base, commit_target)
   if not commit_list then error("glean: commits failed: " .. tostring(cerr)) end
   local shas = {}
   for _, c in ipairs(commit_list) do
     c.files = git:commit_diff(c.sha) or {}
     shas[#shas + 1] = c.sha
+  end
+
+  if worktree then
+    local ffiles = {}
+    for _, f in ipairs(git:worktree_diff() or {}) do
+      f.collapsed = false
+      ffiles[#ffiles + 1] = f
+    end
+    for _, f in ipairs(git:untracked() or {}) do
+      f.collapsed = false
+      ffiles[#ffiles + 1] = f
+    end
+    commit_list[#commit_list + 1] = {
+      sha = M.WORKTREE, summary = "uncommitted changes", files = ffiles, collapsed = false,
+    }
+    shas[#shas + 1] = M.WORKTREE
   end
 
   local store = state_mod.new({ dir = opts.state_dir })

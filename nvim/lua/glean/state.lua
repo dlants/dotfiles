@@ -362,7 +362,7 @@ function M.range_adapter(store, sha, path)
       end
     end,
     range_covered = function(s, e)
-      return store:range_covered(store:seen_ranges(sha, path), { s, e })
+      return M.range_covered(store:seen_ranges(sha, path), { s, e })
     end,
     add_comment = function(lnum, text)
       store:add_comment(sha, path, lnum, text)
