@@ -435,6 +435,26 @@ The per-stage Verification blocks below assume this harness; map roughly as Stag
   - Expected: commit list + per-line kinds/line-numbers match; new-file line
     numbers stable across repeated parses.
 
+> **Status: DONE.** Implemented `nvim/lua/glean/init.lua`: a `Session` model
+> (FileEntries from `git:combined_diff(base, target)` with an ephemeral
+> `collapsed` flag) projected into one `nofile` buffer via `Session:build`
+> (pure: returns lines + `row_map` + highlights) and `Session:render`. Every
+> rendered row is covered by `row_map[row] = { file, hunk?, line? }`. `=`
+> toggles collapse of the cursor's file (`Session:toggle_collapse`), `q` closes.
+> `:Glean [base] [target]` (defaults `main`/`HEAD`) opens in a new tab. Wired
+> `require("glean.init").setup()` into `nvim/init.lua` and disabled cmp for the
+> `glean` filetype in `config/plugins.lua`. Added Tier-3a `init_test.lua`
+> (render text, full row_map coverage, collapse hides body / re-expand
+> restores) — all suites green (70 assertions).
+> Decisions/deviations:
+> - Combined scope only this stage; commit-by-commit / seen / comments are
+>   Stage 3+.
+> - `open()` takes `open_window=false` and injected `repo_root`/`run` so tests
+>   inspect buffer state without a window; the buffer name is suffixed with the
+>   buffer id to avoid E95 name clashes across multiple opens.
+> - Folding is modeled (body omitted when collapsed), not neovim folds, per the
+>   plan, keeping view state + rendering in one place.
+
 ## Stage 2 — render a single scope with collapse (combined first)
 
 - Goal: `:Glean base target` renders the combined scope; files collapsible;

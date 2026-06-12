@@ -464,6 +464,7 @@ cmp.setup({
 
 cmp.setup.filetype("needle", { enabled = false })
 cmp.setup.filetype("shuck",  { enabled = false })
+cmp.setup.filetype("glean",  { enabled = false })
 
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "lua",
