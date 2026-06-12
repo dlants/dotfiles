@@ -8,6 +8,7 @@ local lua_root = this_dir:match("(.+)/[^/]+$") or "."
 package.path = lua_root .. "/?.lua;" .. lua_root .. "/?/init.lua;" .. package.path
 
 local glean = require("glean.init")
+local state = require("glean.state")
 local testutil = require("glean.testutil")
 local h = testutil.new()
 local api = vim.api
@@ -65,7 +66,7 @@ do
     if not s.row_map[row] then all_mapped = false end
   end
   h.assert_true("row_map: every row mapped", all_mapped)
-  h.assert_true("row_map: row 0 is a file header", s.row_map[0].file == 1 and s.row_map[0].hunk == nil)
+  h.assert_true("row_map: row 0 is a file header", s.row_map[0].cfile == 1 and s.row_map[0].hunk == nil)
   -- find a body line (has .line) and confirm it points into a hunk.
   local found_line = false
   for row = 0, n - 1 do
@@ -81,7 +82,7 @@ do
   -- locate g.txt header row before collapse.
   local function header_row(path)
     for row, t in pairs(s.row_map) do
-      if t.file and not t.hunk then
+      if (t.file or t.cfile) and not t.hunk then
         local line = api.nvim_buf_get_lines(s.buf, row, row + 1, false)[1]
         if line and line:find(path, 1, true) then return row end
       end
@@ -184,6 +185,121 @@ do
     { details = true })
   h.assert_true("comment: virt_lines extmark present",
     #marks > 0 and marks[1][4].virt_lines ~= nil)
+end
+
+-- Stage 4 — combined overlay via provenance.
+-- (c)/(d): marking f.txt seen in combined routes each new line to its owning
+-- commit (TWO -> c1, THREE -> c2); the file then drops to a "seen up to" row.
+do
+  local dir = vim.fn.tempname()
+  local s = open({ state_dir = dir }) -- combined scope (default)
+  local frow = find_row(s, function(_, line, t)
+    return t and t.cfile and not t.hunk and line:find("f.txt", 1, true)
+  end)
+  h.assert_true("combined: found f.txt header", frow ~= nil)
+  s:toggle_seen(frow)
+  h.assert_true("combined: TWO seen on c1",
+    state.covers(s.store:seen_ranges(repo.shas[2], "f.txt"), 2))
+  h.assert_true("combined: THREE seen on c2",
+    state.covers(s.store:seen_ranges(repo.shas[3], "f.txt"), 3))
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("combined: f.txt fully-seen row", joined:find("✓ f.txt", 1, true) ~= nil)
+  h.assert_true("combined: f.txt body elided", joined:find("\n+TWO", 1, true) == nil)
+  -- reopen: persisted seen still collapses f.txt in combined.
+  local s2 = open({ state_dir = dir })
+  local joined2 = table.concat(api.nvim_buf_get_lines(s2.buf, 0, -1, false), "\n")
+  h.assert_true("combined reopen: f.txt still fully seen", joined2:find("✓ f.txt", 1, true) ~= nil)
+  h.assert_true("combined reopen: g.txt still shown", joined2:find("▾ g.txt", 1, true) ~= nil)
+end
+
+-- (e): comments in combined route to the owning commit of each line.
+do
+  local dir = vim.fn.tempname()
+  local s = open({ state_dir = dir })
+  local r3 = find_row(s, function(_, line, t) return t and t.cfile and t.line and line == "+THREE" end)
+  local r2 = find_row(s, function(_, line, t) return t and t.cfile and t.line and line == "+TWO" end)
+  s:add_comment_at(r3, "on three")
+  s:add_comment_at(r2, "on two")
+  h.assert_eq("combined comment: THREE -> c2", #s.store:comments_at(repo.shas[3], "f.txt", 3), 1)
+  h.assert_eq("combined comment: TWO -> c1", #s.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+end
+
+-- (a)/(b)/(f): supersession + follow-up. c1 edits line2; c2 supersedes it.
+do
+  local r2 = testutil.make_repo({
+    { msg = "base", files = { ["x.txt"] = "a\nb\nc\n" } },
+    { msg = "c1: b->B1", files = { ["x.txt"] = "a\nB1\nc\n" } },
+    { msg = "c2: b->B2", files = { ["x.txt"] = "a\nB2\nc\n" } },
+  })
+  local function run2(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = r2.root, env = r2.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local dir = vim.fn.tempname()
+  local function open2(tgt)
+    return glean.open({
+      base = r2.shas[1], target = tgt, repo_root = r2.root, run = run2,
+      open_window = false, state_dir = dir,
+    })
+  end
+  -- combined net of base..c2: only line2 = B2 survives, owned by c2.
+  local s = open2(r2.shas[3])
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("supersede: shows B2", joined:find("\n+B2", 1, true) ~= nil)
+  h.assert_true("supersede: B1 never in combined", joined:find("B1", 1, true) == nil)
+  -- Reviewing c1 alone (the superseded commit) does NOT mark the surviving
+  -- line seen, because that line is owned by c2.
+  local cs = open2(r2.shas[3])
+  cs:set_scope("commits")
+  local c1hdr = find_row(cs, function(_, _, t) return t and t.commit == 1 and not t.file end)
+  cs:toggle_seen(c1hdr)
+  local back = open2(r2.shas[3])
+  local j2 = table.concat(api.nvim_buf_get_lines(back.buf, 0, -1, false), "\n")
+  h.assert_true("supersede: B2 still unseen after reviewing c1", j2:find("\n+B2", 1, true) ~= nil)
+  -- Follow-up: reviewing c2 fully seens the file; it collapses to a marker.
+  local cs2 = open2(r2.shas[3])
+  cs2:set_scope("commits")
+  local c2hdr = find_row(cs2, function(_, _, t) return t and t.commit == 2 and not t.file end)
+  cs2:toggle_seen(c2hdr)
+  local done = open2(r2.shas[3])
+  local j3 = table.concat(api.nvim_buf_get_lines(done.buf, 0, -1, false), "\n")
+  h.assert_true("follow-up: x.txt fully seen after c2", j3:find("✓ x.txt", 1, true) ~= nil)
+end
+
+-- Re-diff branch: a file with two far-apart hunks from two commits; once the
+-- earlier hunk is marked seen, the combined view re-diffs the tighter
+-- Xe^..target range and shows a "seen up to" marker plus only the later hunk.
+do
+  local base_content = "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\n"
+  local r3 = testutil.make_repo({
+    { msg = "base", files = { ["y.txt"] = base_content } },
+    { msg = "c1: edit l2", files = { ["y.txt"] = "l1\nL2\nl3\nl4\nl5\nl6\nl7\nl8\n" } },
+    { msg = "c2: edit l7", files = { ["y.txt"] = "l1\nL2\nl3\nl4\nl5\nl6\nL7\nl8\n" } },
+  })
+  local function run3(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = r3.root, env = r3.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local dir = vim.fn.tempname()
+  local function open3()
+    return glean.open({
+      base = r3.shas[1], target = r3.shas[3], repo_root = r3.root, run = run3,
+      open_window = false, state_dir = dir,
+    })
+  end
+  -- Mark only c1's L2 line seen on its owning commit.
+  local s = open3()
+  s.store:mark_seen(r3.shas[2], "y.txt", { 2, 2 })
+  s.store:save_commit(r3.shas[2])
+  local s2 = open3()
+  local joined = table.concat(api.nvim_buf_get_lines(s2.buf, 0, -1, false), "\n")
+  h.assert_true("redirff: seen-up-to marker shown", joined:find("seen up to", 1, true) ~= nil)
+  h.assert_true("rediff: L7 (unseen) shown", joined:find("\n+L7", 1, true) ~= nil)
+  h.assert_true("rediff: L2 hunk elided", joined:find("\n+L2", 1, true) == nil)
 end
 
 h.finish()

@@ -14,6 +14,7 @@
 -- when a scope is (re)built, then evolves independently and is never persisted.
 local git_mod = require("glean.git")
 local state_mod = require("glean.state")
+local provenance = require("glean.provenance")
 local M = {}
 local api = vim.api
 local NS = api.nvim_create_namespace("glean_hl")
@@ -63,6 +64,122 @@ local function commit_seen(store, commit)
     if not file_seen(store, commit.sha, file.path, file) then return false end
   end
   return true
+end
+
+-- ---------------------------------------------------------------------------
+-- Combined overlay (Stage 4): per-line ownership via blame + tighter re-diff.
+-- ---------------------------------------------------------------------------
+
+-- Cached `git blame -p` provenance for a path at target: new_lnum -> {sha,orig}.
+-- Depends only on target, so it survives seen-mark changes between renders.
+function Session:provenance(path)
+  self._prov = self._prov or {}
+  if self._prov[path] == nil then
+    local out = self.git:blame(self.target, path)
+    self._prov[path] = (out and provenance.parse_blame(out)) or {}
+  end
+  return self._prov[path]
+end
+
+-- sha -> chronological index within base..target.
+function Session:commit_index()
+  if not self._cidx then
+    self._cidx = {}
+    for i, c in ipairs(self.commits) do self._cidx[c.sha] = i end
+  end
+  return self._cidx
+end
+
+-- Project the raw combined diff into display files, overlaying seen state:
+-- fully-seen files collapse to a single "seen up to" row; partially-seen files
+-- are re-diffed over the tighter Xe^..target range (Xe = earliest unseen
+-- contributor) and filtered to hunks that still contain an unseen new line.
+function Session:compute_combined()
+  local cidx = self:commit_index()
+  local out = {}
+  for _, raw in ipairs(self.files) do
+    local path = raw.path
+    local prov = self:provenance(path)
+    local earliest_contrib, earliest_unseen, newest = nil, nil, nil
+    local any_new, seen_count = false, 0
+    for _, hunk in ipairs(raw.hunks) do
+      for _, dl in ipairs(hunk.lines) do
+        if dl.new_lnum then
+          any_new = true
+          local p = prov[dl.new_lnum]
+          local idx = p and cidx[p.sha]
+          if idx then
+            if not earliest_contrib or idx < earliest_contrib then earliest_contrib = idx end
+            if not newest or idx > newest then newest = idx end
+            if state_mod.covers(self.store:seen_ranges(p.sha, path), p.orig_lnum) then
+              seen_count = seen_count + 1
+            elseif not earliest_unseen or idx < earliest_unseen then
+              earliest_unseen = idx
+            end
+          end
+        end
+      end
+    end
+    if not any_new or (earliest_unseen and seen_count == 0) then
+      -- Nothing seen (or a pure-deletion file): show the full combined diff.
+      out[#out + 1] = { path = path, kind = raw.kind, hunks = raw.hunks, raw = raw }
+    elseif not earliest_unseen then
+      out[#out + 1] = {
+        path = path, kind = raw.kind, hunks = {}, raw = raw,
+        fully_seen = true, seen_up_to = newest and self.commits[newest].sha,
+      }
+    else
+      local xe = self.commits[earliest_unseen].sha
+      local files = self.git:range_diff(xe .. "^", self.target, path)
+      local rf = files and files[1]
+      local hunks = {}
+      if rf then
+        for _, hunk in ipairs(rf.hunks) do
+          local keep = false
+          for _, dl in ipairs(hunk.lines) do
+            local p = dl.new_lnum and prov[dl.new_lnum]
+            if p and not state_mod.covers(self.store:seen_ranges(p.sha, path), p.orig_lnum) then
+              keep = true
+              break
+            end
+          end
+          if keep then hunks[#hunks + 1] = hunk end
+        end
+      end
+      local has_prefix = seen_count > 0 and earliest_contrib and earliest_unseen > earliest_contrib
+      out[#out + 1] = {
+        path = path, kind = raw.kind, hunks = hunks, raw = raw,
+        seen_up_to = has_prefix and xe or nil,
+      }
+    end
+  end
+  return out
+end
+
+-- The (sha, path, range) tuples a combined target addresses, grouped by owning
+-- commit via provenance. A file header enumerates the whole raw file's new
+-- lines; a hunk enumerates that display hunk's new lines.
+function Session:combined_tuples(target)
+  local cf = self.combined_files[target.cfile]
+  local prov = self:provenance(cf.path)
+  local lnums = {}
+  if target.hunk then
+    for _, dl in ipairs(cf.hunks[target.hunk].lines) do
+      if dl.new_lnum then lnums[#lnums + 1] = dl.new_lnum end
+    end
+  else
+    for _, hunk in ipairs(cf.raw.hunks) do
+      for _, dl in ipairs(hunk.lines) do
+        if dl.new_lnum then lnums[#lnums + 1] = dl.new_lnum end
+      end
+    end
+  end
+  local out = {}
+  for _, ln in ipairs(lnums) do
+    local p = prov[ln]
+    if p then out[#out + 1] = { sha = p.sha, path = cf.path, range = { p.orig_lnum, p.orig_lnum } } end
+  end
+  return out
 end
 
 -- ---------------------------------------------------------------------------
@@ -126,12 +243,42 @@ function Session:build()
       end
     end
   else
-    for fi, file in ipairs(self.files) do
-      local chevron = file.collapsed and CHEVRON_CLOSED or CHEVRON_OPEN
-      local kind = file.kind and (" [" .. file.kind .. "]") or ""
-      emit(chevron .. " " .. file.path .. kind, { file = fi }, "GleanFileHeader")
-      if not file.collapsed then
-        emit_file_body(nil, fi, file, { file = fi })
+    self.combined_files = self:compute_combined()
+    for fi, cf in ipairs(self.combined_files) do
+      if cf.fully_seen then
+        emit(("✓ %s  ⟶ seen up to %s"):format(cf.path, (cf.seen_up_to or ""):sub(1, 8)),
+          { cfile = fi }, "GleanSeen")
+      else
+        local chevron = cf.raw.collapsed and CHEVRON_CLOSED or CHEVRON_OPEN
+        local kind = cf.kind and (" [" .. cf.kind .. "]") or ""
+        emit(chevron .. " " .. cf.path .. kind, { cfile = fi }, "GleanFileHeader")
+        if not cf.raw.collapsed then
+          if cf.seen_up_to then
+            emit(("  ⟶ seen up to %s^"):format(cf.seen_up_to:sub(1, 8)),
+              { cfile = fi, marker = true }, "GleanSeen")
+          end
+          local prov = self:provenance(cf.path)
+          for hi, hunk in ipairs(cf.hunks) do
+            local target = { cfile = fi, hunk = hi }
+            emit(hunk.header, target, "GleanHunkHeader")
+            for li, dl in ipairs(hunk.lines) do
+              local marker = dl.kind == "add" and "+" or dl.kind == "del" and "-" or " "
+              local hl = dl.kind == "add" and "GleanAdd"
+                or dl.kind == "del" and "GleanDel"
+                or "GleanContext"
+              local owner = dl.new_lnum and prov[dl.new_lnum]
+              if owner and state_mod.covers(self.store:seen_ranges(owner.sha, cf.path), owner.orig_lnum) then
+                hl = "GleanSeen"
+              end
+              local row = emit(marker .. dl.text,
+                vim.tbl_extend("force", target, { line = li }), hl)
+              if owner then
+                local texts = self.store:comments_at(owner.sha, cf.path, owner.orig_lnum)
+                if #texts > 0 then comments[#comments + 1] = { row = row, texts = texts } end
+              end
+            end
+          end
+        end
       end
     end
   end
@@ -210,8 +357,9 @@ function Session:toggle_collapse(row)
       commit.collapsed = not commit.collapsed
     end
   else
-    if target.file then
-      self.files[target.file].collapsed = not self.files[target.file].collapsed
+    if target.cfile then
+      local cf = self.combined_files[target.cfile]
+      if cf and not cf.fully_seen then cf.raw.collapsed = not cf.raw.collapsed end
     end
   end
   self:render()
@@ -250,11 +398,17 @@ end
 -- Toggle seen on the cursor's target: if every addressed range is already seen,
 -- unmark them; otherwise mark them all. Persists the affected commit shards.
 function Session:toggle_seen(row)
-  if self.scope ~= "commits" then return end
   if row == nil then row = self:cursor_row() end
   local target = self.row_map[row]
-  if not target or not target.commit then return end
-  local tuples = self:target_ranges(target)
+  if not target then return end
+  local tuples
+  if self.scope == "commits" then
+    if not target.commit then return end
+    tuples = self:target_ranges(target)
+  else
+    if not target.cfile then return end
+    tuples = self:combined_tuples(target)
+  end
   if #tuples == 0 then return end
   local all_seen = true
   for _, t in ipairs(tuples) do
@@ -280,20 +434,27 @@ end
 -- new_lnum, group by (commit, path), and store exactly those ranges (sub-hunk).
 -- Deletion-only rows contribute no new-file line and are skipped.
 function Session:mark_visual_range(srow, erow)
-  if self.scope ~= "commits" then return end
   if srow > erow then srow, erow = erow, srow end
   local groups = {}
+  local function add(sha, path, lnum)
+    local key = sha .. "\0" .. path
+    groups[key] = groups[key] or { sha = sha, path = path, lnums = {} }
+    groups[key].lnums[#groups[key].lnums + 1] = lnum
+  end
   for row = srow, erow do
     local target = self.row_map[row]
-    if target and target.commit and target.file and target.line then
-      local commit = self.commits[target.commit]
-      local file = commit.files[target.file]
-      local dl = file.hunks[target.hunk].lines[target.line]
-      if dl.new_lnum then
-        local key = commit.sha .. "\0" .. file.path
-        groups[key] = groups[key] or { sha = commit.sha, path = file.path, lnums = {} }
-        groups[key].lnums[#groups[key].lnums + 1] = dl.new_lnum
+    if self.scope == "commits" then
+      if target and target.commit and target.file and target.line then
+        local commit = self.commits[target.commit]
+        local file = commit.files[target.file]
+        local dl = file.hunks[target.hunk].lines[target.line]
+        if dl.new_lnum then add(commit.sha, file.path, dl.new_lnum) end
       end
+    elseif target and target.cfile and target.hunk and target.line then
+      local cf = self.combined_files[target.cfile]
+      local dl = cf.hunks[target.hunk].lines[target.line]
+      local p = dl.new_lnum and self:provenance(cf.path)[dl.new_lnum]
+      if p then add(p.sha, cf.path, p.orig_lnum) end
     end
   end
   local touched = {}
@@ -313,30 +474,41 @@ end
 
 -- Resolve a row to (sha, path, new_lnum). A deletion row (no new_lnum) anchors
 -- to the nearest surviving new-file line in its hunk.
+-- Find the new_lnum to anchor a comment on: the row's own new_lnum, else the
+-- nearest surviving new-file line in its hunk (forward then backward).
+local function anchor_lnum(hunk, idx)
+  local dl = hunk.lines[idx]
+  if dl.new_lnum then return dl.new_lnum end
+  for li = idx, #hunk.lines do
+    if hunk.lines[li].new_lnum then return hunk.lines[li].new_lnum end
+  end
+  for li = idx, 1, -1 do
+    if hunk.lines[li].new_lnum then return hunk.lines[li].new_lnum end
+  end
+  return nil
+end
+
 function Session:comment_anchor(row)
   local target = self.row_map[row]
-  if not target or not target.commit or not target.line then return nil end
-  local commit = self.commits[target.commit]
-  local file = commit.files[target.file]
-  local hunk = file.hunks[target.hunk]
-  local dl = hunk.lines[target.line]
-  local lnum = dl.new_lnum
-  if not lnum then
-    for li = target.line, #hunk.lines do
-      if hunk.lines[li].new_lnum then lnum = hunk.lines[li].new_lnum break end
-    end
+  if not target or not target.line then return nil end
+  if self.scope == "commits" then
+    if not target.commit then return nil end
+    local commit = self.commits[target.commit]
+    local file = commit.files[target.file]
+    local lnum = anchor_lnum(file.hunks[target.hunk], target.line)
+    if not lnum then return nil end
+    return commit.sha, file.path, lnum
+  else
+    if not target.cfile then return nil end
+    local cf = self.combined_files[target.cfile]
+    local lnum = anchor_lnum(cf.hunks[target.hunk], target.line)
+    local p = lnum and self:provenance(cf.path)[lnum]
+    if not p then return nil end
+    return p.sha, cf.path, p.orig_lnum
   end
-  if not lnum then
-    for li = target.line, 1, -1 do
-      if hunk.lines[li].new_lnum then lnum = hunk.lines[li].new_lnum break end
-    end
-  end
-  if not lnum then return nil end
-  return commit.sha, file.path, lnum
 end
 
 function Session:add_comment_at(row, text)
-  if self.scope ~= "commits" then return end
   if row == nil then row = self:cursor_row() end
   if not text or text == "" then return end
   local sha, path, lnum = self:comment_anchor(row)

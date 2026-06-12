@@ -512,6 +512,33 @@ The per-stage Verification blocks below assume this harness; map roughly as Stag
 
 ## Stage 4 — combined overlay via provenance (supersession + follow-up)
 
+> **Status: DONE.** Added `nvim/lua/glean/provenance.lua` (`parse_blame`:
+> `git blame -p` porcelain → `new_lnum -> {sha, orig_lnum}` for the target
+> post-image) and wired a combined overlay into `nvim/lua/glean/init.lua`:
+> `Session:provenance(path)` (cached blame), `Session:commit_index`,
+> `Session:compute_combined` (per-file projection of the raw `base...target`
+> diff overlaid with seen state), and `Session:combined_tuples` (routes a
+> combined target's new lines to per-commit `(sha, path, range)` via ownership).
+> Combined-scope actions now work: `m`/visual `m` mark seen grouped by owning
+> commit, `c` anchors comments to the owning `(commit, path, new_lnum)`, and
+> seen lines render with `GleanSeen`. Combined `row_map` targets use a `cfile`
+> key. Added Tier-1/2 `provenance_test.lua` and Stage-4 Tier-3a blocks in
+> `init_test.lua` (mark-file-seen routing + fully-seen collapse, comment
+> routing to two commits, supersession, follow-up, and the tighter-re-diff
+> "seen up to" branch). `nvim -l nvim/lua/glean/run_tests.lua` green (127
+> assertions across 5 suites).
+> Decisions/deviations:
+> - `compute_combined` only runs the tighter `Xe^..TARGET` re-diff when there
+>   is an actual seen prefix to elide (`seen_count > 0`); with nothing seen it
+>   shows the raw combined diff unchanged, avoiding spuriously surfacing a
+>   superseded intermediate line (e.g. `B1`) as a re-diff deletion.
+> - Deletion provenance (attributing net-deleted BASE lines to the commit that
+>   removed them) is not implemented: deletions are review decoration, seen is
+>   about new lines, and del rows anchor comments to the adjacent surviving new
+>   line — so no commit-walk is needed for correctness here.
+> - Provenance (blame) is cached per path on the session since it depends only
+>   on `target`; seen-mark changes never invalidate it.
+
 - Goal: combined scope computes seen status via per-line ownership + the tighter
   `Xe^..TARGET` re-diff + hunk-granularity filtering; combined marks/comments
   resolve correctly to per-commit state; superseded regions render unseen;
