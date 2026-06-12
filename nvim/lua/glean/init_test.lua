@@ -302,4 +302,56 @@ do
   h.assert_true("rediff: L2 hunk elided", joined:find("\n+L2", 1, true) == nil)
 end
 
+-- Stage 5 — jump-to-source.
+-- Combined add line resolves to target (= repo HEAD here) so it opens the live
+-- working-tree file; the returned path is the absolute working-tree path.
+do
+  local s = open()
+  local r = find_row(s, function(_, line, t) return t and t.cfile and t.line and line == "+TWO" end)
+  h.assert_true("jump: found +TWO row", r ~= nil)
+  local jt = s:jump_target(r)
+  h.assert_eq("jump: target ref is target", jt.ref, target)
+  h.assert_eq("jump: target path", jt.path, "f.txt")
+  h.assert_eq("jump: target lnum is new_lnum 2", jt.lnum, 2)
+  h.assert_true("jump: target == HEAD", s:ref_is_head(target))
+  local opened = s:jump(r)
+  h.assert_eq("jump: opens live file path", opened, repo.root .. "/f.txt")
+end
+
+-- A deletion row resolves to the base (pre-image) ref, which is not HEAD, so it
+-- opens a read-only `git show` scratch buffer with the old content and filetype.
+do
+  local s = open()
+  local r = find_row(s, function(_, line, t)
+    return t and t.cfile and t.line and line:sub(1, 1) == "-"
+  end)
+  h.assert_true("jump: found a deletion row", r ~= nil)
+  local jt = s:jump_target(r)
+  h.assert_eq("jump: del ref is base", jt.ref, base)
+  h.assert_true("jump: base != HEAD", not s:ref_is_head(base))
+  local buf = s:jump(r)
+  h.assert_true("jump: scratch buffer created", type(buf) == "number")
+  h.assert_eq("jump: scratch not modifiable",
+    api.nvim_get_option_value("modifiable", { buf = buf }), false)
+  local content = table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+  h.assert_true("jump: scratch has base content", content:find("two", 1, true) ~= nil)
+end
+
+-- Commit scope: an add line in a non-HEAD commit (c1) opens a `git show`
+-- scratch buffer at that commit's post-image.
+do
+  local s = open({ scope = "commits" })
+  local r = find_row(s, function(_, line, t)
+    return t and t.commit == 1 and t.line and line == "+TWO"
+  end)
+  h.assert_true("jump commits: found c1 +TWO row", r ~= nil)
+  local jt = s:jump_target(r)
+  h.assert_eq("jump commits: ref is c1 sha", jt.ref, repo.shas[2])
+  h.assert_eq("jump commits: lnum 2", jt.lnum, 2)
+  h.assert_true("jump commits: c1 != HEAD", not s:ref_is_head(repo.shas[2]))
+  local buf = s:jump(r)
+  local content = table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
+  h.assert_true("jump commits: shows TWO at post-image", content:find("TWO", 1, true) ~= nil)
+end
+
 h.finish()

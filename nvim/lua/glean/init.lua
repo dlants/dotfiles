@@ -519,6 +519,83 @@ function Session:add_comment_at(row, text)
 end
 
 -- ---------------------------------------------------------------------------
+-- Jump-to-source (Stage 5).
+-- ---------------------------------------------------------------------------
+
+-- Resolve a cursor row to the source line it points at:
+--   { ref, path, lnum } where the line we review (add/context) resolves to its
+--   new-file line in the post-image ref, and a deletion resolves to its old
+--   line in the pre-image ref. The ref is the commit's sha (commit scope) or
+--   target/base (combined scope).
+function Session:jump_target(row)
+  local target = self.row_map[row]
+  if not target or not target.line then return nil end
+  local dl, path, post_ref, pre_ref
+  if self.scope == "commits" then
+    if not target.commit then return nil end
+    local commit = self.commits[target.commit]
+    local file = commit.files[target.file]
+    dl = file.hunks[target.hunk].lines[target.line]
+    path = file.path
+    post_ref, pre_ref = commit.sha, commit.sha .. "^"
+  else
+    if not target.cfile then return nil end
+    local cf = self.combined_files[target.cfile]
+    dl = cf.hunks[target.hunk].lines[target.line]
+    path = cf.path
+    post_ref, pre_ref = self.target, self.base
+  end
+  if not dl then return nil end
+  if dl.kind == "del" then
+    return { ref = pre_ref, path = path, lnum = dl.old_lnum or 1 }
+  end
+  return { ref = post_ref, path = path, lnum = dl.new_lnum or 1 }
+end
+
+-- True when `ref` resolves to the currently checked-out HEAD commit, so the
+-- working-tree file can be opened directly (LSP attaches).
+function Session:ref_is_head(ref)
+  local head = self.git:rev_parse("HEAD")
+  if not head then return false end
+  local resolved = self.git:rev_parse(ref)
+  return resolved ~= nil and resolved == head
+end
+
+-- Jump to the resolved source line. Opens the live working-tree file when its
+-- ref is HEAD (so LSP/navigation work), otherwise a read-only scratch buffer
+-- populated from `git show ref:path`, with filetype inferred from the path.
+function Session:jump(row)
+  if row == nil then row = self:cursor_row() end
+  local jt = self:jump_target(row)
+  if not jt then return end
+  local win = self.win
+  local abs = self.git.repo_root .. "/" .. jt.path
+  if self:ref_is_head(jt.ref) and vim.fn.filereadable(abs) == 1 then
+    if win and api.nvim_win_is_valid(win) then api.nvim_set_current_win(win) end
+    vim.cmd("edit " .. vim.fn.fnameescape(abs))
+    pcall(api.nvim_win_set_cursor, 0, { jt.lnum, 0 })
+    return abs
+  end
+  local content = self.git:show(jt.ref, jt.path) or ""
+  local buf = api.nvim_create_buf(false, true)
+  local lines = vim.split(content, "\n", { plain = true })
+  if lines[#lines] == "" then lines[#lines] = nil end
+  api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  api.nvim_set_option_value("modifiable", false, { buf = buf })
+  api.nvim_set_option_value("buftype", "nofile", { buf = buf })
+  api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
+  local ft = vim.filetype.match({ filename = jt.path, contents = lines })
+  if ft then api.nvim_set_option_value("filetype", ft, { buf = buf }) end
+  pcall(api.nvim_buf_set_name, buf, "glean-show://" .. buf .. ":" .. jt.ref:sub(1, 8) .. ":" .. jt.path)
+  if win and api.nvim_win_is_valid(win) then
+    api.nvim_set_current_win(win)
+    api.nvim_win_set_buf(win, buf)
+  end
+  pcall(api.nvim_win_set_cursor, 0, { jt.lnum, 0 })
+  return buf
+end
+
+-- ---------------------------------------------------------------------------
 -- Scope switching.
 -- ---------------------------------------------------------------------------
 
@@ -554,6 +631,7 @@ local function setup_keymaps(buf, session)
       if text then session:add_comment_at(nil, text) end
     end)
   end)
+  map("n", "<CR>", function() session:jump() end)
   map("n", "S", function() session:toggle_scope() end)
   map("n", "q", function()
     if api.nvim_win_is_valid(session.win) then

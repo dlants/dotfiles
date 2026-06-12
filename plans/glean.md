@@ -565,6 +565,25 @@ The per-stage Verification blocks below assume this harness; map roughly as Stag
 
 ## Stage 5 — jump-to-source
 
+> **Status: DONE.** Added jump-to-source to `nvim/lua/glean/init.lua`:
+> `Session:jump_target(row)` resolves a cursor row to `{ ref, path, lnum }`
+> (add/context → post-image ref + `new_lnum`; del → pre-image ref + `old_lnum`;
+> commit scope uses the commit's `sha`/`sha^`, combined scope uses
+> `target`/`base`). `Session:ref_is_head(ref)` compares `git rev-parse ref` to
+> `git rev-parse HEAD`. `Session:jump(row)` opens the live working-tree file
+> (`:edit`) when the ref is HEAD and the file is readable (so LSP attaches),
+> else a read-only `nofile` scratch buffer populated from `git show ref:path`
+> with filetype inferred via `vim.filetype.match`, cursor placed on the line.
+> Bound to `<CR>`. Added Tier-3a `init_test.lua` blocks covering combined
+> add→live-file, deletion→base `git show` scratch, and commit-scope add→post-
+> image scratch. `nvim -l nvim/lua/glean/run_tests.lua` green (144 assertions
+> across 5 suites).
+> Decisions/deviations:
+> - `jump` returns the opened path (live) or buffer handle (scratch) so tests
+>   assert without a window; with a real window it retargets `self.win`.
+> - Scratch buffers are named `glean-show://<buf>:<ref8>:<path>` to avoid E95
+>   name clashes, mirroring the main buffer's id-suffixed naming.
+
 - Goal: jump opens the live file when the relevant ref is HEAD, else a read-only
   `git show REF:path` scratch buffer, cursor on the right line.
 - Verification:
