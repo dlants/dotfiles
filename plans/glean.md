@@ -465,6 +465,30 @@ The per-stage Verification blocks below assume this harness; map roughly as Stag
   - Actions: cursor on header, toggle key.
   - Expected: body hidden, chevron flips, rest unchanged.
 
+> **Status: DONE.** Added `nvim/lua/glean/state.lua` — the persisted
+> ReviewStore: pure range math (`merge`/`add`/`remove`/`covers`/`range_covered`)
+> plus a `Store` (`new{dir}`, `load(shas)`, `mark_seen`/`unmark_seen`,
+> `seen_ranges`, `add_comment`/`comments_at`, `save_commit`) sharded one JSON
+> file per commit sha under `stdpath("data")/glean`. Extended
+> `nvim/lua/glean/init.lua` with a commit-by-commit scope (`scope="commits"`,
+> toggled with `S`), seen marks authored against `(commit_sha, path, new-file
+> range)` at commit/file/hunk level (`m`) and over a visual range (`x`-mode `m`,
+> sub-hunk by `new_lnum`), and comments (`c` → `vim.ui.input`) anchored to
+> `(commit_sha, path, new_lnum)` and rendered as virt_lines. Collapse is
+> initialized from seen (`init_collapse`: fully-seen commits/files start
+> collapsed) and stays ephemeral. Added Tier-1 `state_test.lua` (range math +
+> JSON shard round-trip) and extended `init_test.lua` with commit-scope render,
+> toggle-seen persistence/collapse-reinit, and stacked-comment round-trip.
+> `nvim -l nvim/lua/glean/run_tests.lua` green (103 assertions across 4 suites).
+> Decisions/deviations:
+> - Comments are keyed by the **string** form of `new_lnum` on disk so they
+>   round-trip cleanly through JSON object keys (looked up via `tostring`).
+> - Saves are synchronous per affected shard (not debounced); the debounce noted
+>   in the plan is a later optimization and unobservable to correctness.
+> - Combined-scope marking/overlay remains a no-op here (Stage 4); only
+>   commit-scope authors marks. `S` switches scopes; default stays "combined" so
+>   Stage 2 behavior/tests are unchanged.
+
 ## Stage 3 — commit-by-commit scope + seen marks + comments + persistence
 
 - Goal: switch to commit-by-commit scope; toggle `seen` at hunk/commit/file level

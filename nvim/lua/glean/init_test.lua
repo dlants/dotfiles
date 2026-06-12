@@ -30,13 +30,17 @@ local function inject_run(args)
   return { code = res.code, stdout = res.stdout, stderr = res.stderr }
 end
 
-local function open()
+local state_dir = vim.fn.tempname()
+local function open(o)
+  o = o or {}
   return glean.open({
     base = base,
     target = target,
     repo_root = repo.root,
     run = inject_run,
     open_window = false,
+    state_dir = o.state_dir or state_dir,
+    scope = o.scope,
   })
 end
 
@@ -97,6 +101,89 @@ do
   s:toggle_collapse(0)
   local restored = api.nvim_buf_line_count(s.buf)
   h.assert_eq("collapse: re-expand restores rows", restored, before)
+end
+
+-- Helpers for commit-scope tests.
+local function find_row(s, pred)
+  local n = api.nvim_buf_line_count(s.buf)
+  for row = 0, n - 1 do
+    local line = api.nvim_buf_get_lines(s.buf, row, row + 1, false)[1]
+    if pred(row, line, s.row_map[row]) then return row, line end
+  end
+end
+
+-- Commit scope: each commit is a header; seen markers present; line rows carry
+-- commit/file/hunk/line in row_map.
+do
+  local s = open({ scope = "commits" })
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("commits: c1 header", joined:find(repo.shas[2]:sub(1, 8), 1, true) ~= nil)
+  h.assert_true("commits: c2 header", joined:find(repo.shas[3]:sub(1, 8), 1, true) ~= nil)
+  h.assert_true("commits: c1 summary", joined:find("c1: edit two", 1, true) ~= nil)
+  -- every row maps; a body line row carries a full commit/file/hunk/line target.
+  local n = api.nvim_buf_line_count(s.buf)
+  local all = true
+  for row = 0, n - 1 do
+    if not s.row_map[row] then all = false end
+  end
+  h.assert_true("commits: every row mapped", all)
+  local lrow = find_row(s, function(_, _, t) return t and t.commit and t.line end)
+  h.assert_true("commits: has a body line row", lrow ~= nil)
+end
+
+-- toggle_seen on a commit header marks all of its hunks seen, persists, and on
+-- reopen the commit shows ✓ and starts collapsed (collapse re-init from seen).
+do
+  local dir = vim.fn.tempname()
+  local s = open({ scope = "commits", state_dir = dir })
+  local crow = find_row(s, function(_, _, t)
+    return t and t.commit == 1 and not t.file
+  end)
+  h.assert_true("toggle: found c1 header", crow ~= nil)
+  s:toggle_seen(crow)
+  -- the store now records c1's f.txt new range (the TWO line at new_lnum 2).
+  h.assert_true("toggle: c1 seen covers lnum 2",
+    require("glean.state").covers(s.store:seen_ranges(repo.shas[2], "f.txt"), 2))
+
+  -- reopen: persisted seen restored, commit collapsed via init_collapse.
+  local s2 = open({ scope = "commits", state_dir = dir })
+  local crow2, cline2 = find_row(s2, function(_, _, t)
+    return t and t.commit == 1 and not t.file
+  end)
+  h.assert_true("reopen: c1 header has check", cline2:find("✓", 1, true) ~= nil)
+  h.assert_true("reopen: c1 header collapsed chevron", cline2:find("▸", 1, true) ~= nil)
+  -- collapsed means c1 body rows are gone; c1 file header should not render.
+  local c1file = find_row(s2, function(_, _, t) return t and t.commit == 1 and t.file end)
+  h.assert_true("reopen: c1 body hidden when collapsed", c1file == nil)
+end
+
+-- Comments: multiple comments on distinct lines and several on one line all
+-- round-trip on the right (commit, path, new_lnum); restored on reopen.
+do
+  local dir = vim.fn.tempname()
+  local s = open({ scope = "commits", state_dir = dir })
+  -- comment on c1's +TWO line (new_lnum 2 in f.txt).
+  local trow = find_row(s, function(_, line, t)
+    return t and t.commit == 1 and t.line and line == "+TWO"
+  end)
+  h.assert_true("comment: found +TWO row", trow ~= nil)
+  s:add_comment_at(trow, "first note")
+  s:add_comment_at(trow, "second note")
+
+  local reopened = open({ scope = "commits", state_dir = dir })
+  local got = reopened.store:comments_at(repo.shas[2], "f.txt", 2)
+  h.assert_eq("comment: count stacked", #got, 2)
+  h.assert_eq("comment: first text", got[1].text, "first note")
+  h.assert_eq("comment: second text", got[2].text, "second note")
+  -- rendered as virt_lines below the line.
+  local trow2 = find_row(reopened, function(_, line, t)
+    return t and t.commit == 1 and t.line and line == "+TWO"
+  end)
+  local marks = api.nvim_buf_get_extmarks(reopened.buf,
+    api.nvim_create_namespace("glean_comments"), { trow2, 0 }, { trow2, -1 },
+    { details = true })
+  h.assert_true("comment: virt_lines extmark present",
+    #marks > 0 and marks[1][4].virt_lines ~= nil)
 end
 
 h.finish()
