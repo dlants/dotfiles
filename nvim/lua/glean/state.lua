@@ -14,13 +14,19 @@ local M = {}
 -- set. Adjacent ranges (e.. e+1) are coalesced.
 function M.merge(ranges)
   local sorted = {}
-  for _, r in ipairs(ranges) do sorted[#sorted + 1] = { r[1], r[2] } end
-  table.sort(sorted, function(a, b) return a[1] < b[1] end)
+  for _, r in ipairs(ranges) do
+    sorted[#sorted + 1] = { r[1], r[2] }
+  end
+  table.sort(sorted, function(a, b)
+    return a[1] < b[1]
+  end)
   local out = {}
   for _, r in ipairs(sorted) do
     local last = out[#out]
     if last and r[1] <= last[2] + 1 then
-      if r[2] > last[2] then last[2] = r[2] end
+      if r[2] > last[2] then
+        last[2] = r[2]
+      end
     else
       out[#out + 1] = { r[1], r[2] }
     end
@@ -31,7 +37,9 @@ end
 -- Add a range to a set, returning the merged result.
 function M.add(ranges, range)
   local copy = {}
-  for _, r in ipairs(ranges) do copy[#copy + 1] = { r[1], r[2] } end
+  for _, r in ipairs(ranges) do
+    copy[#copy + 1] = { r[1], r[2] }
+  end
   copy[#copy + 1] = { range[1], range[2] }
   return M.merge(copy)
 end
@@ -44,8 +52,12 @@ function M.remove(ranges, range)
     if re < r[1] or rs > r[2] then
       out[#out + 1] = { r[1], r[2] }
     else
-      if r[1] < rs then out[#out + 1] = { r[1], rs - 1 } end
-      if r[2] > re then out[#out + 1] = { re + 1, r[2] } end
+      if r[1] < rs then
+        out[#out + 1] = { r[1], rs - 1 }
+      end
+      if r[2] > re then
+        out[#out + 1] = { re + 1, r[2] }
+      end
     end
   end
   return out
@@ -54,7 +66,9 @@ end
 -- Does any range in the set contain the single line `lnum`?
 function M.covers(ranges, lnum)
   for _, r in ipairs(ranges) do
-    if lnum >= r[1] and lnum <= r[2] then return true end
+    if lnum >= r[1] and lnum <= r[2] then
+      return true
+    end
   end
   return false
 end
@@ -64,9 +78,87 @@ end
 function M.range_covered(ranges, range)
   local s, e = range[1], range[2]
   for _, r in ipairs(M.merge(ranges)) do
-    if r[1] <= s and e <= r[2] then return true end
+    if r[1] <= s and e <= r[2] then
+      return true
+    end
   end
   return false
+end
+
+-- ── Content-hash addressing (the floating "worktree" commit) ────────────────
+-- Uncommitted changes live on a synthetic commit with no stable line numbers,
+-- so its reviewed unit is the **content** of a block of new-file lines rather
+-- than a line range. A block is stored as { head, hash, n }: `hash` is
+-- sha256 of the joined line texts, `n` the line count, and `head` the exact
+-- text of the first line (a cheap anchor used to skip non-matching positions).
+
+-- Build the stored descriptor for a run of new-file line texts.
+function M.block_of(lines)
+  return {
+    head = lines[1],
+    hash = vim.fn.sha256(table.concat(lines, "\n")),
+    n = #lines,
+  }
+end
+
+-- Content key for a single comment-anchored line.
+function M.line_hash(text)
+  return vim.fn.sha256(text)
+end
+
+-- Given stored blocks and the current ordered new-file line texts, return the
+-- set { [index] = true } of line indices that are "seen". For each block we
+-- only consider start positions whose first line equals `head`, then hash the
+-- n-line window there — so we hash at most once per occurrence of the head line
+-- rather than once per file position.
+function M.compute_seen_lines(blocks, line_texts)
+  local positions = {}
+  for i, t in ipairs(line_texts) do
+    positions[t] = positions[t] or {}
+    positions[t][#positions[t] + 1] = i
+  end
+  local n_lines = #line_texts
+  local seen = {}
+  for _, b in ipairs(blocks) do
+    for _, i in ipairs(positions[b.head] or {}) do
+      local last = i + b.n - 1
+      if last <= n_lines then
+        local window = {}
+        for j = i, last do
+          window[#window + 1] = line_texts[j]
+        end
+        if vim.fn.sha256(table.concat(window, "\n")) == b.hash then
+          for j = i, last do
+            seen[j] = true
+          end
+        end
+      end
+    end
+  end
+  return seen
+end
+
+-- Split a list of new-file line numbers into maximal contiguous ascending runs.
+local function contiguous_runs(lnums)
+  local sorted = {}
+  for _, l in ipairs(lnums) do
+    sorted[#sorted + 1] = l
+  end
+  table.sort(sorted)
+  local runs, cur, prev = {}, nil, nil
+  for _, l in ipairs(sorted) do
+    if l == prev then
+    -- duplicate; skip
+    elseif prev and l == prev + 1 then
+      cur[#cur + 1] = l
+      prev = l
+    else
+      cur = { l }
+      runs[#runs + 1] = cur
+      prev = l
+    end
+  end
+  return runs
 end
 
 local Store = {}
@@ -166,6 +258,163 @@ function Store:save_commit(sha)
   vim.fn.mkdir(self.dir, "p")
   local slice = self.data[sha] or { files = {} }
   vim.fn.writefile({ vim.json.encode(slice) }, self:shard_path(sha))
+end
+
+-- ── Worktree (content-addressed) store methods ──────────────────────────────
+-- The floating commit's slice carries `worktree = true` and a per-file record
+-- of { seen = { {head,hash,n}, ... }, comments = { [line_hash] = {{text}} } }.
+
+function Store:wt_commit(id)
+  local c = self.data[id]
+  if not c then
+    c = { worktree = true, files = {} }
+    self.data[id] = c
+  end
+  c.worktree = true
+  return c
+end
+
+function Store:wt_file(id, path)
+  local c = self:wt_commit(id)
+  local f = c.files[path]
+  if not f then
+    f = { seen = {}, comments = {} }
+    c.files[path] = f
+  end
+  return f
+end
+
+-- Mark a run of new-file line texts seen (deduped by content hash).
+function Store:mark_seen_block(id, path, lines)
+  if #lines == 0 then
+    return
+  end
+  local f = self:wt_file(id, path)
+  local block = M.block_of(lines)
+  for _, b in ipairs(f.seen) do
+    if b.hash == block.hash then
+      return
+    end
+  end
+  f.seen[#f.seen + 1] = block
+end
+
+-- Remove the block whose content matches the given run of line texts.
+function Store:unmark_seen_block(id, path, lines)
+  if #lines == 0 then
+    return
+  end
+  local f = self:wt_file(id, path)
+  local block = M.block_of(lines)
+  local out = {}
+  for _, b in ipairs(f.seen) do
+    if b.hash ~= block.hash then
+      out[#out + 1] = b
+    end
+  end
+  f.seen = out
+end
+
+-- Stored seen blocks for (worktree, path).
+function Store:seen_blocks(id, path)
+  local c = self.data[id]
+  local f = c and c.files and c.files[path]
+  return (f and f.seen) or {}
+end
+
+-- Append a comment anchored to a new-file line's content hash.
+function Store:wt_add_comment(id, path, line_text, text)
+  local f = self:wt_file(id, path)
+  local key = M.line_hash(line_text)
+  f.comments[key] = f.comments[key] or {}
+  f.comments[key][#f.comments[key] + 1] = { text = text }
+end
+
+-- Comments anchored to a new-file line's content (by hash).
+function Store:wt_comments_for(id, path, line_text)
+  local c = self.data[id]
+  local f = c and c.files and c.files[path]
+  local list = f and f.comments and f.comments[M.line_hash(line_text)]
+  return list or {}
+end
+
+-- ── Addressing adapters ─────────────────────────────────────────────────────
+-- Both adapters expose the same operations over **new-file line numbers**, so
+-- the higher-level render/mark/comment flows stay identical. The range adapter
+-- (real commits) delegates to the line-range helpers; the hash adapter
+-- (floating commit) translates line numbers ↔ content via the supplied ordered
+-- new-file line texts (`lines[new_lnum] = text`).
+
+function M.range_adapter(store, sha, path)
+  return {
+    worktree = false,
+    is_seen = function(lnum)
+      return M.covers(store:seen_ranges(sha, path), lnum)
+    end,
+    mark = function(lnums)
+      for _, run in ipairs(contiguous_runs(lnums)) do
+        store:mark_seen(sha, path, { run[1], run[#run] })
+      end
+    end,
+    unmark = function(lnums)
+      for _, run in ipairs(contiguous_runs(lnums)) do
+        store:unmark_seen(sha, path, { run[1], run[#run] })
+      end
+    end,
+    range_covered = function(s, e)
+      return store:range_covered(store:seen_ranges(sha, path), { s, e })
+    end,
+    add_comment = function(lnum, text)
+      store:add_comment(sha, path, lnum, text)
+    end,
+    comments_at = function(lnum)
+      return store:comments_at(sha, path, lnum)
+    end,
+  }
+end
+
+function M.hash_adapter(store, id, path, lines)
+  local function seen_set()
+    return M.compute_seen_lines(store:seen_blocks(id, path), lines)
+  end
+  local function texts_of(run)
+    local t = {}
+    for _, l in ipairs(run) do
+      t[#t + 1] = lines[l]
+    end
+    return t
+  end
+  return {
+    worktree = true,
+    is_seen = function(lnum)
+      return seen_set()[lnum] == true
+    end,
+    mark = function(lnums)
+      for _, run in ipairs(contiguous_runs(lnums)) do
+        store:mark_seen_block(id, path, texts_of(run))
+      end
+    end,
+    unmark = function(lnums)
+      for _, run in ipairs(contiguous_runs(lnums)) do
+        store:unmark_seen_block(id, path, texts_of(run))
+      end
+    end,
+    range_covered = function(s, e)
+      local seen = seen_set()
+      for l = s, e do
+        if not seen[l] then
+          return false
+        end
+      end
+      return true
+    end,
+    add_comment = function(lnum, text)
+      store:wt_add_comment(id, path, lines[lnum], text)
+    end,
+    comments_at = function(lnum)
+      return store:wt_comments_for(id, path, lines[lnum])
+    end,
+  }
 end
 
 return M

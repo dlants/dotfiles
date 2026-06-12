@@ -263,6 +263,21 @@ Bare committed review (`:Glean` → `main...HEAD`) stays the default and unchang
 ## Stage 2 — content-hash addressing in the store
 
 - Goal: the hash schema and the range↔content adapter as pure, tested logic.
+- Status: DONE. Added to `nvim/lua/glean/state.lua`: pure helpers `block_of`,
+  `line_hash`, `compute_seen_lines` (head-anchored window hashing); worktree
+  Store methods `wt_commit`/`wt_file`/`mark_seen_block`/`unmark_seen_block`/
+  `seen_blocks`/`wt_add_comment`/`wt_comments_for` (slice carries
+  `worktree=true`); and the two addressing adapters `range_adapter` (delegates
+  to existing range helpers) and `hash_adapter` (translates new_lnum↔content via
+  a supplied `lines[new_lnum]=text` map, splitting marked lnums into contiguous
+  runs). Persistence reuses the existing `save_commit`/`load` (shard keyed by the
+  passed id, e.g. `WORKTREE`); the repo-scoped shard *name* is deferred to the
+  Persistence/Stage 5 wiring — Stage 2 only needs round-trip, verified with id
+  `WORKTREE`. Extended `state_test.lua` (34 passing) covering block math + head
+  anchor (window seen, head-only not seen, moved block stays seen, edited reverts
+  to unseen, past-EOF skipped), the hash adapter (mark/unmark/range_covered/
+  comment-by-line-hash, comment follows moved content), and worktree shard
+  round-trip with `worktree=true`. Full suite green.
 - Verification:
   - Behavior: marking line texts seen stores `{hash,n}` blocks; a current file's
     lines are reported seen iff a window matches; the `head` anchor skips

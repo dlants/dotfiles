@@ -12,7 +12,9 @@ local h = testutil.new()
 
 local function range_str(ranges)
   local parts = {}
-  for _, r in ipairs(ranges) do parts[#parts + 1] = r[1] .. "-" .. r[2] end
+  for _, r in ipairs(ranges) do
+    parts[#parts + 1] = r[1] .. "-" .. r[2]
+  end
   return table.concat(parts, ",")
 end
 
@@ -67,6 +69,70 @@ do
   h.assert_eq("roundtrip: other line", s2:comments_at("shaA", "f.txt", 7)[1].text, "other")
   h.assert_eq("roundtrip: unseen sha empty", range_str(s2:seen_ranges("shaB", "f.txt")), "")
   h.assert_eq("roundtrip: unmatched lnum empty", #s2:comments_at("shaA", "f.txt", 999), 0)
+end
+
+-- Content-hash: block math + the head anchor.
+do
+  local lines = { "alpha", "beta", "gamma", "delta", "alpha", "beta" }
+  local blocks = { state.block_of({ "beta", "gamma" }) }
+  local seen = state.compute_seen_lines(blocks, lines)
+  h.assert_true("hash: window seen", seen[2] and seen[3])
+  h.assert_true("hash: head-only not seen", not seen[5] and not seen[6])
+
+  -- moved block (same text, different position) stays seen.
+  local moved = { "x", "beta", "gamma", "y" }
+  local seen2 = state.compute_seen_lines(blocks, moved)
+  h.assert_true("hash: moved block seen", seen2[2] and seen2[3])
+
+  -- edited content reverts to unseen.
+  local edited = { "alpha", "beta", "GAMMA", "delta" }
+  local seen3 = state.compute_seen_lines(blocks, edited)
+  h.assert_true("hash: edited block unseen", not seen3[2])
+
+  -- block running past EOF is skipped.
+  local short = { "zzz", "beta" }
+  local seen4 = state.compute_seen_lines(blocks, short)
+  h.assert_true("hash: past-eof skipped", not seen4[2])
+end
+
+-- Hash adapter over a literal new_lnum -> text map.
+do
+  local dir = vim.fn.tempname()
+  local s = state.new({ dir = dir })
+  local lines = { "one", "two", "three", "four" }
+  local a = state.hash_adapter(s, "WORKTREE", "f.txt", lines)
+  h.assert_true("adapter: unseen initially", not a.is_seen(2))
+  a.mark({ 2, 3 })
+  h.assert_true("adapter: marked seen", a.is_seen(2) and a.is_seen(3))
+  h.assert_true("adapter: range_covered", a.range_covered(2, 3))
+  h.assert_true("adapter: range not covered", not a.range_covered(1, 3))
+  a.unmark({ 2, 3 })
+  h.assert_true("adapter: unmarked", not a.is_seen(2))
+  a.add_comment(4, "note")
+  h.assert_eq("adapter: comment by line-hash", a.comments_at(4)[1].text, "note")
+
+  -- comment follows content even when the line moves position.
+  local moved = state.hash_adapter(s, "WORKTREE", "f.txt", { "z", "four" })
+  h.assert_eq("adapter: comment follows content", moved.comments_at(2)[1].text, "note")
+end
+
+-- Worktree shard round-trips with worktree=true.
+do
+  local dir = vim.fn.tempname()
+  local s = state.new({ dir = dir })
+  s:load({ "WORKTREE" })
+  s:mark_seen_block("WORKTREE", "f.txt", { "two", "three" })
+  s:wt_add_comment("WORKTREE", "f.txt", "four", "hi")
+  s:save_commit("WORKTREE")
+
+  local s2 = state.new({ dir = dir })
+  s2:load({ "WORKTREE" })
+  h.assert_true("wt roundtrip: worktree flag", s2.data["WORKTREE"].worktree == true)
+  local blocks = s2:seen_blocks("WORKTREE", "f.txt")
+  h.assert_eq("wt roundtrip: block count", #blocks, 1)
+  local seen = state.compute_seen_lines(blocks, { "one", "two", "three" })
+  h.assert_true("wt roundtrip: block matches", seen[2] and seen[3])
+  h.assert_eq("wt roundtrip: comment", s2:wt_comments_for("WORKTREE", "f.txt", "four")[1].text, "hi")
 end
 
 h.finish()
