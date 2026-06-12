@@ -434,4 +434,70 @@ do
   h.assert_true("worktree edit: w.txt seen dropped", fline3:find("✓", 1, true) == nil)
 end
 
+-- Stage 4 — combined overlay with the WORKTREE as target: a committed branch
+-- edit plus an uncommitted edit in the same file. Blame attributes the dirty
+-- line to the floating commit (zero sha -> WORKTREE); marking the combined file
+-- routes the committed line to range-seen and the uncommitted line to hash-seen,
+-- and a comment on the dirty line lands in the floating shard by content hash.
+do
+  local wm = testutil.make_repo({
+    { msg = "base", files = { ["m.txt"] = "a\nb\nc\nd\n" } },
+    { msg = "c1: b->B", files = { ["m.txt"] = "a\nB\nc\nd\n" } },
+  })
+  local function write(path, content)
+    local f = assert(io.open(wm.root .. "/" .. path, "w"))
+    f:write(content)
+    f:close()
+  end
+  write("m.txt", "a\nB\nc\nD\n") -- uncommitted edit of line 4
+  local function runwm(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = wm.root, env = wm.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local function openwm(d)
+    return glean.open({
+      base = wm.shas[1], target = glean.WORKTREE, repo_root = wm.root, run = runwm,
+      open_window = false, state_dir = d, -- combined scope (default)
+    })
+  end
+
+  local dir = vim.fn.tempname()
+  local s = openwm(dir)
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  -- (a)/(b): committed and uncommitted edits both show; D is unseen initially.
+  h.assert_true("wt combined: committed +B shown", joined:find("\n+B", 1, true) ~= nil)
+  h.assert_true("wt combined: uncommitted +D shown", joined:find("\n+D", 1, true) ~= nil)
+  h.assert_true("wt combined: m.txt not yet fully seen", joined:find("✓ m.txt", 1, true) == nil)
+  -- The dirty line is owned by the floating commit (zero sha remapped).
+  h.assert_eq("wt combined: +D owned by WORKTREE", s:provenance("m.txt")[4].sha, glean.WORKTREE)
+
+  -- (c): mark the whole file seen — committed line -> range-seen on c1, dirty
+  -- line -> content block on the floating shard.
+  local frow = find_row(s, function(_, line, t)
+    return t and t.cfile and not t.hunk and line:find("m.txt", 1, true)
+  end)
+  s:toggle_seen(frow)
+  h.assert_true("wt combined: committed B range-seen on c1",
+    state.covers(s.store:seen_ranges(wm.shas[2], "m.txt"), 2))
+  h.assert_true("wt combined: dirty D hash-seen on WORKTREE",
+    #s.store:seen_blocks(glean.WORKTREE, "m.txt") > 0)
+  local jseen = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("wt combined: m.txt fully seen", jseen:find("✓ m.txt", 1, true) ~= nil)
+  -- reopen: persisted committed + floating seen still collapses the file.
+  local s2 = openwm(dir)
+  local j2 = table.concat(api.nvim_buf_get_lines(s2.buf, 0, -1, false), "\n")
+  h.assert_true("wt combined reopen: m.txt still fully seen", j2:find("✓ m.txt", 1, true) ~= nil)
+
+  -- (d): a comment on the dirty line lands in the floating shard by line hash.
+  local cdir = vim.fn.tempname()
+  local sc = openwm(cdir)
+  local crow = find_row(sc, function(_, line, t) return t and t.cfile and t.line and line == "+D" end)
+  h.assert_true("wt combined comment: found +D row", crow ~= nil)
+  sc:add_comment_at(crow, "dirty note")
+  h.assert_eq("wt combined comment: stored by content on WORKTREE",
+    #sc.store:wt_comments_for(glean.WORKTREE, "m.txt", "D"), 1)
+end
+
 h.finish()

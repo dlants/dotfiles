@@ -180,13 +180,15 @@ function Git:range_diff(from, to, path)
 end
 
 -- Porcelain blame for a line range of a path at a ref. Returns the raw output;
--- provenance parsing lives in provenance.lua (Stage 4).
+-- provenance parsing lives in provenance.lua. A nil ref blames the *working
+-- tree* (uncommitted lines are attributed to the all-zero sha), which the
+-- combined work-tree overlay maps onto the floating commit.
 function Git:blame(ref, path, first, last)
   local args = { "blame", "-p" }
   if first and last then
     args[#args + 1] = "-L"; args[#args + 1] = first .. "," .. last
   end
-  args[#args + 1] = ref
+  if ref then args[#args + 1] = ref end
   args[#args + 1] = "--"
   args[#args + 1] = path
   return self:run(args)

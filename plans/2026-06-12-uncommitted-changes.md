@@ -333,6 +333,29 @@ Bare committed review (`:Glean` → `main...HEAD`) stays the default and unchang
 - Goal: combined scope diffs base→work tree; blame's zero sha maps to the
   floating commit; seen overlay/`seen up to`/tighter re-diff work across mixed
   committed + uncommitted ownership.
+- Status: DONE. `git.lua`: `Git:blame(ref, ...)` now accepts a nil ref to blame
+  the *working tree* (uncommitted lines → all-zero sha). `provenance.lua`: added
+  `ZERO_SHA` and `map_zero_sha(map, id)` to remap the all-zero sha onto a given
+  commit id. `init.lua`: `Session:provenance` blames the live work tree (nil
+  ref) and remaps zero → `WORKTREE` when the target is the floating commit;
+  introduced `Session:combined_adapter(sha, path)` (range adapter for real
+  commits, hash adapter for `WORKTREE`) and `Session:tighter_diff(xe, path)`
+  (work-tree re-diff via `diff_to_worktree(from)`, where `from` is `HEAD` when
+  the earliest unseen contributor is the floating commit, else `Xe^`). Routed
+  every combined-scope seen/comment/mark call site through `combined_adapter`:
+  `compute_combined` seen + re-diff `keep` checks, the `build()` combined hl +
+  comments, `toggle_seen` (now groups single-line tuples by owner so committed
+  lines route to range-seen and `WORKTREE` lines to hash-seen),
+  `mark_visual_range`, and `comment_anchor`. `commit_index` already includes the
+  floating commit last (open appends it), so "newest/seen up to" ordering treats
+  uncommitted work as newest. Extended `init_test.lua` (83 passing) with a
+  combined WORKTREE fixture (committed `b->B` plus uncommitted `d->D` in one
+  file): both edits show, the dirty line is owned by `WORKTREE`, marking the
+  file routes B→range-seen(c1) and D→hash-seen(WORKTREE) and collapses to "seen
+  up to", survives reopen, and a comment on the dirty line lands in the floating
+  shard by content hash. Full suite green; no stylua/luacheck config in repo.
+  Note: combined jump-to-source for the work tree (post_ref == WORKTREE) is left
+  to Stage 5.
 - Verification:
   - Behavior: (a) committed regions marked seen still drop out; (b) an uncommitted
     line is owned by the floating commit and is unseen until hash-marked; (c)

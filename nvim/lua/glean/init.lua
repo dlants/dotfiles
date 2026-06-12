@@ -64,6 +64,16 @@ function Session:adapter_for(commit, path)
   return state_mod.range_adapter(self.store, commit.sha, path)
 end
 
+-- The addressing adapter for a combined-scope owner sha: the floating commit's
+-- uncommitted lines (owner sha == WORKTREE, via blame's zero-sha remap) use the
+-- content-hash adapter; every real commit uses the line-range adapter.
+function Session:combined_adapter(sha, path)
+  if sha == M.WORKTREE then
+    return state_mod.hash_adapter(self.store, M.WORKTREE, path, self:worktree_lines(path))
+  end
+  return state_mod.range_adapter(self.store, sha, path)
+end
+
 -- The working-tree file's current lines (array indexed by new_lnum), cached.
 -- This is the live content the floating commit's content hashes are matched
 -- against; for both tracked-dirty and untracked files new_lnum == file line.
@@ -103,8 +113,16 @@ end
 function Session:provenance(path)
   self._prov = self._prov or {}
   if self._prov[path] == nil then
-    local out = self.git:blame(self.target, path)
-    self._prov[path] = (out and provenance.parse_blame(out)) or {}
+    -- A WORKTREE target blames the live work tree (nil ref); blame attributes
+    -- uncommitted lines to the all-zero sha, which we remap to the floating id
+    -- so they route to the content-hash adapter.
+    local ref = self.target ~= M.WORKTREE and self.target or nil
+    local out = self.git:blame(ref, path)
+    local map = (out and provenance.parse_blame(out)) or {}
+    if self.target == M.WORKTREE then
+      provenance.map_zero_sha(map, M.WORKTREE)
+    end
+    self._prov[path] = map
   end
   return self._prov[path]
 end
@@ -116,6 +134,19 @@ function Session:commit_index()
     for i, c in ipairs(self.commits) do self._cidx[c.sha] = i end
   end
   return self._cidx
+end
+
+-- The tighter re-diff over `Xe^..target` used to elide a seen prefix. For a
+-- real target it is `git diff Xe^..target`. For the work-tree target the end is
+-- the live work tree, so it is `git diff <from>` (two-dot to the work tree),
+-- where `from` is `HEAD` when the earliest unseen contributor is the floating
+-- commit itself (its parent is HEAD) and `Xe^` otherwise.
+function Session:tighter_diff(xe, path)
+  if self.target == M.WORKTREE then
+    local from = (xe == M.WORKTREE) and "HEAD" or (xe .. "^")
+    return self.git:diff_to_worktree(from, path)
+  end
+  return self.git:range_diff(xe .. "^", self.target, path)
 end
 
 -- Project the raw combined diff into display files, overlaying seen state:
@@ -139,7 +170,7 @@ function Session:compute_combined()
           if idx then
             if not earliest_contrib or idx < earliest_contrib then earliest_contrib = idx end
             if not newest or idx > newest then newest = idx end
-            if state_mod.covers(self.store:seen_ranges(p.sha, path), p.orig_lnum) then
+            if self:combined_adapter(p.sha, path).is_seen(p.orig_lnum) then
               seen_count = seen_count + 1
             elseif not earliest_unseen or idx < earliest_unseen then
               earliest_unseen = idx
@@ -158,7 +189,7 @@ function Session:compute_combined()
       }
     else
       local xe = self.commits[earliest_unseen].sha
-      local files = self.git:range_diff(xe .. "^", self.target, path)
+      local files = self:tighter_diff(xe, path)
       local rf = files and files[1]
       local hunks = {}
       if rf then
@@ -166,7 +197,7 @@ function Session:compute_combined()
           local keep = false
           for _, dl in ipairs(hunk.lines) do
             local p = dl.new_lnum and prov[dl.new_lnum]
-            if p and not state_mod.covers(self.store:seen_ranges(p.sha, path), p.orig_lnum) then
+            if p and not self:combined_adapter(p.sha, path).is_seen(p.orig_lnum) then
               keep = true
               break
             end
@@ -295,13 +326,14 @@ function Session:build()
                 or dl.kind == "del" and "GleanDel"
                 or "GleanContext"
               local owner = dl.new_lnum and prov[dl.new_lnum]
-              if owner and state_mod.covers(self.store:seen_ranges(owner.sha, cf.path), owner.orig_lnum) then
+              local owner_ad = owner and self:combined_adapter(owner.sha, cf.path)
+              if owner_ad and owner_ad.is_seen(owner.orig_lnum) then
                 hl = "GleanSeen"
               end
               local row = emit(marker .. dl.text,
                 vim.tbl_extend("force", target, { line = li }), hl)
-              if owner then
-                local texts = self.store:comments_at(owner.sha, cf.path, owner.orig_lnum)
+              if owner_ad then
+                local texts = owner_ad.comments_at(owner.orig_lnum)
                 if #texts > 0 then comments[#comments + 1] = { row = row, texts = texts } end
               end
             end
@@ -482,20 +514,27 @@ function Session:toggle_seen(row)
     if not target.cfile then return end
     local tuples = self:combined_tuples(target)
     if #tuples == 0 then return end
-    local all_seen = true
+    -- Group single-line tuples by owning commit so committed lines route to the
+    -- range adapter and uncommitted (WORKTREE-owned) lines to the hash adapter.
+    local groups = {}
     for _, t in ipairs(tuples) do
-      if not state_mod.range_covered(self.store:seen_ranges(t.sha, t.path), t.range) then
-        all_seen = false
-        break
-      end
+      local key = t.sha .. "\0" .. t.path
+      groups[key] = groups[key] or { sha = t.sha, path = t.path, lnums = {} }
+      local g = groups[key]
+      g.lnums[#g.lnums + 1] = t.range[1]
     end
-    for _, t in ipairs(tuples) do
-      if all_seen then
-        self.store:unmark_seen(t.sha, t.path, t.range)
-      else
-        self.store:mark_seen(t.sha, t.path, t.range)
+    local all_seen = true
+    for _, g in pairs(groups) do
+      local ad = self:combined_adapter(g.sha, g.path)
+      for _, l in ipairs(g.lnums) do
+        if not ad.is_seen(l) then all_seen = false break end
       end
-      touched[t.sha] = true
+      if not all_seen then break end
+    end
+    for _, g in pairs(groups) do
+      local ad = self:combined_adapter(g.sha, g.path)
+      if all_seen then ad.unmark(g.lnums) else ad.mark(g.lnums) end
+      touched[g.sha] = true
     end
   end
   for sha in pairs(touched) do self.store:save_commit(sha) end
@@ -545,9 +584,7 @@ function Session:mark_visual_range(srow, erow)
       end
     end
     for _, g in pairs(groups) do
-      for _, l in ipairs(g.lnums) do
-        self.store:mark_seen(g.sha, g.path, { l, l })
-      end
+      self:combined_adapter(g.sha, g.path).mark(g.lnums)
       touched[g.sha] = true
     end
   end
@@ -595,7 +632,7 @@ function Session:comment_anchor(row)
     local lnum = anchor_lnum(cf.hunks[target.hunk], target.line)
     local p = lnum and self:provenance(cf.path)[lnum]
     if not p then return nil end
-    return state_mod.range_adapter(self.store, p.sha, cf.path), p.orig_lnum, p.sha
+    return self:combined_adapter(p.sha, cf.path), p.orig_lnum, p.sha
   end
 end
 

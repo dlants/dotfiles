@@ -23,4 +23,17 @@ function M.parse_blame(text)
   return map
 end
 
+-- The all-zero sha `git blame` assigns to working-tree lines that are "Not
+-- Committed Yet". The combined work-tree overlay rewrites this to the floating
+-- commit id so uncommitted lines route to the content-hash adapter.
+M.ZERO_SHA = "0000000000000000000000000000000000000000"
+
+-- Rewrite every all-zero (uncommitted) sha in a parsed blame map to `id`.
+function M.map_zero_sha(map, id)
+  for _, p in pairs(map) do
+    if p.sha:match("^0+$") then p.sha = id end
+  end
+  return map
+end
+
 return M
