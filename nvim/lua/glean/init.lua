@@ -23,6 +23,7 @@ local api = vim.api
 -- rather than line ranges, since uncommitted lines have no stable line numbers.
 M.WORKTREE = "WORKTREE"
 local NS = api.nvim_create_namespace("glean_hl")
+local NS_CURSOR = api.nvim_create_namespace("glean_cursor_hl")
 
 M.config = {
   default_base = "main",
@@ -85,6 +86,8 @@ local function file_key(sha, path) return "f:" .. sha .. "\0" .. path end
 local function cfile_key(path) return "cf:" .. path end
 local function seen_key(sha, path) return "s:" .. sha .. "\0" .. path end
 local function cseen_key(path) return "cs:" .. path end
+local function unseen_key(sha, path) return "u:" .. sha .. "\0" .. path end
+local function cunseen_key(path) return "cu:" .. path end
 
 -- Build the review model for `base..target`: the net diff `files`, the ordered
 -- `commits` (each with its own `commit_diff` files), and the `shas` to load from
@@ -468,8 +471,8 @@ function Session:build()
     end
   end
 
-  local function emit_hunk(hunk, hi, target_base, resolve, base_ord, comments_by_ord)
-    local target = vim.tbl_extend("force", target_base, { hunk = hi })
+  local function emit_hunk(hunk, hi, target_base, resolve, base_ord, comments_by_ord, sec)
+    local target = vim.tbl_extend("force", target_base, { hunk = hi, sec = sec })
     emit("--- " .. hunk.header, target, "GleanHunkHeader")
     for li, dl in ipairs(hunk.lines) do
       local marker = dl.kind == "add" and "+" or dl.kind == "del" and "-" or " "
@@ -484,7 +487,7 @@ function Session:build()
     end
   end
 
-  local function emit_file_body(file, target_base, resolve, seen_ck, comments_by_ord)
+  local function emit_file_body(file, target_base, resolve, seen_ck, comments_by_ord, unseen_ck)
     local seen_idx, unseen_idx = {}, {}
     local base_ord = {}
     local acc = 0
@@ -501,12 +504,20 @@ function Session:build()
         vim.tbl_extend("force", target_base, { seen = true }), "GleanSeen")
       if not c then
         for _, hi in ipairs(seen_idx) do
-          emit_hunk(file.hunks[hi], hi, target_base, resolve, base_ord[hi], comments_by_ord)
+          emit_hunk(file.hunks[hi], hi, target_base, resolve, base_ord[hi], comments_by_ord, "seen")
         end
       end
     end
-    for _, hi in ipairs(unseen_idx) do
-      emit_hunk(file.hunks[hi], hi, target_base, resolve, base_ord[hi], comments_by_ord)
+    if #unseen_idx > 0 then
+      local c = self.collapse[unseen_ck]; if c == nil then c = false end
+      local chev = c and CHEVRON_CLOSED or CHEVRON_OPEN
+      emit(("  %s ● unseen (%d hunks)"):format(chev, #unseen_idx),
+        vim.tbl_extend("force", target_base, { unseen = true }), "GleanFileHeader")
+      if not c then
+        for _, hi in ipairs(unseen_idx) do
+          emit_hunk(file.hunks[hi], hi, target_base, resolve, base_ord[hi], comments_by_ord, "unseen")
+        end
+      end
     end
   end
 
@@ -530,7 +541,8 @@ function Session:build()
             local adapter = self:adapter_for(commit, file.path)
             local resolve = function(ln) return adapter, ln, commit.sha, file.path end
             emit_file_body(file, { commit = ci, file = fi }, resolve,
-              seen_key(commit.sha, file.path), self:resolve_comments(file))
+              seen_key(commit.sha, file.path), self:resolve_comments(file),
+              unseen_key(commit.sha, file.path))
           end
         end
       end
@@ -549,7 +561,7 @@ function Session:build()
           return self:combined_adapter(p.sha, cf.path), p.orig_lnum, p.sha, cf.path
         end
         emit_file_body(cf, { cfile = fi }, resolve, cseen_key(cf.path),
-          self:resolve_comments(cf))
+          self:resolve_comments(cf), cunseen_key(cf.path))
       end
     end
   end
@@ -598,6 +610,29 @@ function Session:render()
     local last = math.max(1, #lines)
     cur[1] = math.min(cur[1], last)
     pcall(api.nvim_win_set_cursor, win, cur)
+  end
+  self:highlight_cursor_hunk()
+end
+
+-- Highlight every row of the hunk under the cursor with CursorLine, so the
+-- active hunk reads as a single block. Cleared and reapplied on each move.
+function Session:highlight_cursor_hunk()
+  if not (self.buf and api.nvim_buf_is_valid(self.buf)) then return end
+  api.nvim_buf_clear_namespace(self.buf, NS_CURSOR, 0, -1)
+  if not (self.win and api.nvim_win_is_valid(self.win)) then return end
+  local t = self.row_map[self:cursor_row()]
+  if not (t and t.hunk) then return end
+  local function same(o)
+    return o and o.hunk == t.hunk and o.commit == t.commit
+      and o.file == t.file and o.cfile == t.cfile
+  end
+  for r, o in pairs(self.row_map) do
+    if same(o) then
+      api.nvim_buf_set_extmark(self.buf, NS_CURSOR, r, 0, {
+        line_hl_group = "CursorLine",
+        priority = 100,
+      })
+    end
   end
 end
 
@@ -670,6 +705,7 @@ end
 
 -- Apply a fresh action, push it on the undo stack, and clear the redo stack.
 function Session:perform(action)
+  action.cursor = self:cursor_row()
   self:apply_action(action)
   self.undo_stack[#self.undo_stack + 1] = action
   self.redo_stack = {}
@@ -684,6 +720,7 @@ function Session:undo()
   self:reverse_action(a)
   self.redo_stack[#self.redo_stack + 1] = a
   self:render()
+  self:restore_cursor(a.cursor)
 end
 
 function Session:redo()
@@ -722,10 +759,100 @@ function Session:cursor_row()
   return 0
 end
 
+function Session:restore_cursor(row)
+  if not (row and self.win and api.nvim_win_is_valid(self.win)) then return end
+  row = math.max(0, math.min(row, api.nvim_buf_line_count(self.buf) - 1))
+  pcall(api.nvim_win_set_cursor, self.win, { row + 1, 0 })
+end
+
+-- The seen/unseen section a target belongs to, or nil. Section headers carry
+-- `seen`/`unseen`; hunk and diff-line rows carry `sec`. Identity is the owning
+-- file (commit+file in commit scope, cfile in combined scope).
+function Session:section_of(target)
+  local kind
+  if target.seen then kind = "seen"
+  elseif target.unseen then kind = "unseen"
+  elseif target.sec then kind = target.sec
+  else return nil end
+  if target.commit then
+    return { commit = target.commit, file = target.file, kind = kind }
+  elseif target.cfile then
+    return { cfile = target.cfile, kind = kind }
+  end
+  return nil
+end
+
+function Session:section_key(sec)
+  if sec.commit then
+    local commit = self.commits[sec.commit]
+    local path = commit.files[sec.file].path
+    return sec.kind == "seen" and seen_key(commit.sha, path) or unseen_key(commit.sha, path)
+  end
+  local path = self.combined_files[sec.cfile].path
+  return sec.kind == "seen" and cseen_key(path) or cunseen_key(path)
+end
+
+local function same_section(a, b)
+  return a and b and a.kind == b.kind and a.commit == b.commit
+    and a.file == b.file and a.cfile == b.cfile
+end
+
+-- The buffer row of a section's header (the seen/unseen summary line), or nil.
+function Session:section_header_row(sec)
+  for r, t in pairs(self.row_map) do
+    if (t.seen or t.unseen) and same_section(self:section_of(t), sec) then
+      return r
+    end
+  end
+  return nil
+end
+
+-- A section header (default-collapsed for seen, default-expanded for unseen)
+-- toggles only its override key. Returns the action and whether it collapses.
+function Session:section_action(sec)
+  local key = self:section_key(sec)
+  local prev = self.collapse[key]
+  local cur = prev
+  if cur == nil then cur = (sec.kind == "seen") end
+  return {
+    kind = "collapse",
+    key = key,
+    value = not cur,
+    field_value = not cur,
+    prev = prev,
+    prev_field_value = nil,
+  }, (not cur)
+end
+
 function Session:toggle_collapse(row)
   if row == nil then row = self:cursor_row() end
   local target = self.row_map[row]
   if not target then return end
+
+  -- Section rows (seen/unseen headers, hunks, diff lines) collapse just their
+  -- section, leaving the file header in place. Collapsing parks the cursor on
+  -- the header; expanding restores the row the user left off on inside it.
+  local sec = self:section_of(target)
+  if sec then
+    self.section_offsets = self.section_offsets or {}
+    local action, collapsing = self:section_action(sec)
+    local key = self:section_key(sec)
+    if collapsing then
+      local hrow = self:section_header_row(sec) or row
+      self.section_offsets[key] = row - hrow
+    end
+    self:perform(action)
+    self:render()
+    local hrow = self:section_header_row(sec)
+    if hrow then
+      local dst = hrow
+      if not collapsing then dst = hrow + (self.section_offsets[key] or 0) end
+      dst = math.max(0, math.min(dst, api.nvim_buf_line_count(self.buf) - 1))
+      pcall(api.nvim_win_set_cursor, self.win, { dst + 1, 0 })
+    end
+    return
+  end
+
   local action = self:collapse_action(target)
   if action then self:perform(action) end
   self:render()
@@ -890,39 +1017,56 @@ function Session:toggle_seen(row)
   if #changed == 0 then return end
   self:perform({ kind = "seen", op = op, groups = changed })
   self:render()
-  self:move_to_next_hunk(target)
+  self:move_to_next_hunk()
 end
 
--- After a hunk is toggled seen it relocates into the collapsed seen section, so
--- absolute cursor position is meaningless. Place the cursor on the header of the
--- next still-rendered hunk (document order) so review can continue.
-function Session:move_to_next_hunk(from)
+-- After marking something seen its rows relocate into the (collapsed) seen
+-- section, so park the cursor on the header of the next still-rendered unseen
+-- hunk. Document/buffer order at or after the prior cursor row is exactly the
+-- next remaining work, since render preserves the cursor's row number.
+function Session:move_to_next_hunk()
   if not (self.win and api.nvim_win_is_valid(self.win)) then return end
-  if not from or not from.hunk then return end
-  local function rank(t)
-    if t.commit then return { t.commit, t.file or 0, t.hunk } end
-    if t.cfile then return { t.cfile, t.hunk } end
-    return nil
-  end
-  local function gt(a, b)
-    for i = 1, #a do
-      if a[i] ~= b[i] then return a[i] > b[i] end
-    end
-    return false
-  end
-  local base = rank(from)
-  if not base then return end
-  local best_row, best_rank
+  local cur = self:cursor_row()
+  local best
   for r, t in pairs(self.row_map) do
-    if t.hunk and not t.line and not t.seen then
-      local tr = rank(t)
-      if tr and gt(tr, base) and (not best_rank or gt(best_rank, tr)) then
-        best_row, best_rank = r, tr
+    if t.hunk and not t.line and t.sec ~= "seen" then
+      if r >= cur and (not best or r < best) then best = r end
+    end
+  end
+  if best then pcall(api.nvim_win_set_cursor, self.win, { best + 1, 0 }) end
+end
+
+-- Move the cursor to the nearest rendered row matching `pred` in the given
+-- direction. Collapsed sections are absent from row_map, so visible navigation
+-- naturally skips them.
+function Session:nav_to(pred, forward)
+  if not (self.win and api.nvim_win_is_valid(self.win)) then return end
+  local cur = self:cursor_row()
+  local best
+  for r, t in pairs(self.row_map) do
+    if pred(t) then
+      if forward then
+        if r > cur and (not best or r < best) then best = r end
+      else
+        if r < cur and (not best or r > best) then best = r end
       end
     end
   end
-  if best_row then pcall(api.nvim_win_set_cursor, self.win, { best_row + 1, 0 }) end
+  if best then pcall(api.nvim_win_set_cursor, self.win, { best + 1, 0 }) end
 end
+
+local function is_hunk_row(t)
+  return t.hunk and not t.line and not t.seen
+end
+
+local function is_file_row(t)
+  return (t.file or t.cfile) and not t.hunk and not t.line and not t.seen and not t.unseen
+end
+
+function Session:next_hunk() self:nav_to(is_hunk_row, true) end
+function Session:prev_hunk() self:nav_to(is_hunk_row, false) end
+function Session:next_file() self:nav_to(is_file_row, true) end
+function Session:prev_file() self:nav_to(is_file_row, false) end
 
 -- Mark a visual span of diff rows seen: translate each row's diff line to its
 -- new_lnum, group by (commit, path), and store exactly those ranges (sub-hunk).
@@ -1396,6 +1540,12 @@ local function setup_keymaps(buf, session)
   local function map(mode, lhs, fn)
     vim.keymap.set(mode, lhs, fn, { buffer = buf, nowait = true, silent = true })
   end
+  local group = api.nvim_create_augroup("glean_cursor_" .. buf, { clear = true })
+  api.nvim_create_autocmd("CursorMoved", {
+    group = group,
+    buffer = buf,
+    callback = function() session:highlight_cursor_hunk() end,
+  })
   map("n", "=", function() session:toggle_collapse() end)
   map("n", "m", function() session:toggle_seen() end)
   map("x", "m", function()
@@ -1429,6 +1579,10 @@ local function setup_keymaps(buf, session)
   map("n", "dc", function() session:delete_comment_at() end)
   map("n", "u", function() session:undo() end)
   map("n", "<C-r>", function() session:redo() end)
+  map("n", "]c", function() session:next_hunk() end)
+  map("n", "[c", function() session:prev_hunk() end)
+  map("n", "]f", function() session:next_file() end)
+  map("n", "[f", function() session:prev_file() end)
   map("n", "<CR>", function() session:jump() end)
   map("n", "D", function() session:diffsplit() end)
   map("n", "S", function() session:toggle_scope() end)

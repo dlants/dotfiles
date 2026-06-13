@@ -397,6 +397,28 @@ do
   h.assert_true("seen-section: row has seen target", srow ~= nil)
 end
 
+-- Unseen section: changed hunks render under a default-expanded
+-- "● unseen (N hunks)" header. Collapsing any row in the section (here a diff
+-- line) hides the section body but leaves the file header in place.
+do
+  local s = open({ state_dir = vim.fn.tempname() })
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("unseen-section: header present", joined:find("● unseen (", 1, true) ~= nil)
+  h.assert_true("unseen-section: default expanded chevron", joined:find("▾ ● unseen", 1, true) ~= nil)
+  h.assert_true("unseen-section: body shown", joined:find("\n+TWO", 1, true) ~= nil)
+
+  local lrow = find_row(s, function(_, _, t) return t and t.line and t.sec == "unseen" end)
+  h.assert_true("unseen-section: found a line row", lrow ~= nil)
+  s:toggle_collapse(lrow)
+  local j2 = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("unseen-section: collapsed chevron", j2:find("▸ ● unseen", 1, true) ~= nil)
+  h.assert_true("unseen-section: body hidden", j2:find("\n+TWO", 1, true) == nil)
+  h.assert_true("unseen-section: file header intact", j2:find("▾ f.txt", 1, true) ~= nil)
+  s:toggle_collapse(find_row(s, function(_, _, t) return t and t.unseen end))
+  local j3 = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("unseen-section: re-expanded body", j3:find("\n+TWO", 1, true) ~= nil)
+end
+
 -- Undo / redo: marking seen pushes an undo snapshot; undo reverts the store and
 -- redo re-applies it. Persists through reopen.
 do
