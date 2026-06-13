@@ -423,6 +423,16 @@ section is *added*; no existing commits-scope assertion should break.
 
 ### Stage 5 — test updates
 
+> **Status: DONE.** All enumerated breaking assertions were already updated as
+> part of Stages 2–4: the combined f.txt block now asserts `▾ f.txt` + `✓ seen
+> (1 hunks)` (init_test ~228/234), the x.txt follow-up asserts `✓ seen` (~291),
+> the y.txt fixture was reworked into an 11-line two-hunk file (edits at L2/L10)
+> asserting `✓ seen (1 hunks)` + collapsed L2 + visible L10 (~296-328), and the
+> wt-combined m.txt block asserts `✓ seen` absence/presence/reopen (~498/513/517).
+> New positive coverage: a commits-scope seen-section test with isolated
+> `state_dir` (~190-211). Full suite green: init 106, git 40, diff 35,
+> provenance 8, state 34. No `luacheck` available in env.
+
 - Goal: suite reflects the new rendering. Run `nvim -l nvim/lua/glean/init_test.lua`.
 - The breaking assertions and their replacements are listed in the next section.
 - Add new positive coverage: a commits-scope seen-section test, and a combined
