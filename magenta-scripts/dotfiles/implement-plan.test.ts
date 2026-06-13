@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  realpathSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
@@ -19,6 +20,37 @@ import {
   runImplementPlan,
   type Stage,
 } from "./implement-plan-lib.ts";
+
+function setupWorktreeRoot(withScript: boolean): {
+  root: string;
+  main: string;
+} {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), "wt-root-")));
+  $.sync`git -C ${root} init --bare .bare`;
+  writeFileSync(path.join(root, ".git"), "gitdir: ./.bare\n");
+  // Seed the bare repo's default branch via a temporary clone.
+  const main = path.join(root, "main");
+  $.sync`git -C ${root} worktree add -b main ${main}`;
+  $.sync`git -C ${main} config user.email test@test.com`;
+  $.sync`git -C ${main} config user.name test`;
+  writeFileSync(path.join(main, "README.md"), "# repo\n");
+  $.sync`git -C ${main} add -A`;
+  $.sync`git -C ${main} commit -m init`;
+  if (withScript) {
+    const script = path.join(root, "new-worktree.sh");
+    writeFileSync(
+      script,
+      [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        'ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
+        'git -C "$ROOT" worktree add -b "$1" "$ROOT/$1"',
+        "",
+      ].join("\n"),
+    );
+  }
+  return { root, main };
+}
 
 describe("defaultBranchName", () => {
   it("slugifies the plan basename", () => {
@@ -136,5 +168,72 @@ describe("runImplementPlan (temp git repo)", () => {
     const log = git("log", "--pretty=%s").trim().split("\n");
     expect(log).toContain("Stage 1: stage one");
     expect(log).toContain("Stage 2: stage two");
+  });
+});
+
+describe("prepareImplementation (worktrees)", () => {
+  const roots: string[] = [];
+
+  afterEach(() => {
+    for (const r of roots) $.sync`rm -rf ${r}`;
+    roots.length = 0;
+  });
+
+  it("returns undefined worktree root for an ordinary repo", async () => {
+    const repo = mkdtempSync(path.join(tmpdir(), "plain-"));
+    roots.push(repo);
+    $.sync`git -C ${repo} init`;
+    expect(await detectWorktreeRoot(repo)).toBeUndefined();
+  });
+
+  it("detects the worktree root for a linked worktree", async () => {
+    const { root, main } = setupWorktreeRoot(false);
+    roots.push(root);
+    const detected = await detectWorktreeRoot(main);
+    expect(detected && path.resolve(detected)).toBe(path.resolve(root));
+  });
+
+  it("runs new-worktree.sh and copies the plan across", async () => {
+    const { root, main } = setupWorktreeRoot(true);
+    roots.push(root);
+    const planAbs = path.join(main, "plans", "feature.md");
+    mkdirSync(path.dirname(planAbs), { recursive: true });
+    writeFileSync(planAbs, "# plan body\n");
+
+    const logs: string[] = [];
+    const result = await prepareImplementation({
+      repo: main,
+      planAbs,
+      branch: "feat/x",
+      log: (m) => logs.push(m),
+    });
+
+    const target = path.join(root, "feat/x");
+    expect(path.resolve(result.repo)).toBe(path.resolve(target));
+    expect(existsSync(target)).toBe(true);
+    expect(
+      $.sync`git -C ${target} rev-parse --abbrev-ref HEAD`.stdout.trim(),
+    ).toBe("feat/x");
+    expect(existsSync(result.planAbs)).toBe(true);
+    expect(readFileSync(result.planAbs, "utf8")).toBe("# plan body\n");
+  });
+
+  it("creates a worktree itself when no script exists", async () => {
+    const { root, main } = setupWorktreeRoot(false);
+    roots.push(root);
+    const planAbs = path.join(main, "feature.md");
+    writeFileSync(planAbs, "# plan\n");
+
+    const result = await prepareImplementation({
+      repo: main,
+      planAbs,
+      branch: "feat/y",
+      log: () => {},
+    });
+
+    const target = path.join(root, "feat/y");
+    expect(existsSync(target)).toBe(true);
+    expect(path.resolve(result.repo)).toBe(path.resolve(target));
+    expect(existsSync(result.planAbs)).toBe(true);
   });
 });
