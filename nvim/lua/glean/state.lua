@@ -143,6 +143,35 @@ function M.compute_seen_lines(blocks, line_texts)
   return seen
 end
 
+-- Pure re-anchoring helper. Given a comment's captured `content` block (a list
+-- of line texts), the `anchor` ordinal it was authored against, and the current
+-- flattened `diff_texts` sequence, return the start index of the closest
+-- consecutive match (all-or-nothing), or nil if the block does not appear.
+-- Ties on distance pick the lower index.
+function M.resolve(content, anchor, diff_texts)
+  local n = #content
+  if n == 0 then
+    return nil
+  end
+  local best, best_dist
+  for i = 1, #diff_texts - n + 1 do
+    local match = true
+    for j = 1, n do
+      if diff_texts[i + j - 1] ~= content[j] then
+        match = false
+        break
+      end
+    end
+    if match then
+      local dist = math.abs(i - anchor)
+      if not best_dist or dist < best_dist then
+        best, best_dist = i, dist
+      end
+    end
+  end
+  return best
+end
+
 -- Split a list of new-file line numbers into maximal contiguous ascending runs.
 local function contiguous_runs(lnums)
   local sorted = {}

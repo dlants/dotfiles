@@ -167,4 +167,24 @@ do
   h.assert_eq("comments: empty path", #s2:comments_for("other.txt"), 0)
 end
 
+-- Resolution helper: closest consecutive block match.
+do
+  local diff = { "alpha", "beta", "gamma", "beta", "delta" }
+  -- single occurrence resolves to its index.
+  h.assert_eq("resolve: single occurrence", state.resolve({ "gamma" }, 1, diff), 3)
+  -- multiple occurrences resolve to the one closest to anchor.
+  h.assert_eq("resolve: closest to anchor (low)", state.resolve({ "beta" }, 1, diff), 2)
+  h.assert_eq("resolve: closest to anchor (high)", state.resolve({ "beta" }, 5, diff), 4)
+  -- tie on distance picks the lower index.
+  h.assert_eq("resolve: tie picks lower", state.resolve({ "beta" }, 3, diff), 2)
+  -- multi-line block matches only when consecutive.
+  h.assert_eq("resolve: consecutive block", state.resolve({ "alpha", "beta" }, 1, diff), 1)
+  h.assert_eq("resolve: non-consecutive nil", state.resolve({ "alpha", "gamma" }, 1, diff), nil)
+  -- a deletion's text present in diff_texts resolves; absent content is nil.
+  local withdel = { "ctx", "-removed", "ctx2" }
+  h.assert_eq("resolve: deletion text", state.resolve({ "-removed" }, 2, withdel), 2)
+  h.assert_eq("resolve: absent content nil", state.resolve({ "missing" }, 1, diff), nil)
+  -- empty content is nil.
+  h.assert_eq("resolve: empty content nil", state.resolve({}, 1, diff), nil)
+end
 h.finish()

@@ -229,7 +229,7 @@ Existing stored comments are not migrated (acceptable per plan).
     seen shas.
 - Before moving on: confirm tests, type checks, and linting all pass.
 
-## Stage 2 — Resolution helper
+## Stage 2 — Resolution helper  ✅ DONE
 
 - Goal: a pure `resolve(content, anchor, diff_texts)` returning the closest match
   start index or nil, with multi-line consecutive block matching.
@@ -241,6 +241,14 @@ Existing stored comments are not migrated (acceptable per plan).
     does not match.
   - Behavior: a deletion's text (present in `diff_texts`) resolves; absent content
     returns nil (→ outdated).
+- Implemented `M.resolve(content, anchor, diff_texts)` in `state.lua`: pure, all-or-nothing
+  consecutive block match, returns the start index closest to `anchor` (ties pick lower
+  index, since the loop keeps the first/lower index on equal distance), nil when absent or
+  content is empty.
+- Tier-1 tests added to `state_test.lua` covering single/multiple occurrences, tie→lower,
+  consecutive vs non-consecutive blocks, deletion text present, and absent/empty content.
+- Note: repo has no stylua/luacheck config (stylua's tab default conflicts with the
+  spaces-indented files repo-wide), so verification is the full test suite, which passes.
 - Before moving on: confirm tests, type checks, and linting all pass.
 
 ## Stage 3 — Authoring, rendering, summary in init.lua
