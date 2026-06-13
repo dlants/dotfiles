@@ -29,8 +29,105 @@ M.config = {
   default_base = "main",
 }
 
+-- Registry of live glean buffers, keyed by (repo_root, base, target), so a
+-- second open of the same diff reuses its persistent, listed buffer instead of
+-- spawning a duplicate. Lets you jump to a source file and come back via the
+-- buffer list / `<C-^>`.
+local buffers = {}
+
+-- Live session per buffer key, so a reopen/refresh can stop the previous one's
+-- update timer; and content-addressed collapse overrides per buffer key, kept in
+-- process memory so a reload-from-disk never loses expand/collapse state.
+local sessions = {}
+local views = {}
+
+-- How often the live work-tree review polls the repo for changes (ms).
+local LIVE_INTERVAL_MS = 1500
+
+local function buffer_key(repo_root, base, target)
+  return table.concat({ repo_root, base, target }, "\0")
+end
+
+-- Resolve the repo root from the buffer Glean was opened over, falling back to
+-- cwd — mirroring the shuck/needle search-root discovery. Prefers cwd when the
+-- origin buffer lives under it, else the nearest `.git` above the buffer, else
+-- cwd itself.
+local function resolve_repo_root(buf_name)
+  local cwd = vim.fn.getcwd()
+  local buf_dir
+  if not buf_name or buf_name == "" or buf_name:match("^%w+://") then
+    buf_dir = cwd
+  else
+    buf_dir = vim.fs.dirname(buf_name)
+  end
+  if buf_dir == cwd or buf_dir:sub(1, #cwd + 1) == cwd .. "/" then
+    local at_cwd = git_mod.discover_repo_root(cwd)
+    if at_cwd then return at_cwd end
+  end
+  return git_mod.discover_repo_root(buf_dir) or cwd
+end
+
+-- A short, human-readable label for a diff: `<repo>/<branch> <base>..<target>`,
+-- with the floating commit shown as `dirty`. Used for the listed buffer name.
+local function diff_label(git, base, target)
+  local repo = vim.fn.fnamemodify(git.repo_root, ":t")
+  local branch = git:current_branch() or "?"
+  local t = target == M.WORKTREE and "dirty" or target
+  return ("%s/%s %s..%s"):format(repo, branch, base, t)
+end
+
 local Session = {}
 Session.__index = Session
+
+-- Content-addressed collapse keys (stable across re-diffs / reloads): a commit
+-- by its sha, a file by sha+path, a combined file by path.
+local function commit_key(sha) return "c:" .. sha end
+local function file_key(sha, path) return "f:" .. sha .. "\0" .. path end
+local function cfile_key(path) return "cf:" .. path end
+local function seen_key(sha, path) return "s:" .. sha .. "\0" .. path end
+local function cseen_key(path) return "cs:" .. path end
+
+-- Build the review model for `base..target`: the net diff `files`, the ordered
+-- `commits` (each with its own `commit_diff` files), and the `shas` to load from
+-- the store. For a work-tree target the diff runs base->work tree and the
+-- floating commit (tracked dirty edits + untracked files) is appended last.
+local function build_model(git, base, target)
+  local worktree = target == M.WORKTREE
+  local files, err
+  if worktree then
+    files, err = git:diff_to_worktree(base)
+  else
+    files, err = git:combined_diff(base, target)
+  end
+  if not files then return nil, err end
+  for _, f in ipairs(files) do f.collapsed = false end
+
+  local commit_target = worktree and "HEAD" or target
+  local commits, cerr = git:commits(base, commit_target)
+  if not commits then return nil, cerr end
+  local shas = {}
+  for _, c in ipairs(commits) do
+    c.files = git:commit_diff(c.sha) or {}
+    shas[#shas + 1] = c.sha
+  end
+
+  if worktree then
+    local ffiles = {}
+    for _, f in ipairs(git:worktree_diff() or {}) do
+      f.collapsed = false
+      ffiles[#ffiles + 1] = f
+    end
+    for _, f in ipairs(git:untracked() or {}) do
+      f.collapsed = false
+      ffiles[#ffiles + 1] = f
+    end
+    commits[#commits + 1] = {
+      sha = M.WORKTREE, summary = "uncommitted changes", files = ffiles, collapsed = false,
+    }
+    shas[#shas + 1] = M.WORKTREE
+  end
+  return files, commits, shas
+end
 
 local CHEVRON_OPEN = "▾"
 local CHEVRON_CLOSED = "▸"
@@ -42,6 +139,23 @@ local function hunk_new_range(hunk)
     return { hunk.new_start, hunk.new_start + hunk.new_count - 1 }
   end
   return nil
+end
+
+-- A hunk is "seen" iff it has at least one new line and every new line resolves
+-- to an adapter that reports it seen. `resolve(new_lnum) -> (adapter, key_lnum)`
+-- returns nil for a line with no owner (which makes the hunk unseen). Pure
+-- deletion/context hunks have no new line and are therefore never seen.
+local function hunk_is_seen(hunk, resolve)
+  local any = false
+  for _, dl in ipairs(hunk.lines) do
+    if dl.new_lnum then
+      local ad, kl = resolve(dl.new_lnum)
+      if not ad then return false end
+      any = true
+      if not ad.is_seen(kl) then return false end
+    end
+  end
+  return any
 end
 
 -- All new-file ranges a file changes within one commit's diff.
@@ -158,6 +272,8 @@ function Session:compute_combined()
   local out = {}
   for _, raw in ipairs(self.files) do
     local path = raw.path
+    local cov = self.collapse[cfile_key(path)]
+    if cov ~= nil then raw.collapsed = cov end
     local prov = self:provenance(path)
     local earliest_contrib, earliest_unseen, newest = nil, nil, nil
     local any_new, seen_count = false, 0
@@ -387,13 +503,16 @@ end
 -- Collapse (ephemeral) — initialized from seen, then independent.
 -- ---------------------------------------------------------------------------
 
--- (Re)initialize commit-scope collapse from seen status: fully-seen commits and
--- files start collapsed so only unseen work is expanded. Never persisted.
-function Session:init_collapse()
+-- Apply commit-scope collapse: an explicit user override (content-addressed in
+-- self.collapse) wins; otherwise the default is "collapsed iff fully seen" so
+-- only unseen work is expanded. Overrides persist across reloads/reopens.
+function Session:apply_collapse()
   for _, commit in ipairs(self.commits) do
-    commit.collapsed = self:commit_seen(commit)
+    local ov = self.collapse[commit_key(commit.sha)]
+    commit.collapsed = ov ~= nil and ov or self:commit_seen(commit)
     for _, file in ipairs(commit.files) do
-      file.collapsed = self:file_seen(commit, file)
+      local fov = self.collapse[file_key(commit.sha, file.path)]
+      file.collapsed = fov ~= nil and fov or self:file_seen(commit, file)
     end
   end
 end
@@ -412,14 +531,20 @@ function Session:toggle_collapse(row)
   if self.scope == "commits" then
     local commit = self.commits[target.commit]
     if target.file then
-      commit.files[target.file].collapsed = not commit.files[target.file].collapsed
+      local file = commit.files[target.file]
+      file.collapsed = not file.collapsed
+      self.collapse[file_key(commit.sha, file.path)] = file.collapsed
     else
       commit.collapsed = not commit.collapsed
+      self.collapse[commit_key(commit.sha)] = commit.collapsed
     end
   else
     if target.cfile then
       local cf = self.combined_files[target.cfile]
-      if cf and not cf.fully_seen then cf.raw.collapsed = not cf.raw.collapsed end
+      if cf and not cf.fully_seen then
+        cf.raw.collapsed = not cf.raw.collapsed
+        self.collapse[cfile_key(cf.path)] = cf.raw.collapsed
+      end
     end
   end
   self:render()
@@ -740,12 +865,65 @@ end
 function Session:set_scope(scope)
   if scope == self.scope then return end
   self.scope = scope
-  if scope == "commits" then self:init_collapse() end
+  if scope == "commits" then self:apply_collapse() end
   self:render()
 end
 
 function Session:toggle_scope()
   self:set_scope(self.scope == "commits" and "combined" or "commits")
+end
+
+-- ---------------------------------------------------------------------------
+-- Live update (work-tree target) — poll the repo and re-render in place.
+-- ---------------------------------------------------------------------------
+
+-- Rebuild the model from the current repo state and re-render, preserving the
+-- content-addressed collapse overrides, the cursor, and (via immediate saves)
+-- all authored seen/comments. Reloads the store from disk and clears the
+-- per-target memoized caches so the projection reflects the latest content.
+function Session:reload()
+  if not api.nvim_buf_is_valid(self.buf) then return end
+  local files, commits, shas = build_model(self.git, self.base, self.target)
+  if not files then return end
+  local store = state_mod.new({ dir = self.state_dir })
+  store:load(shas)
+  self.files = files
+  self.commits = commits
+  self.store = store
+  self._wt_lines = nil
+  self._prov = nil
+  self._cidx = nil
+  self.combined_files = nil
+  self:apply_collapse()
+  self:render()
+end
+
+-- Start polling the repo on a timer; only the live work-tree review opts in.
+-- Each tick compares a cheap dirty signature and reloads only when it changed,
+-- so an idle buffer does no rebuild work and the cursor never jumps.
+function Session:start_live()
+  if not self.worktree or self._timer then return end
+  self._sig = self.git:dirty_sig()
+  local timer = vim.uv.new_timer()
+  self._timer = timer
+  timer:start(LIVE_INTERVAL_MS, LIVE_INTERVAL_MS, function()
+    vim.schedule(function()
+      if not api.nvim_buf_is_valid(self.buf) then self:stop_live() return end
+      local sig = self.git:dirty_sig()
+      if sig ~= self._sig then
+        self._sig = sig
+        self:reload()
+      end
+    end)
+  end)
+end
+
+function Session:stop_live()
+  if self._timer then
+    self._timer:stop()
+    if not self._timer:is_closing() then self._timer:close() end
+    self._timer = nil
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -784,99 +962,132 @@ end
 --   - scope (optional, default "combined").
 --   - state_dir (optional): override the ReviewStore directory (tests).
 --   - open_window (optional, default true).
+
 function M.open(opts)
   assert(opts and opts.base and opts.target, "glean.open requires base and target")
   local repo_root = opts.repo_root
-    or git_mod.discover_repo_root(api.nvim_buf_get_name(0))
+    or resolve_repo_root(api.nvim_buf_get_name(0))
   assert(repo_root, "glean: could not find a git repo root")
   local git = git_mod.new({ repo_root = repo_root, run = opts.run })
 
-  -- When the target is the floating commit, the working tree is the net target:
-  -- the combined diff runs base->work tree and the commit list is base..HEAD with
-  -- the floating commit appended last (combined overlay routing lands in Stage 4).
   local worktree = opts.target == M.WORKTREE
-  local files, err
-  if worktree then
-    files, err = git:diff_to_worktree(opts.base)
-  else
-    files, err = git:combined_diff(opts.base, opts.target)
-  end
-  if not files then error("glean: combined_diff failed: " .. tostring(err)) end
-  for _, f in ipairs(files) do f.collapsed = false end
-
-  local commit_target = worktree and "HEAD" or opts.target
-  local commit_list, cerr = git:commits(opts.base, commit_target)
-  if not commit_list then error("glean: commits failed: " .. tostring(cerr)) end
-  local shas = {}
-  for _, c in ipairs(commit_list) do
-    c.files = git:commit_diff(c.sha) or {}
-    shas[#shas + 1] = c.sha
-  end
-
-  if worktree then
-    local ffiles = {}
-    for _, f in ipairs(git:worktree_diff() or {}) do
-      f.collapsed = false
-      ffiles[#ffiles + 1] = f
-    end
-    for _, f in ipairs(git:untracked() or {}) do
-      f.collapsed = false
-      ffiles[#ffiles + 1] = f
-    end
-    commit_list[#commit_list + 1] = {
-      sha = M.WORKTREE, summary = "uncommitted changes", files = ffiles, collapsed = false,
-    }
-    shas[#shas + 1] = M.WORKTREE
-  end
+  local files, commit_list, shas = build_model(git, opts.base, opts.target)
+  if not files then error("glean: build_model failed: " .. tostring(commit_list)) end
 
   local store = state_mod.new({ dir = opts.state_dir })
   store:load(shas)
 
-  local buf = api.nvim_create_buf(false, true)
-  api.nvim_set_option_value("buftype", "nofile", { buf = buf })
-  api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
-  api.nvim_set_option_value("filetype", "glean", { buf = buf })
-  pcall(api.nvim_buf_set_name, buf, "glean://" .. buf .. ":" .. opts.base .. "..." .. opts.target)
+  -- One buffer per (repo, base, target); reuse it on reopen. The live work-tree
+  -- review is a "special" unlisted buffer (it tracks the current repo state and
+  -- auto-refreshes); committed-range diffs are persistent and listed.
+  local key = buffer_key(repo_root, opts.base, opts.target)
+  local existing = buffers[key]
+  local buf
+  if existing and api.nvim_buf_is_valid(existing) then
+    buf = existing
+  else
+    buf = api.nvim_create_buf(not worktree, false)
+    api.nvim_set_option_value("buftype", "nofile", { buf = buf })
+    api.nvim_set_option_value("bufhidden", "hide", { buf = buf })
+    api.nvim_set_option_value("swapfile", false, { buf = buf })
+    api.nvim_set_option_value("filetype", "glean", { buf = buf })
+    pcall(api.nvim_buf_set_name, buf, "Glean:" .. diff_label(git, opts.base, opts.target))
+    buffers[key] = buf
+    api.nvim_create_autocmd({ "BufWipeout", "BufDelete" }, {
+      buffer = buf,
+      callback = function()
+        buffers[key] = nil
+        views[key] = nil
+        local s = sessions[key]
+        if s then s:stop_live() end
+        sessions[key] = nil
+      end,
+    })
+  end
+  api.nvim_set_option_value("buflisted", not worktree, { buf = buf })
+
+  -- Collapse overrides are content-addressed and kept in process memory keyed by
+  -- the buffer, so neither a live reload-from-disk nor a reopen loses the user's
+  -- expand/collapse choices.
+  local collapse = views[key] or {}
+  views[key] = collapse
+
+  local prev = sessions[key]
+  if prev then prev:stop_live() end
 
   local session = setmetatable({
     git = git,
     store = store,
     base = opts.base,
     target = opts.target,
+    worktree = worktree,
+    state_dir = opts.state_dir,
     files = files,
     commits = commit_list,
     scope = opts.scope or "combined",
     buf = buf,
     win = nil,
     row_map = {},
+    collapse = collapse,
   }, Session)
-  session:init_collapse()
+  sessions[key] = session
+  session:apply_collapse()
 
   local open_window = opts.open_window ~= false
   if open_window then
-    vim.cmd("tabnew")
-    session.win = api.nvim_get_current_win()
-    api.nvim_win_set_buf(session.win, buf)
+    -- Reuse a window already showing this buffer in the current tabpage,
+    -- otherwise open a fresh tab.
+    local shown
+    for _, w in ipairs(api.nvim_tabpage_list_wins(0)) do
+      if api.nvim_win_get_buf(w) == buf then shown = w break end
+    end
+    if shown then
+      session.win = shown
+      api.nvim_set_current_win(shown)
+    else
+      -- Take over the current window, unless it isn't full height (something
+      -- above or below it) or is a floating window. In that case add a new
+      -- full-height column on the right so the review doesn't squash into a
+      -- partial pane.
+      local is_floating = api.nvim_win_get_config(0).relative ~= ""
+      if is_floating
+        or vim.fn.winnr("k") ~= vim.fn.winnr()
+        or vim.fn.winnr("j") ~= vim.fn.winnr()
+      then
+        vim.cmd("botright vsplit")
+      end
+      session.win = api.nvim_get_current_win()
+      api.nvim_win_set_buf(session.win, buf)
+    end
     setup_keymaps(buf, session)
+    session:start_live()
   end
 
   session:render()
   return session
 end
 
--- Resolve the base/target for "current branch + dirty": the fork point from the
--- default trunk (merge-base) up to the live work tree (the floating commit).
--- Falls back to the default base when no merge-base exists (e.g. unrelated head).
+-- Resolve the base/target for "current branch + dirty", with the live work tree
+-- (the floating commit) as the target. On a feature branch the base is the fork
+-- point from the default trunk (merge-base), so the review shows commits unique
+-- to the branch plus uncommitted edits. On the default branch itself there is no
+-- meaningful fork point, so the base is the upstream tracking ref (e.g.
+-- origin/main), yielding unpushed commits plus uncommitted edits.
 function M.resolve_dirty(git)
-  local base = git:merge_base(M.config.default_base, "HEAD") or M.config.default_base
-  return base, M.WORKTREE
+  local base
+  if git:current_branch() == M.config.default_base then
+    base = git:upstream()
+  else
+    base = git:merge_base(M.config.default_base, "HEAD")
+  end
+  return base or M.config.default_base, M.WORKTREE
 end
 
 -- Open a review of "current branch + dirty" with no base/target args.
 function M.open_dirty(opts)
   opts = opts or {}
   local repo_root = opts.repo_root
-    or git_mod.discover_repo_root(api.nvim_buf_get_name(0))
+    or resolve_repo_root(api.nvim_buf_get_name(0))
   assert(repo_root, "glean: could not find a git repo root")
   local git = git_mod.new({ repo_root = repo_root, run = opts.run })
   local base, target = M.resolve_dirty(git)
@@ -901,6 +1112,10 @@ function M.setup(opts)
       return
     end
     local args = o.fargs
+    if #args == 0 then
+      M.open_dirty()
+      return
+    end
     local base = args[1] or M.config.default_base
     local target = args[2] or "HEAD"
     M.open({ base = base, target = target })

@@ -548,12 +548,58 @@ do
     h.assert_true("wt jump: del scratch buffer", type(dbuf) == "number")
   end
 
-  -- The convenience resolver: merge_base(default_base, HEAD) -> WORKTREE.
+  -- The convenience resolver. On the default branch with no upstream it falls
+  -- back to the configured trunk name; the target is always the work tree.
   local git = require("glean.git").new({ repo_root = jr.root, run = runj })
   local base, tgt = glean.resolve_dirty(git)
   h.assert_eq("dirty resolver: target is WORKTREE", tgt, glean.WORKTREE)
-  h.assert_eq("dirty resolver: base is HEAD merge-base",
-    base, git:rev_parse("HEAD"))
+  h.assert_eq("dirty resolver: base falls back to trunk on default branch",
+    base, glean.config.default_base)
+
+  -- On a feature branch the base is the fork point from the trunk (merge-base).
+  runj({ "checkout", "-q", "-b", "feature" })
+  write("j.txt", "a\nB\nc\nz\nq\n")
+  runj({ "commit", "-q", "-am", "feature commit" })
+  local fbase, ftgt = glean.resolve_dirty(git)
+  h.assert_eq("dirty resolver (branch): target is WORKTREE", ftgt, glean.WORKTREE)
+  h.assert_eq("dirty resolver (branch): base is trunk merge-base",
+    fbase, git:merge_base("main", "HEAD"))
+end
+
+-- Content-addressed collapse overrides survive both a reopen and a live reload.
+do
+  local dir = vim.fn.tempname()
+  local sha = repo.shas[2]
+  local s = open({ scope = "commits", state_dir = dir })
+  local hrow = find_row(s, function(_, line, t)
+    return t and t.commit and not t.file and line:find(sha:sub(1, 8), 1, true)
+  end)
+  h.assert_true("collapse: found c1 header", hrow ~= nil)
+  local ci = s.row_map[hrow].commit
+  local before = s.commits[ci].collapsed
+  s:toggle_collapse(hrow)
+  local after = s.commits[ci].collapsed
+  h.assert_true("collapse: toggle flips state", before ~= after)
+  local function collapsed_of(sess)
+    for _, c in ipairs(sess.commits) do
+      if c.sha == sha then return c.collapsed end
+    end
+  end
+  local s2 = open({ scope = "commits", state_dir = dir })
+  h.assert_eq("collapse: persists across reopen", collapsed_of(s2), after)
+  s2:reload()
+  h.assert_eq("collapse: persists across reload", collapsed_of(s2), after)
+end
+
+-- Persistent, listed buffer: reused across opens of the same diff, named Glean:.
+do
+  local dir = vim.fn.tempname()
+  local s = open({ state_dir = dir })
+  h.assert_true("buffer: listed", api.nvim_get_option_value("buflisted", { buf = s.buf }))
+  local name = api.nvim_buf_get_name(s.buf)
+  h.assert_true("buffer: Glean name", name:find("Glean:", 1, true) ~= nil)
+  local s2 = open({ state_dir = dir })
+  h.assert_eq("buffer: reused on reopen", s2.buf, s.buf)
 end
 
 h.finish()

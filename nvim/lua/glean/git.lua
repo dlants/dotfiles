@@ -55,6 +55,24 @@ function Git:rev_parse(ref)
   return (out:gsub("%s+$", ""))
 end
 
+-- The current branch name (`HEAD` when detached). Used for buffer labels.
+function Git:current_branch()
+  local out = self:run({ "rev-parse", "--abbrev-ref", "HEAD" })
+  if not out then return nil end
+  return (out:gsub("%s+$", ""))
+end
+
+-- The upstream tracking ref for `ref` (default HEAD), e.g. `origin/main`.
+-- Returns the ref name, or nil when no upstream is configured.
+function Git:upstream(ref)
+  local out = self:run({ "rev-parse", "--abbrev-ref", "--symbolic-full-name",
+    (ref or "HEAD") .. "@{upstream}" })
+  if not out then return nil end
+  out = out:gsub("%s+$", "")
+  if out == "" then return nil end
+  return out
+end
+
 -- List commits on `base..target` in chronological order (oldest first).
 -- Returns a list of { sha, summary }.
 function Git:commits(base, target)
@@ -192,6 +210,17 @@ function Git:blame(ref, path, first, last)
   args[#args + 1] = "--"
   args[#args + 1] = path
   return self:run(args)
+end
+
+-- A cheap signature of the working-tree state, used by the live-update timer to
+-- skip a rebuild when nothing changed. Combines HEAD, the tracked diff against
+-- HEAD (catches in-file content edits), and the porcelain status (catches
+-- staging/untracked changes). Returns a short hash, or nil on failure.
+function Git:dirty_sig()
+  local head = self:run({ "rev-parse", "HEAD" }) or ""
+  local diff_out = self:run({ "diff", "--no-color", "HEAD" }) or ""
+  local status = self:run({ "status", "--porcelain=v1", "-uall" }) or ""
+  return vim.fn.sha256(head .. "\0" .. diff_out .. "\0" .. status)
 end
 
 -- Contents of a path at a ref (`git show REF:path`). Used by jump-to-source.
