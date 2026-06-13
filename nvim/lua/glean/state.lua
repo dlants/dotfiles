@@ -10,6 +10,11 @@
 -- module and are exercised directly by the Tier-1 tests.
 local M = {}
 
+-- The synthetic shard id under which all content-addressed comments live. It is
+-- always loaded (regardless of which commits a review spans) so comments are
+-- global per (repo, path, content) rather than tied to a base..target range.
+M.COMMENTS_ID = "WORKTREE"
+
 -- Merge a list of inclusive integer ranges into a minimal, sorted, non-adjacent
 -- set. Adjacent ranges (e.. e+1) are coalesced.
 function M.merge(ranges)
@@ -179,22 +184,47 @@ end
 -- Read the shards for the given commit shas into `self.data`, replacing any
 -- prior contents. Missing/unreadable/corrupt shards are silently skipped (a
 -- never-reviewed commit simply has no entry). Returns self.data.
+-- Read one shard from disk into `self.data[sha]` (no-op if missing/corrupt).
+function Store:read_shard(sha)
+  local path = self:shard_path(sha)
+  if vim.fn.filereadable(path) ~= 1 then return end
+  local content = table.concat(vim.fn.readfile(path), "\n")
+  local ok, decoded = pcall(vim.json.decode, content)
+  if ok and type(decoded) == "table" then
+    decoded.files = decoded.files or {}
+    self.data[sha] = decoded
+  end
+end
+
 function Store:load(shas)
   self.data = {}
+  local wanted = {}
   for _, sha in ipairs(shas) do
-    local path = self:shard_path(sha)
-    if vim.fn.filereadable(path) == 1 then
-      local content = table.concat(vim.fn.readfile(path), "\n")
-      local ok, decoded = pcall(vim.json.decode, content)
-      if ok and type(decoded) == "table" then
-        decoded.files = decoded.files or {}
-        self.data[sha] = decoded
-      end
-    end
+    wanted[sha] = true
+    self:read_shard(sha)
+  end
+  -- Comments are content-addressed and global; their shard must be present for
+  -- every review, even committed-range reviews that don't span it.
+  if not wanted[M.COMMENTS_ID] then
+    self:read_shard(M.COMMENTS_ID)
   end
   return self.data
 end
 
+-- Load a single commit's shard into `self.data` if present and not already
+-- loaded (never clobbers in-memory edits). Used to surface comments authored
+-- against owner commits outside the reviewed range (e.g. on context lines).
+function Store:load_one(sha)
+  if self.data[sha] then return end
+  local path = self:shard_path(sha)
+  if vim.fn.filereadable(path) ~= 1 then return end
+  local content = table.concat(vim.fn.readfile(path), "\n")
+  local ok, decoded = pcall(vim.json.decode, content)
+  if ok and type(decoded) == "table" then
+    decoded.files = decoded.files or {}
+    self.data[sha] = decoded
+  end
+end
 -- Get (creating if absent) the in-memory slice for a commit.
 function Store:commit(sha)
   local c = self.data[sha]
@@ -365,6 +395,64 @@ function Store:wt_comments_for(id, path, line_text)
   local f = c and c.files and c.files[path]
   local list = f and f.comments and f.comments[M.line_hash(line_text)]
   return list or {}
+end
+
+-- ── Content-addressed comments ──────────────────────────────────────────────
+-- All comments live in the always-loaded COMMENTS_ID shard under a top-level
+-- `comments` map keyed by path. Each record is { anchor, content = {...}, text }:
+-- `content` is the captured line text(s) (one entry per commented line),
+-- `anchor` the authoring line (a tiebreak / outdated fallback), `text` the body.
+-- Comments are re-anchored by content at render time, independent of any commit.
+
+function Store:comments_commit()
+  local c = self.data[M.COMMENTS_ID]
+  if not c then
+    c = { worktree = true, files = {} }
+    self.data[M.COMMENTS_ID] = c
+  end
+  c.comments = c.comments or {}
+  return c
+end
+
+-- Append a comment record { anchor, content = {...}, text } for `path`.
+function Store:add_comment_record(path, record)
+  local c = self:comments_commit()
+  c.comments[path] = c.comments[path] or {}
+  local list = c.comments[path]
+  list[#list + 1] = { anchor = record.anchor, content = record.content, text = record.text }
+end
+
+local function content_eq(a, b)
+  if type(a) ~= "table" or type(b) ~= "table" or #a ~= #b then
+    return false
+  end
+  for i = 1, #a do
+    if a[i] ~= b[i] then
+      return false
+    end
+  end
+  return true
+end
+
+-- Remove the last comment for `path` matching the given record by anchor,
+-- content[] and text. Used to reverse an add; no-op if none match.
+function Store:remove_comment_record(path, record)
+  local c = self.data[M.COMMENTS_ID]
+  local list = c and c.comments and c.comments[path]
+  if not list then return end
+  for i = #list, 1, -1 do
+    local r = list[i]
+    if r.anchor == record.anchor and r.text == record.text and content_eq(r.content, record.content) then
+      table.remove(list, i)
+      return
+    end
+  end
+end
+
+-- All comment records for `path` (possibly empty).
+function Store:comments_for(path)
+  local c = self.data[M.COMMENTS_ID]
+  return (c and c.comments and c.comments[path]) or {}
 end
 
 -- ── Addressing adapters ─────────────────────────────────────────────────────

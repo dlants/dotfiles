@@ -135,4 +135,36 @@ do
   h.assert_eq("wt roundtrip: comment", s2:wt_comments_for("WORKTREE", "f.txt", "four")[1].text, "hi")
 end
 
+-- Content-addressed comments: single- and multi-line records round-trip through
+-- save/reload; remove drops exactly one; the comments shard loads even when its
+-- id is not among the review's seen shas.
+do
+  local dir = vim.fn.tempname()
+  local s = state.new({ dir = dir })
+  s:load({ "shaA" })
+  s:add_comment_record("f.txt", { anchor = 3, content = { "two" }, text = "single" })
+  s:add_comment_record("f.txt", { anchor = 5, content = { "a", "b" }, text = "multi" })
+  s:save_commit(state.COMMENTS_ID)
+
+  -- Reload a committed-range review that does NOT list the comments shard id.
+  local s2 = state.new({ dir = dir })
+  s2:load({ "shaA", "shaB" })
+  local list = s2:comments_for("f.txt")
+  h.assert_eq("comments: count after reload", #list, 2)
+  h.assert_eq("comments: single content", list[1].content[1], "two")
+  h.assert_eq("comments: single text", list[1].text, "single")
+  h.assert_eq("comments: multi content len", #list[2].content, 2)
+  h.assert_eq("comments: multi second line", list[2].content[2], "b")
+  h.assert_eq("comments: multi anchor", list[2].anchor, 5)
+
+  -- remove drops exactly one record (matched by anchor/content/text).
+  s2:remove_comment_record("f.txt", { anchor = 3, content = { "two" }, text = "single" })
+  local after = s2:comments_for("f.txt")
+  h.assert_eq("comments: count after remove", #after, 1)
+  h.assert_eq("comments: survivor", after[1].text, "multi")
+
+  -- unknown path is empty.
+  h.assert_eq("comments: empty path", #s2:comments_for("other.txt"), 0)
+end
+
 h.finish()
