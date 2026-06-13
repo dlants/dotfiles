@@ -245,6 +245,21 @@ function Store:add_comment(sha, path, new_lnum, text)
   f.comments[key][#f.comments[key] + 1] = { text = text }
 end
 
+-- Remove the last comment matching `text` at (commit, path, new_lnum). Used to
+-- reverse an add-comment action; no-op if none match.
+function Store:remove_comment(sha, path, new_lnum, text)
+  local c = self.data[sha]
+  local f = c and c.files and c.files[path]
+  local list = f and f.comments and f.comments[tostring(new_lnum)]
+  if not list then return end
+  for i = #list, 1, -1 do
+    if list[i].text == text then
+      table.remove(list, i)
+      return
+    end
+  end
+end
+
 -- List of comment texts for (commit, path) at a new-file line number.
 function Store:comments_at(sha, path, new_lnum)
   local c = self.data[sha]
@@ -330,6 +345,20 @@ function Store:wt_add_comment(id, path, line_text, text)
   f.comments[key][#f.comments[key] + 1] = { text = text }
 end
 
+-- Remove the last worktree comment matching `text` at the line's content hash.
+function Store:wt_remove_comment(id, path, line_text, text)
+  local c = self.data[id]
+  local f = c and c.files and c.files[path]
+  local list = f and f.comments and f.comments[M.line_hash(line_text)]
+  if not list then return end
+  for i = #list, 1, -1 do
+    if list[i].text == text then
+      table.remove(list, i)
+      return
+    end
+  end
+end
+
 -- Comments anchored to a new-file line's content (by hash).
 function Store:wt_comments_for(id, path, line_text)
   local c = self.data[id]
@@ -366,6 +395,9 @@ function M.range_adapter(store, sha, path)
     end,
     add_comment = function(lnum, text)
       store:add_comment(sha, path, lnum, text)
+    end,
+    remove_comment = function(lnum, text)
+      store:remove_comment(sha, path, lnum, text)
     end,
     comments_at = function(lnum)
       return store:comments_at(sha, path, lnum)
@@ -410,6 +442,9 @@ function M.hash_adapter(store, id, path, lines)
     end,
     add_comment = function(lnum, text)
       store:wt_add_comment(id, path, lines[lnum], text)
+    end,
+    remove_comment = function(lnum, text)
+      store:wt_remove_comment(id, path, lines[lnum], text)
     end,
     comments_at = function(lnum)
       return store:wt_comments_for(id, path, lines[lnum])

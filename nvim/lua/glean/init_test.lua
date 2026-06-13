@@ -66,7 +66,8 @@ do
     if not s.row_map[row] then all_mapped = false end
   end
   h.assert_true("row_map: every row mapped", all_mapped)
-  h.assert_true("row_map: row 0 is a file header", s.row_map[0].cfile == 1 and s.row_map[0].hunk == nil)
+  h.assert_true("row_map: row 0 is the mode header", s.row_map[0].cfile == nil and s.row_map[0].hunk == nil)
+  h.assert_true("row_map: row 1 is a file header", s.row_map[1].cfile == 1 and s.row_map[1].hunk == nil)
   -- find a body line (has .line) and confirm it points into a hunk.
   local found_line = false
   for row = 0, n - 1 do
@@ -89,7 +90,7 @@ do
     end
   end
   local before = api.nvim_buf_line_count(s.buf)
-  s:toggle_collapse(0) -- collapse file 1 (f.txt)
+  s:toggle_collapse(header_row("f.txt")) -- collapse file 1 (f.txt)
   local after = api.nvim_buf_line_count(s.buf)
   h.assert_true("collapse: buffer shrank", after < before)
   local lines = api.nvim_buf_get_lines(s.buf, 0, -1, false)
@@ -99,7 +100,7 @@ do
   h.assert_true("collapse: g.txt still present", joined:find("▾ g.txt", 1, true) ~= nil)
   h.assert_true("collapse: g.txt body intact", header_row("g.txt") ~= nil)
   -- expand again restores the body.
-  s:toggle_collapse(0)
+  s:toggle_collapse(header_row("f.txt"))
   local restored = api.nvim_buf_line_count(s.buf)
   h.assert_eq("collapse: re-expand restores rows", restored, before)
 end
@@ -176,15 +177,129 @@ do
   h.assert_eq("comment: count stacked", #got, 2)
   h.assert_eq("comment: first text", got[1].text, "first note")
   h.assert_eq("comment: second text", got[2].text, "second note")
-  -- rendered as virt_lines below the line.
-  local trow2 = find_row(reopened, function(_, line, t)
+  -- rendered as real, cursor-addressable lines below the diff line.
+  local crow = find_row(reopened, function(_, line, t)
+    return t and t.comment and line:find("first note", 1, true) ~= nil
+  end)
+  h.assert_true("comment: inline row present", crow ~= nil)
+  local ct = reopened.row_map[crow].comment
+  h.assert_eq("comment: row carries identity", ct.text, "first note")
+end
+
+-- Delete comment: removing a comment drops it from the store and is undoable.
+do
+  local dir = vim.fn.tempname()
+  local s = open({ scope = "commits", state_dir = dir })
+  local trow = find_row(s, function(_, line, t)
     return t and t.commit == 1 and t.line and line == "+TWO"
   end)
-  local marks = api.nvim_buf_get_extmarks(reopened.buf,
-    api.nvim_create_namespace("glean_comments"), { trow2, 0 }, { trow2, -1 },
-    { details = true })
-  h.assert_true("comment: virt_lines extmark present",
-    #marks > 0 and marks[1][4].virt_lines ~= nil)
+  s:add_comment_at(trow, "to delete")
+  h.assert_eq("delete: present before", #s.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+  s:delete_comment_at(trow)
+  h.assert_eq("delete: gone after", #s.store:comments_at(repo.shas[2], "f.txt", 2), 0)
+  s:undo()
+  h.assert_eq("delete: undo restores", #s.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+  -- persisted across reopen.
+  local s2 = open({ scope = "commits", state_dir = dir })
+  h.assert_eq("delete: restore persisted", #s2.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+end
+
+-- Authoring a single-line comment through the ephemeral editor split: writing
+-- the scratch buffer submits its text to the anchored line.
+do
+  local dir = vim.fn.tempname()
+  local s = open({ scope = "commits", state_dir = dir })
+  local trow = find_row(s, function(_, line, t)
+    return t and t.commit == 1 and t.line and line == "+TWO"
+  end)
+  s:open_comment_editor({}, function(text) s:add_comment_at(trow, text) end)
+  local ebuf = api.nvim_get_current_buf()
+  api.nvim_buf_set_lines(ebuf, 0, -1, false, { "a single note" })
+  vim.cmd("write")
+  local got = s.store:comments_at(repo.shas[2], "f.txt", 2)
+  h.assert_eq("author: stored one comment", #got, 1)
+  h.assert_eq("author: text round-trips", got[1].text, "a single note")
+  local crow = find_row(s, function(_, line, t)
+    return t and t.comment and line:find("a single note", 1, true) ~= nil
+  end)
+  h.assert_true("author: inline row present", crow ~= nil)
+end
+
+-- Authoring a multi-line comment: stored with embedded newlines and rendered
+-- across multiple cursor-addressable rows that share one comment identity.
+do
+  local dir = vim.fn.tempname()
+  local s = open({ scope = "commits", state_dir = dir })
+  local trow = find_row(s, function(_, line, t)
+    return t and t.commit == 1 and t.line and line == "+TWO"
+  end)
+  s:open_comment_editor({}, function(text) s:add_comment_at(trow, text) end)
+  local ebuf = api.nvim_get_current_buf()
+  api.nvim_buf_set_lines(ebuf, 0, -1, false, { "first line", "second line" })
+  vim.cmd("write")
+  local got = s.store:comments_at(repo.shas[2], "f.txt", 2)
+  h.assert_eq("multiline: stored one comment", #got, 1)
+  h.assert_eq("multiline: newline preserved", got[1].text, "first line\nsecond line")
+  local r1 = find_row(s, function(_, line, t)
+    return t and t.comment and line:find("💬 first line", 1, true) ~= nil
+  end)
+  local r2 = find_row(s, function(_, line, t)
+    return t and t.comment and line:find("second line", 1, true) ~= nil
+      and line:find("💬", 1, true) == nil
+  end)
+  h.assert_true("multiline: first row present", r1 ~= nil)
+  h.assert_true("multiline: continuation row present", r2 ~= nil)
+  h.assert_eq("multiline: rows share identity",
+    s.row_map[r1].comment.text, s.row_map[r2].comment.text)
+end
+
+-- Deleting a comment from its inline row (the `dd` path) drops it from the
+-- store and is undoable.
+do
+  local dir = vim.fn.tempname()
+  local s = open({ scope = "commits", state_dir = dir })
+  local trow = find_row(s, function(_, line, t)
+    return t and t.commit == 1 and t.line and line == "+TWO"
+  end)
+  s:add_comment_at(trow, "kill me")
+  local crow = find_row(s, function(_, line, t)
+    return t and t.comment and line:find("kill me", 1, true) ~= nil
+  end)
+  h.assert_true("dd: inline row before", crow ~= nil)
+  s:delete_comment_under(crow)
+  h.assert_eq("dd: removed from store", #s.store:comments_at(repo.shas[2], "f.txt", 2), 0)
+  s:undo()
+  h.assert_eq("dd: undo restores", #s.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+end
+
+-- Comment summary: a per-file section at the bottom lists each comment with its
+-- line number and affected line; comments on superseded lines are flagged
+-- Outdated with the originating commit's short sha.
+do
+  local dir = vim.fn.tempname()
+  local s = open({ scope = "commits", state_dir = dir })
+  -- present comment: c1's +TWO line (still in target at line 2).
+  local twrow = find_row(s, function(_, line, t)
+    return t and t.commit == 1 and t.line and line == "+TWO"
+  end)
+  s:add_comment_at(twrow, "live note")
+  -- outdated comment: c1's context "three" line (overwritten by c2 -> THREE).
+  local throw = find_row(s, function(_, line, t)
+    return t and t.commit == 1 and t.line and line == " three"
+  end)
+  h.assert_true("summary: found c1 three context row", throw ~= nil)
+  s:add_comment_at(throw, "stale note")
+
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("summary: section header present",
+    joined:find("══ comments ══", 1, true) ~= nil)
+  h.assert_true("summary: file path listed", joined:find("\nf.txt", 1, true) ~= nil)
+  h.assert_true("summary: live comment text", joined:find("💬 live note", 1, true) ~= nil)
+  h.assert_true("summary: stale comment text", joined:find("💬 stale note", 1, true) ~= nil)
+  h.assert_true("summary: present comment not outdated",
+    joined:find("L2  TWO", 1, true) ~= nil)
+  h.assert_true("summary: outdated comment flagged",
+    joined:find("(Outdated, from " .. repo.shas[2]:sub(1, 8) .. ")", 1, true) ~= nil)
 end
 
 -- Stage 2 — commits-scope seen section: marking an expanded file's only hunk
@@ -207,6 +322,63 @@ do
     return t and t.commit == 1 and t.seen and not t.hunk
   end)
   h.assert_true("seen-section: row has seen target", srow ~= nil)
+end
+
+-- Undo / redo: marking seen pushes an undo snapshot; undo reverts the store and
+-- redo re-applies it. Persists through reopen.
+do
+  local state = require("glean.state")
+  local dir = vim.fn.tempname()
+  local s = open({ scope = "commits", state_dir = dir })
+  local frow = find_row(s, function(_, line, t)
+    return t and t.commit == 1 and t.file and not t.hunk and line:find("f.txt", 1, true)
+  end)
+  s:toggle_seen(frow)
+  h.assert_true("undo: marked seen", state.covers(s.store:seen_ranges(repo.shas[2], "f.txt"), 2))
+  s:undo()
+  h.assert_true("undo: reverted", not state.covers(s.store:seen_ranges(repo.shas[2], "f.txt"), 2))
+  s:redo()
+  h.assert_true("undo: redo re-applied", state.covers(s.store:seen_ranges(repo.shas[2], "f.txt"), 2))
+  -- redo persisted to disk: reopen reflects the seen range.
+  local s2 = open({ scope = "commits", state_dir = dir })
+  h.assert_true("undo: redo persisted", state.covers(s2.store:seen_ranges(repo.shas[2], "f.txt"), 2))
+end
+
+-- Undo / redo for comment and collapse actions.
+do
+  local dir = vim.fn.tempname()
+  local s = open({ scope = "commits", state_dir = dir })
+  local crow = find_row(s, function(_, line, t)
+    return t and t.commit == 1 and t.line and line == "+TWO"
+  end)
+  s:add_comment_at(crow, "hi")
+  h.assert_eq("comment-undo: added", #s.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+  s:undo()
+  h.assert_eq("comment-undo: removed", #s.store:comments_at(repo.shas[2], "f.txt", 2), 0)
+  s:redo()
+  h.assert_eq("comment-undo: re-added", #s.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+
+  -- collapse: toggling a file header then undo restores expanded state.
+  local function frow()
+    return find_row(s, function(_, line, t)
+      return t and t.commit == 1 and t.file and not t.hunk and line:find("f.txt", 1, true)
+    end)
+  end
+  local function fline()
+    return select(2, find_row(s, function(_, line, t)
+      return t and t.commit == 1 and t.file and not t.hunk and line:find("f.txt", 1, true)
+    end))
+  end
+  s:toggle_collapse(frow())
+  h.assert_true("collapse-undo: collapsed", fline():find("▸", 1, true) ~= nil)
+  s:undo()
+  h.assert_true("collapse-undo: re-expanded", fline():find("▾", 1, true) ~= nil)
+  s:redo()
+  h.assert_true("collapse-undo: re-collapsed", fline():find("▸", 1, true) ~= nil)
+  -- restore expanded: collapse overrides are keyed by base/target and shared
+  -- across sessions, so leave f.txt expanded for later bare-open tests.
+  s:undo()
+  h.assert_true("collapse-undo: left expanded", fline():find("▾", 1, true) ~= nil)
 end
 
 -- Stage 4 — combined overlay via provenance.
@@ -443,12 +615,9 @@ do
     #sc.store:wt_comments_for(glean.WORKTREE, "w.txt", "B"), 1)
   local sc2 = openwt(cdir)
   local crow2 = find_row(sc2, function(_, line, t)
-    return t and t.commit == #sc2.commits and t.line and line == "+B"
+    return t and t.comment and line:find("note on B", 1, true) ~= nil
   end)
-  local marks = api.nvim_buf_get_extmarks(sc2.buf,
-    api.nvim_create_namespace("glean_comments"), { crow2, 0 }, { crow2, -1 }, { details = true })
-  h.assert_true("worktree comment: virt_lines present",
-    #marks > 0 and marks[1][4].virt_lines ~= nil)
+  h.assert_true("worktree comment: inline row present", crow2 ~= nil)
 
   -- Editing the underlying file content drops the content-hash seen flag (the
   -- stored block no longer matches any current window).

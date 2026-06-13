@@ -23,7 +23,6 @@ local api = vim.api
 -- rather than line ranges, since uncommitted lines have no stable line numbers.
 M.WORKTREE = "WORKTREE"
 local NS = api.nvim_create_namespace("glean_hl")
-local COMMENT_NS = api.nvim_create_namespace("glean_comments")
 
 M.config = {
   default_base = "main",
@@ -308,6 +307,66 @@ function Session:combined_tuples(target)
   return out
 end
 
+-- The set of "sha\0orig_lnum" owners present in the target, derived from blame
+-- provenance. A line authored on (commit, lnum) survives into the current
+-- target iff blame still attributes some target line to that exact owner; if a
+-- later commit overwrote it, blame names the later commit and the original is
+-- "outdated". Cached per path.
+function Session:present_owners(path)
+  self._present = self._present or {}
+  if self._present[path] == nil then
+    local set = {}
+    for _, p in pairs(self:provenance(path)) do
+      set[p.sha .. "\0" .. p.orig_lnum] = true
+    end
+    self._present[path] = set
+  end
+  return self._present[path]
+end
+
+-- Gather every stored comment across all commits, grouped by file path. Walks
+-- each commit's own diff (where comments are authored, against a stable
+-- (sha, path, new_lnum)) so each comment carries its affected line's text. A
+-- comment whose line no longer appears in the target is flagged `outdated` with
+-- the short sha of the commit it came from. Returns { order = {paths},
+-- by_path = { [path] = { sorted entries } } }.
+function Session:collect_comments()
+  local by_path = {}
+  local order = {}
+  for _, commit in ipairs(self.commits) do
+    for _, file in ipairs(commit.files) do
+      local adapter = self:adapter_for(commit, file.path)
+      for _, hunk in ipairs(file.hunks) do
+        for _, dl in ipairs(hunk.lines) do
+          if dl.new_lnum then
+            local texts = adapter.comments_at(dl.new_lnum)
+            if #texts > 0 then
+              local present = commit.sha == M.WORKTREE
+                or self:present_owners(file.path)[commit.sha .. "\0" .. dl.new_lnum]
+              if not by_path[file.path] then
+                by_path[file.path] = {}
+                order[#order + 1] = file.path
+              end
+              by_path[file.path][#by_path[file.path] + 1] = {
+                lnum = dl.new_lnum,
+                line = dl.text,
+                short = commit.sha == M.WORKTREE and "worktree" or commit.sha:sub(1, 8),
+                outdated = not present,
+                texts = texts,
+              }
+            end
+          end
+        end
+      end
+    end
+  end
+  table.sort(order)
+  for _, p in ipairs(order) do
+    table.sort(by_path[p], function(a, b) return a.lnum < b.lnum end)
+  end
+  return { order = order, by_path = by_path }
+end
+
 -- ---------------------------------------------------------------------------
 -- Build (pure projection): returns lines, row_map, highlights, comments.
 -- ---------------------------------------------------------------------------
@@ -316,7 +375,6 @@ function Session:build()
   local lines = {}
   local row_map = {}
   local highlights = {}
-  local comments = {}
   local function emit(text, target, hl)
     lines[#lines + 1] = text
     local row = #lines - 1
@@ -325,22 +383,32 @@ function Session:build()
     return row
   end
 
+  -- A stored comment rendered as real, cursor-addressable buffer rows (multi-
+  -- line text splits across rows). Every row carries the same comment identity
+  -- so `dd`/`i` anywhere on it acts on the whole comment.
+  local function emit_comment(text, sha, path, lnum)
+    local ctarget = { comment = { sha = sha, path = path, lnum = lnum, text = text } }
+    for i, part in ipairs(vim.split(text, "\n", { plain = true })) do
+      emit((i == 1 and "    💬 " or "       ") .. part, ctarget, "GleanComment")
+    end
+  end
+
   local function emit_hunk(hunk, hi, target_base, resolve)
     local target = vim.tbl_extend("force", target_base, { hunk = hi })
-    emit(hunk.header, target, "GleanHunkHeader")
+    emit("--- " .. hunk.header, target, "GleanHunkHeader")
     for li, dl in ipairs(hunk.lines) do
       local marker = dl.kind == "add" and "+" or dl.kind == "del" and "-" or " "
       local hl = dl.kind == "add" and "GleanAdd"
         or dl.kind == "del" and "GleanDel"
         or "GleanContext"
-      local ad, kl = nil, nil
-      if dl.new_lnum then ad, kl = resolve(dl.new_lnum) end
-      if ad and ad.is_seen(kl) then hl = "GleanSeen" end
-      local row = emit(marker .. dl.text,
+      local ad, kl, csha, cpath = nil, nil, nil, nil
+      if dl.new_lnum then ad, kl, csha, cpath = resolve(dl.new_lnum) end
+      emit(marker .. dl.text,
         vim.tbl_extend("force", target, { line = li }), hl)
       if ad then
-        local texts = ad.comments_at(kl)
-        if #texts > 0 then comments[#comments + 1] = { row = row, texts = texts } end
+        for _, t in ipairs(ad.comments_at(kl)) do
+          emit_comment(t.text, csha, cpath, kl)
+        end
       end
     end
   end
@@ -351,7 +419,6 @@ function Session:build()
       if hunk_is_seen(hunk, resolve) then seen_idx[#seen_idx + 1] = hi
       else unseen_idx[#unseen_idx + 1] = hi end
     end
-    for _, hi in ipairs(unseen_idx) do emit_hunk(file.hunks[hi], hi, target_base, resolve) end
     if #seen_idx > 0 then
       local c = self.collapse[seen_ck]; if c == nil then c = true end
       local chev = c and CHEVRON_CLOSED or CHEVRON_OPEN
@@ -361,8 +428,11 @@ function Session:build()
         for _, hi in ipairs(seen_idx) do emit_hunk(file.hunks[hi], hi, target_base, resolve) end
       end
     end
+    for _, hi in ipairs(unseen_idx) do emit_hunk(file.hunks[hi], hi, target_base, resolve) end
   end
 
+  local mode_label = self.scope == "combined" and "combined" or "commit-by-commit"
+  emit("── " .. mode_label .. " ──", {}, "GleanModeHeader")
   if self.scope == "commits" then
     for ci, commit in ipairs(self.commits) do
       local chevron = commit.collapsed and CHEVRON_CLOSED or CHEVRON_OPEN
@@ -379,7 +449,7 @@ function Session:build()
             { commit = ci, file = fi }, "GleanFileHeader")
           if not file.collapsed then
             local adapter = self:adapter_for(commit, file.path)
-            local resolve = function(ln) return adapter, ln end
+            local resolve = function(ln) return adapter, ln, commit.sha, file.path end
             emit_file_body(file, { commit = ci, file = fi }, resolve,
               seen_key(commit.sha, file.path))
           end
@@ -397,18 +467,38 @@ function Session:build()
         local resolve = function(ln)
           local p = prov[ln]
           if not p then return nil end
-          return self:combined_adapter(p.sha, cf.path), p.orig_lnum
+          return self:combined_adapter(p.sha, cf.path), p.orig_lnum, p.sha, cf.path
         end
         emit_file_body(cf, { cfile = fi }, resolve, cseen_key(cf.path))
       end
     end
   end
 
-  return lines, row_map, highlights, comments
+  local summary = self:collect_comments()
+  if #summary.order > 0 then
+    emit("", {})
+    emit("══ comments ══", {}, "GleanModeHeader")
+    for _, path in ipairs(summary.order) do
+      emit(path, {}, "GleanFileHeader")
+      for _, e in ipairs(summary.by_path[path]) do
+        local loc = e.outdated
+          and ("L%d (Outdated, from %s)"):format(e.lnum, e.short)
+          or ("L%d"):format(e.lnum)
+        emit(("  %s  %s"):format(loc, e.line), {}, e.outdated and "GleanSeen" or "GleanContext")
+        for _, t in ipairs(e.texts) do
+          for i, part in ipairs(vim.split(t.text, "\n", { plain = true })) do
+            emit((i == 1 and "    💬 " or "       ") .. part, {}, "GleanComment")
+          end
+        end
+      end
+    end
+  end
+
+  return lines, row_map, highlights
 end
 
 function Session:render()
-  local lines, row_map, highlights, comments = self:build()
+  local lines, row_map, highlights = self:build()
   self.row_map = row_map
   local win = self.win
   local cur
@@ -427,21 +517,108 @@ function Session:render()
       hl_eol = true,
     })
   end
-  api.nvim_buf_clear_namespace(self.buf, COMMENT_NS, 0, -1)
-  for _, c in ipairs(comments) do
-    local virt_lines = {}
-    for _, t in ipairs(c.texts) do
-      virt_lines[#virt_lines + 1] = { { "    💬 " .. t.text, "GleanComment" } }
-    end
-    api.nvim_buf_set_extmark(self.buf, COMMENT_NS, c.row, 0, {
-      virt_lines = virt_lines,
-    })
-  end
   if cur then
     local last = math.max(1, #lines)
     cur[1] = math.min(cur[1], last)
     pcall(api.nvim_win_set_cursor, win, cur)
   end
+end
+
+-- ---------------------------------------------------------------------------
+-- Undo / redo — the buffer is a non-modifiable projection, so native undo does
+-- not apply. Each user action (seen toggle, comment, collapse) is captured as a
+-- small reversible action table; undo applies its reversal and moves it to the
+-- redo stack, redo re-applies it. Actions are self-describing data, so the
+-- stacks hold only the minimal delta, never a copy of the store.
+--
+--   seen:     { kind="seen", op="mark"|"unmark", groups={ {sha,path,lnums} } }
+--   comment:  { kind="comment", sha, path, lnum, text }
+--   collapse: { kind="collapse", key, value, prev, obj?, field? }
+-- ---------------------------------------------------------------------------
+
+-- Mark/unmark exactly the lines an action names; persist the touched shards.
+-- combined_adapter resolves a (sha,path) to the right adapter in either scope.
+function Session:apply_seen(groups, op)
+  local touched = {}
+  for _, g in ipairs(groups) do
+    local ad = self:combined_adapter(g.sha, g.path)
+    if op == "mark" then ad.mark(g.lnums) else ad.unmark(g.lnums) end
+    touched[g.sha] = true
+  end
+  for sha in pairs(touched) do self.store:save_commit(sha) end
+end
+
+function Session:apply_comment(a, op)
+  local ad = self:combined_adapter(a.sha, a.path)
+  if op == "add" then
+    ad.add_comment(a.lnum, a.text)
+  elseif op == "remove" then
+    ad.remove_comment(a.lnum, a.text)
+  elseif op == "edit" then
+    ad.remove_comment(a.lnum, a.old_text)
+    ad.add_comment(a.lnum, a.text)
+  elseif op == "unedit" then
+    ad.remove_comment(a.lnum, a.text)
+    ad.add_comment(a.lnum, a.old_text)
+  end
+  self.store:save_commit(a.sha)
+end
+
+-- Set a collapse key (nil clears it -> default) and mirror onto the model field
+-- (commit/file/cf.raw .collapsed) when the action carries one.
+function Session:apply_collapse_value(a, override, field_value)
+  self.collapse[a.key] = override
+  if a.obj then a.obj[a.field] = field_value end
+end
+
+function Session:apply_action(a)
+  if a.kind == "seen" then
+    self:apply_seen(a.groups, a.op)
+  elseif a.kind == "comment" then
+    self:apply_comment(a, a.op or "add")
+  elseif a.kind == "collapse" then
+    self:apply_collapse_value(a, a.value, a.field_value)
+  end
+end
+
+function Session:reverse_action(a)
+  if a.kind == "seen" then
+    self:apply_seen(a.groups, a.op == "mark" and "unmark" or "mark")
+  elseif a.kind == "comment" then
+    local rev = { add = "remove", remove = "add", edit = "unedit" }
+    self:apply_comment(a, rev[a.op or "add"])
+  elseif a.kind == "collapse" then
+    self:apply_collapse_value(a, a.prev, a.prev_field_value)
+  end
+end
+
+-- Apply a fresh action, push it on the undo stack, and clear the redo stack.
+function Session:perform(action)
+  self:apply_action(action)
+  self.undo_stack[#self.undo_stack + 1] = action
+  self.redo_stack = {}
+end
+
+function Session:undo()
+  local a = table.remove(self.undo_stack)
+  if not a then
+    vim.notify("glean: nothing to undo", vim.log.levels.INFO)
+    return
+  end
+  self:reverse_action(a)
+  self.redo_stack[#self.redo_stack + 1] = a
+  self:render()
+end
+
+function Session:redo()
+  local a = table.remove(self.redo_stack)
+  if not a then
+    vim.notify("glean: nothing to redo", vim.log.levels.INFO)
+    return
+  end
+  self:apply_action(a)
+  self.undo_stack[#self.undo_stack + 1] = a
+  self:render()
 end
 
 -- ---------------------------------------------------------------------------
@@ -473,36 +650,54 @@ function Session:toggle_collapse(row)
   if row == nil then row = self:cursor_row() end
   local target = self.row_map[row]
   if not target then return end
+  local action = self:collapse_action(target)
+  if action then self:perform(action) end
+  self:render()
+end
+
+-- Build the collapse action for `target`, or nil if the target is not
+-- collapsible. A seen-section row toggles only its (default-collapsed) override
+-- key; a file/commit/cfile row also mirrors the new state onto its model field
+-- so the next render reflects it. prev/prev_field_value capture the exact prior
+-- state so the action reverses cleanly.
+function Session:collapse_action(target)
+  -- key, obj/field (model mirror, optional), and the boolean the override
+  -- toggles to (nil-as-collapsed default for seen sections).
+  local key, obj, field, default_collapsed
   if self.scope == "commits" then
     local commit = self.commits[target.commit]
     if target.seen then
-      local file = commit.files[target.file]
-      local k = seen_key(commit.sha, file.path)
-      local cur = self.collapse[k]; if cur == nil then cur = true end
-      self.collapse[k] = not cur
+      key, default_collapsed = seen_key(commit.sha, commit.files[target.file].path), true
     elseif target.file then
       local file = commit.files[target.file]
-      file.collapsed = not file.collapsed
-      self.collapse[file_key(commit.sha, file.path)] = file.collapsed
-    else
-      commit.collapsed = not commit.collapsed
-      self.collapse[commit_key(commit.sha)] = commit.collapsed
+      key, obj, field = file_key(commit.sha, file.path), file, "collapsed"
+    elseif commit then
+      key, obj, field = commit_key(commit.sha), commit, "collapsed"
     end
   else
     if target.seen then
-      local cf = self.combined_files[target.cfile]
-      local k = cseen_key(cf.path)
-      local cur = self.collapse[k]; if cur == nil then cur = true end
-      self.collapse[k] = not cur
+      key, default_collapsed = cseen_key(self.combined_files[target.cfile].path), true
     elseif target.cfile then
       local cf = self.combined_files[target.cfile]
-      if cf then
-        cf.raw.collapsed = not cf.raw.collapsed
-        self.collapse[cfile_key(cf.path)] = cf.raw.collapsed
-      end
+      key, obj, field = cfile_key(cf.path), cf.raw, "collapsed"
     end
   end
-  self:render()
+  if not key then return nil end
+  local prev = self.collapse[key]
+  local cur = obj and obj[field]
+  if cur == nil then
+    cur = prev; if cur == nil then cur = default_collapsed or false end
+  end
+  return {
+    kind = "collapse",
+    key = key,
+    obj = obj,
+    field = field,
+    value = not cur,
+    field_value = not cur,
+    prev = prev,
+    prev_field_value = cur,
+  }
 end
 
 -- ---------------------------------------------------------------------------
@@ -573,53 +768,84 @@ function Session:toggle_seen(row)
   local target = self.row_map[row]
   if not target then return end
   if target.seen then return end
-  local touched = {}
+  -- Normalize the target to {sha, path, lnums} groups; combined_adapter resolves
+  -- either scope's sha to the correct addressing adapter.
+  local groups = {}
   if self.scope == "commits" then
     if not target.commit then return end
-    local groups = self:target_groups(target)
-    if #groups == 0 then return end
-    local all_seen = true
-    for _, g in ipairs(groups) do
-      local ad = self:adapter_for(g.commit, g.file.path)
-      for _, l in ipairs(g.lnums) do
-        if not ad.is_seen(l) then all_seen = false break end
-      end
-      if not all_seen then break end
-    end
-    for _, g in ipairs(groups) do
-      local ad = self:adapter_for(g.commit, g.file.path)
-      if all_seen then ad.unmark(g.lnums) else ad.mark(g.lnums) end
-      touched[g.commit.sha] = true
+    for _, g in ipairs(self:target_groups(target)) do
+      groups[#groups + 1] = { sha = g.commit.sha, path = g.file.path, lnums = g.lnums }
     end
   else
     if not target.cfile then return end
-    local tuples = self:combined_tuples(target)
-    if #tuples == 0 then return end
-    -- Group single-line tuples by owning commit so committed lines route to the
-    -- range adapter and uncommitted (WORKTREE-owned) lines to the hash adapter.
-    local groups = {}
-    for _, t in ipairs(tuples) do
-      local key = t.sha .. "\0" .. t.path
-      groups[key] = groups[key] or { sha = t.sha, path = t.path, lnums = {} }
-      local g = groups[key]
+    local by_key = {}
+    for _, t in ipairs(self:combined_tuples(target)) do
+      local k = t.sha .. "\0" .. t.path
+      local g = by_key[k]
+      if not g then
+        g = { sha = t.sha, path = t.path, lnums = {} }
+        by_key[k] = g
+        groups[#groups + 1] = g
+      end
       g.lnums[#g.lnums + 1] = t.range[1]
     end
-    local all_seen = true
-    for _, g in pairs(groups) do
-      local ad = self:combined_adapter(g.sha, g.path)
-      for _, l in ipairs(g.lnums) do
-        if not ad.is_seen(l) then all_seen = false break end
-      end
-      if not all_seen then break end
+  end
+  if #groups == 0 then return end
+  -- Seen iff every addressed line is already seen -> we unmark; else we mark.
+  local all_seen = true
+  for _, g in ipairs(groups) do
+    local ad = self:combined_adapter(g.sha, g.path)
+    for _, l in ipairs(g.lnums) do
+      if not ad.is_seen(l) then all_seen = false break end
     end
-    for _, g in pairs(groups) do
-      local ad = self:combined_adapter(g.sha, g.path)
-      if all_seen then ad.unmark(g.lnums) else ad.mark(g.lnums) end
-      touched[g.sha] = true
+    if not all_seen then break end
+  end
+  local op = all_seen and "unmark" or "mark"
+  -- Keep only the lines whose state actually flips, so the action reverses exactly.
+  local changed = {}
+  for _, g in ipairs(groups) do
+    local ad = self:combined_adapter(g.sha, g.path)
+    local lnums = {}
+    for _, l in ipairs(g.lnums) do
+      if (op == "mark") ~= ad.is_seen(l) then lnums[#lnums + 1] = l end
+    end
+    if #lnums > 0 then changed[#changed + 1] = { sha = g.sha, path = g.path, lnums = lnums } end
+  end
+  if #changed == 0 then return end
+  self:perform({ kind = "seen", op = op, groups = changed })
+  self:render()
+  self:move_to_next_hunk(target)
+end
+
+-- After a hunk is toggled seen it relocates into the collapsed seen section, so
+-- absolute cursor position is meaningless. Place the cursor on the header of the
+-- next still-rendered hunk (document order) so review can continue.
+function Session:move_to_next_hunk(from)
+  if not (self.win and api.nvim_win_is_valid(self.win)) then return end
+  if not from or not from.hunk then return end
+  local function rank(t)
+    if t.commit then return { t.commit, t.file or 0, t.hunk } end
+    if t.cfile then return { t.cfile, t.hunk } end
+    return nil
+  end
+  local function gt(a, b)
+    for i = 1, #a do
+      if a[i] ~= b[i] then return a[i] > b[i] end
+    end
+    return false
+  end
+  local base = rank(from)
+  if not base then return end
+  local best_row, best_rank
+  for r, t in pairs(self.row_map) do
+    if t.hunk and not t.line and not t.seen then
+      local tr = rank(t)
+      if tr and gt(tr, base) and (not best_rank or gt(best_rank, tr)) then
+        best_row, best_rank = r, tr
+      end
     end
   end
-  for sha in pairs(touched) do self.store:save_commit(sha) end
-  self:render()
+  if best_row then pcall(api.nvim_win_set_cursor, self.win, { best_row + 1, 0 }) end
 end
 
 -- Mark a visual span of diff rows seen: translate each row's diff line to its
@@ -627,49 +853,49 @@ end
 -- Deletion-only rows contribute no new-file line and are skipped.
 function Session:mark_visual_range(srow, erow)
   if srow > erow then srow, erow = erow, srow end
-  local touched = {}
-  if self.scope == "commits" then
-    -- Group by (commit, file), collect new_lnums, and mark via the adapter so
-    -- the floating commit's content hashing kicks in for uncommitted lines.
-    local groups = {}
-    for row = srow, erow do
-      local target = self.row_map[row]
+  -- Collect normalized {sha, path, lnums} groups for the selected rows; the
+  -- floating commit's content hashing is handled by combined_adapter.
+  local groups, by_key = {}, {}
+  local function add(sha, path, lnum)
+    local k = sha .. "\0" .. path
+    local g = by_key[k]
+    if not g then
+      g = { sha = sha, path = path, lnums = {} }
+      by_key[k] = g
+      groups[#groups + 1] = g
+    end
+    g.lnums[#g.lnums + 1] = lnum
+  end
+  for row = srow, erow do
+    local target = self.row_map[row]
+    if self.scope == "commits" then
       if target and target.commit and target.file and target.line then
         local commit = self.commits[target.commit]
         local file = commit.files[target.file]
         local dl = file.hunks[target.hunk].lines[target.line]
-        if dl.new_lnum then
-          local key = target.commit .. "\0" .. file.path
-          groups[key] = groups[key] or { commit = commit, file = file, lnums = {} }
-          groups[key].lnums[#groups[key].lnums + 1] = dl.new_lnum
-        end
+        if dl.new_lnum then add(commit.sha, file.path, dl.new_lnum) end
       end
-    end
-    for _, g in pairs(groups) do
-      self:adapter_for(g.commit, g.file.path).mark(g.lnums)
-      touched[g.commit.sha] = true
-    end
-  else
-    local groups = {}
-    for row = srow, erow do
-      local target = self.row_map[row]
+    else
       if target and target.cfile and target.hunk and target.line then
         local cf = self.combined_files[target.cfile]
         local dl = cf.hunks[target.hunk].lines[target.line]
         local p = dl.new_lnum and self:provenance(cf.path)[dl.new_lnum]
-        if p then
-          local key = p.sha .. "\0" .. cf.path
-          groups[key] = groups[key] or { sha = p.sha, path = cf.path, lnums = {} }
-          groups[key].lnums[#groups[key].lnums + 1] = p.orig_lnum
-        end
+        if p then add(p.sha, cf.path, p.orig_lnum) end
       end
     end
-    for _, g in pairs(groups) do
-      self:combined_adapter(g.sha, g.path).mark(g.lnums)
-      touched[g.sha] = true
-    end
   end
-  for sha in pairs(touched) do self.store:save_commit(sha) end
+  -- Mark only lines not already seen, so the action reverses exactly.
+  local changed = {}
+  for _, g in ipairs(groups) do
+    local ad = self:combined_adapter(g.sha, g.path)
+    local lnums = {}
+    for _, l in ipairs(g.lnums) do
+      if not ad.is_seen(l) then lnums[#lnums + 1] = l end
+    end
+    if #lnums > 0 then changed[#changed + 1] = { sha = g.sha, path = g.path, lnums = lnums } end
+  end
+  if #changed == 0 then return end
+  self:perform({ kind = "seen", op = "mark", groups = changed })
   self:render()
 end
 
@@ -693,10 +919,10 @@ local function anchor_lnum(hunk, idx)
   return nil
 end
 
--- Resolve a row to (adapter, new_lnum, save_sha): the addressing adapter to
+-- Resolve a row to (adapter, new_lnum, sha, path): the addressing adapter to
 -- author the comment through, the new-file line number to anchor it to, and the
--- shard id to persist. Commit scope picks the owning commit's adapter; combined
--- scope routes to the provenance owner via a range adapter.
+-- shard id + path to persist/replay. Commit scope picks the owning commit's
+-- adapter; combined scope routes to the provenance owner via a range adapter.
 function Session:comment_anchor(row)
   local target = self.row_map[row]
   if not target or not target.line then return nil end
@@ -706,25 +932,118 @@ function Session:comment_anchor(row)
     local file = commit.files[target.file]
     local lnum = anchor_lnum(file.hunks[target.hunk], target.line)
     if not lnum then return nil end
-    return self:adapter_for(commit, file.path), lnum, commit.sha
+    return self:adapter_for(commit, file.path), lnum, commit.sha, file.path
   else
     if not target.cfile then return nil end
     local cf = self.combined_files[target.cfile]
     local lnum = anchor_lnum(cf.hunks[target.hunk], target.line)
     local p = lnum and self:provenance(cf.path)[lnum]
     if not p then return nil end
-    return self:combined_adapter(p.sha, cf.path), p.orig_lnum, p.sha
+    return self:combined_adapter(p.sha, cf.path), p.orig_lnum, p.sha, cf.path
   end
 end
 
 function Session:add_comment_at(row, text)
   if row == nil then row = self:cursor_row() end
   if not text or text == "" then return end
-  local ad, lnum, save_sha = self:comment_anchor(row)
+  local ad, lnum, sha, path = self:comment_anchor(row)
   if not ad then return end
-  ad.add_comment(lnum, text)
-  self.store:save_commit(save_sha)
+  self:perform({ kind = "comment", sha = sha, path = path, lnum = lnum, text = text })
   self:render()
+end
+
+-- Delete a comment anchored to the cursor row's line. With one comment it is
+-- removed directly; with several, the user picks which text to drop. The
+-- removal is an undoable "comment" action (op = "remove"), so `u` restores it.
+function Session:delete_comment_at(row)
+  if row == nil then row = self:cursor_row() end
+  local ad, lnum, sha, path = self:comment_anchor(row)
+  if not ad then return end
+  local list = ad.comments_at(lnum)
+  if #list == 0 then
+    vim.notify("glean: no comment on this line", vim.log.levels.INFO)
+    return
+  end
+  local function drop(text)
+    if not text then return end
+    self:perform({ kind = "comment", op = "remove", sha = sha, path = path, lnum = lnum, text = text })
+    self:render()
+  end
+  if #list == 1 then
+    drop(list[1].text)
+  else
+    local choices = {}
+    for _, c in ipairs(list) do choices[#choices + 1] = c.text end
+    vim.ui.select(choices, { prompt = "glean: delete comment" }, drop)
+  end
+end
+
+-- The comment identity under a cursor row, or nil. Comment rows are real,
+-- cursor-addressable buffer lines (carrying { sha, path, lnum, text }) so `dd`
+-- and `i` can act on the comment beneath the cursor directly.
+function Session:comment_under(row)
+  if row == nil then row = self:cursor_row() end
+  local t = self.row_map[row]
+  return t and t.comment or nil
+end
+
+-- Delete the comment under the cursor (undoable). No-op off a comment row.
+function Session:delete_comment_under(row)
+  local c = self:comment_under(row)
+  if not c then return end
+  self:perform({ kind = "comment", op = "remove", sha = c.sha, path = c.path, lnum = c.lnum, text = c.text })
+  self:render()
+end
+
+-- Edit the comment under the cursor in the ephemeral split, replacing its text
+-- (undoable). No-op off a comment row.
+function Session:edit_comment_under(row)
+  local c = self:comment_under(row)
+  if not c then return end
+  self:open_comment_editor(vim.split(c.text, "\n", { plain = true }), function(text)
+    if text == c.text then return end
+    self:perform({ kind = "comment", op = "edit", sha = c.sha, path = c.path, lnum = c.lnum, text = text, old_text = c.text })
+    self:render()
+  end)
+end
+
+-- Open an ephemeral, multi-line comment editor in a split above the glean
+-- window, seeded with `initial` lines. `:w` submits the (trimmed-of-empty)
+-- buffer text to `on_submit`; `q` or `<C-c>` cancels. The scratch buffer is
+-- wiped on close so nothing persists outside the review store.
+function Session:open_comment_editor(initial, on_submit)
+  local ebuf = api.nvim_create_buf(false, true)
+  api.nvim_set_option_value("buftype", "acwrite", { buf = ebuf })
+  api.nvim_set_option_value("bufhidden", "wipe", { buf = ebuf })
+  api.nvim_set_option_value("filetype", "markdown", { buf = ebuf })
+  pcall(api.nvim_buf_set_name, ebuf, "glean-comment://" .. ebuf)
+  local seed = (initial and #initial > 0) and initial or { "" }
+  api.nvim_buf_set_lines(ebuf, 0, -1, false, seed)
+
+  if self.win and api.nvim_win_is_valid(self.win) then
+    api.nvim_set_current_win(self.win)
+  end
+  vim.cmd("aboveleft split")
+  local ewin = api.nvim_get_current_win()
+  api.nvim_win_set_buf(ewin, ebuf)
+  api.nvim_win_set_height(ewin, math.max(5, math.min(15, #seed + 1)))
+
+  local done = false
+  local function finish(submit)
+    if done then return end
+    done = true
+    local text
+    if submit then
+      text = table.concat(api.nvim_buf_get_lines(ebuf, 0, -1, false), "\n")
+    end
+    if api.nvim_win_is_valid(ewin) then pcall(api.nvim_win_close, ewin, true) end
+    if submit and text and text:match("%S") then on_submit(text) end
+  end
+
+  api.nvim_create_autocmd("BufWriteCmd", { buffer = ebuf, callback = function() finish(true) end })
+  vim.keymap.set("n", "q", function() finish(false) end, { buffer = ebuf, nowait = true, silent = true })
+  vim.keymap.set("n", "<C-c>", function() finish(false) end, { buffer = ebuf, silent = true })
+  vim.cmd("startinsert")
 end
 
 -- ---------------------------------------------------------------------------
@@ -898,10 +1217,18 @@ local function setup_keymaps(buf, session)
     session:mark_visual_range(srow, erow)
   end)
   map("n", "c", function()
-    vim.ui.input({ prompt = "glean comment: " }, function(text)
-      if text then session:add_comment_at(nil, text) end
-    end)
+    local row = session:cursor_row()
+    if not session:comment_anchor(row) then
+      vim.notify("glean: cannot comment here", vim.log.levels.INFO)
+      return
+    end
+    session:open_comment_editor({}, function(text) session:add_comment_at(row, text) end)
   end)
+  map("n", "i", function() session:edit_comment_under() end)
+  map("n", "dd", function() session:delete_comment_under() end)
+  map("n", "dc", function() session:delete_comment_at() end)
+  map("n", "u", function() session:undo() end)
+  map("n", "<C-r>", function() session:redo() end)
   map("n", "<CR>", function() session:jump() end)
   map("n", "S", function() session:toggle_scope() end)
   map("n", "q", function()
@@ -984,6 +1311,8 @@ function M.open(opts)
     win = nil,
     row_map = {},
     collapse = collapse,
+    undo_stack = {},
+    redo_stack = {},
   }, Session)
   sessions[key] = session
   session:apply_collapse()
@@ -1059,8 +1388,9 @@ function M.setup(opts)
   api.nvim_set_hl(0, "GleanAdd", { link = "DiffAdd", default = true })
   api.nvim_set_hl(0, "GleanDel", { link = "DiffDelete", default = true })
   api.nvim_set_hl(0, "GleanContext", { link = "Normal", default = true })
-  api.nvim_set_hl(0, "GleanSeen", { link = "Comment", default = true })
+  api.nvim_set_hl(0, "GleanSeen", { link = "NonText", default = true })
   api.nvim_set_hl(0, "GleanComment", { link = "WarningMsg", default = true })
+  api.nvim_set_hl(0, "GleanModeHeader", { link = "Title", default = true })
   api.nvim_create_user_command("Glean", function(o)
     if o.bang then
       M.open_dirty()
