@@ -251,7 +251,7 @@ Existing stored comments are not migrated (acceptable per plan).
   spaces-indented files repo-wide), so verification is the full test suite, which passes.
 - Before moving on: confirm tests, type checks, and linting all pass.
 
-## Stage 3 — Authoring, rendering, summary in init.lua
+## Stage 3 — Authoring, rendering, summary in init.lua  ✅ DONE
 
 - Goal: author single-line (`c`) and visual multi-line (`c` in visual mode)
   comments; render them inline at the resolved position and in the summary with
@@ -269,3 +269,45 @@ Existing stored comments are not migrated (acceptable per plan).
     shown outdated at its anchor.
   - Behavior: undo removes a just-added comment; redo restores it.
 - Before moving on: confirm tests, type checks, and linting all pass.
+
+Implemented in `init.lua`:
+- New helpers `flatten_diff_lines`, `target_ordinal`, `Session:row_file`,
+  `Session:displayed_files`, `Session:resolve_comments` (per-file ordinal →
+  comment list via `state_mod.resolve`) and a rewritten `Session:collect_comments`
+  that reads `store:comments_for(path)` for each displayed file, re-anchors by
+  content, de-dupes a path across commits (resolved match beats outdated), and
+  drops the old two-pass / `load_one` / provenance comment walk entirely.
+- `build`: `emit_comment(c)` now takes a resolved comment table; `emit_hunk` /
+  `emit_file_body` thread a per-hunk base ordinal + the file's `comments_by_ord`
+  so comments render under the diff-line they re-anchor to. Summary shows
+  `(Outdated)` (no per-commit sha) and the captured content line.
+- Authoring: `Session:comment_target` (single line) and
+  `Session:visual_comment_target` (contiguous diff-line run, decoration rows
+  excluded, capture stops at the first ordinal gap) replace `comment_anchor` /
+  `anchor_lnum`. `Session:add_comment` performs an undoable record add. Keymaps:
+  normal `c` and new visual `x c`.
+- `apply_comment` / undo-redo now operate on `{ path, record, old_record }`
+  against the COMMENTS_ID shard (`add_comment_record` / `remove_comment_record`).
+- `delete_comment_at` / `delete_comment_under` / `edit_comment_under` /
+  `comment_under` reworked onto the record model.
+- Removed `Store:load_one` from `state.lua` (its only caller was the deleted
+  second pass).
+
+Deviation / decision: the now-dead old comment paths (`Store:add_comment`,
+`remove_comment`, `comments_at`, `wt_add_comment`, `wt_remove_comment`,
+`wt_comments_for`, and the `add_comment`/`remove_comment`/`comments_at` adapter
+fields) were **left in place** in `state.lua`. They are no longer used by
+`init.lua`, but they are still exercised by Tier-1 `state_test.lua` tests, so
+removing them is deferred to avoid breaking unrelated Tier-1 coverage. The
+outdated-summary test was reworked: in commit scope a context line's content
+still appears in its authoring commit's own diff (so it is *not* outdated under
+content addressing), so the test now asserts outdated via a record whose content
+is genuinely absent.
+
+Verification: full glean suite green (`run_tests.lua`: diff 35, git 40, init 165,
+provenance 8, state 52). New init tests cover visual multi-line capture with
+decoration trimming + single inline render, and content re-anchoring (resolves by
+content despite a stale anchor; outdated when content is gone). No stylua/luacheck
+project config exists; the test suite is the verification gate (lua-language-server
+`--check` only emits the repo-wide pre-existing `vim` undefined-global / test
+`need-check-nil` warnings).

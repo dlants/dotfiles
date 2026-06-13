@@ -240,20 +240,6 @@ function Store:load(shas)
   return self.data
 end
 
--- Load a single commit's shard into `self.data` if present and not already
--- loaded (never clobbers in-memory edits). Used to surface comments authored
--- against owner commits outside the reviewed range (e.g. on context lines).
-function Store:load_one(sha)
-  if self.data[sha] then return end
-  local path = self:shard_path(sha)
-  if vim.fn.filereadable(path) ~= 1 then return end
-  local content = table.concat(vim.fn.readfile(path), "\n")
-  local ok, decoded = pcall(vim.json.decode, content)
-  if ok and type(decoded) == "table" then
-    decoded.files = decoded.files or {}
-    self.data[sha] = decoded
-  end
-end
 -- Get (creating if absent) the in-memory slice for a commit.
 function Store:commit(sha)
   local c = self.data[sha]

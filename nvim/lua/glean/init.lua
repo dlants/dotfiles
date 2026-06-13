@@ -324,46 +324,121 @@ function Session:present_owners(path)
   return self._present[path]
 end
 
--- Gather every stored comment across all commits, grouped by file path. Walks
--- each commit's own diff (where comments are authored, against a stable
--- (sha, path, new_lnum)) so each comment carries its affected line's text. A
--- comment whose line no longer appears in the target is flagged `outdated` with
--- the short sha of the commit it came from. Returns { order = {paths},
--- by_path = { [path] = { sorted entries } } }.
+-- Flatten a file's hunks to its ordered diff-line list. This is the resolution
+-- space comment `content[]` is matched against: only literal diff-line rows
+-- (context/add/del), never decoration rows (headers, comments, summaries).
+local function flatten_diff_lines(file)
+  local out = {}
+  for _, hunk in ipairs(file.hunks) do
+    for _, dl in ipairs(hunk.lines) do
+      out[#out + 1] = dl
+    end
+  end
+  return out
+end
+
+-- The flattened diff-line ordinal of a (hunk, line) target within its file.
+local function target_ordinal(file, target)
+  local ord = 0
+  for hi = 1, target.hunk - 1 do
+    ord = ord + #file.hunks[hi].lines
+  end
+  return ord + target.line
+end
+
+-- The diff file a target row belongs to (commit scope: its commit's file;
+-- combined scope: the cfile), or nil for non-diff rows.
+function Session:row_file(target)
+  if not target then return nil end
+  if self.scope == "commits" then
+    if not target.commit or not target.file then return nil end
+    return self.commits[target.commit].files[target.file]
+  end
+  if not target.cfile then return nil end
+  return self.combined_files[target.cfile]
+end
+
+-- Every diff file currently displayed, in document order.
+function Session:displayed_files()
+  local fs = {}
+  if self.scope == "commits" then
+    for _, c in ipairs(self.commits) do
+      for _, f in ipairs(c.files) do fs[#fs + 1] = f end
+    end
+  else
+    for _, cf in ipairs(self:compute_combined()) do fs[#fs + 1] = cf end
+  end
+  return fs
+end
+
+-- Re-anchor a file's comments against its current diff-line texts: map the
+-- flattened ordinal each comment resolves to (its content match, or its stored
+-- `anchor` when the content is gone) to the list of comments shown there. A
+-- comment whose anchor falls outside the file is dropped from the inline view
+-- (it still appears in the summary).
+function Session:resolve_comments(file)
+  local flat = flatten_diff_lines(file)
+  local texts = {}
+  for i, dl in ipairs(flat) do texts[i] = dl.text end
+  local by_ord = {}
+  for _, rec in ipairs(self.store:comments_for(file.path)) do
+    local start = state_mod.resolve(rec.content, rec.anchor, texts)
+    local ord = start or rec.anchor
+    if ord and ord >= 1 and ord <= #flat then
+      by_ord[ord] = by_ord[ord] or {}
+      by_ord[ord][#by_ord[ord] + 1] = {
+        path = file.path,
+        anchor = rec.anchor,
+        content = rec.content,
+        text = rec.text,
+        outdated = start == nil,
+      }
+    end
+  end
+  return by_ord
+end
+
+-- Gather every stored comment for the displayed file paths, re-anchored by
+-- content. Each record { anchor, content, text } is resolved against the file's
+-- flattened diff-line texts: a match yields the matched line's number, a miss is
+-- flagged `outdated` and anchored to its stored ordinal. Comments are global per
+-- path, so a path appearing in several commits is de-duplicated (a resolved
+-- match wins over an outdated one). Returns { order = {paths}, by_path }.
 function Session:collect_comments()
-  local by_path = {}
-  local order = {}
-  for _, commit in ipairs(self.commits) do
-    for _, file in ipairs(commit.files) do
-      local adapter = self:adapter_for(commit, file.path)
-      for _, hunk in ipairs(file.hunks) do
-        for _, dl in ipairs(hunk.lines) do
-          if dl.new_lnum then
-            local texts = adapter.comments_at(dl.new_lnum)
-            if #texts > 0 then
-              local present = commit.sha == M.WORKTREE
-                or self:present_owners(file.path)[commit.sha .. "\0" .. dl.new_lnum]
-              if not by_path[file.path] then
-                by_path[file.path] = {}
-                order[#order + 1] = file.path
-              end
-              by_path[file.path][#by_path[file.path] + 1] = {
-                lnum = dl.new_lnum,
-                line = dl.text,
-                short = commit.sha == M.WORKTREE and "worktree" or commit.sha:sub(1, 8),
-                outdated = not present,
-                texts = texts,
-              }
-            end
-          end
-        end
+  local best = {}
+  for _, file in ipairs(self:displayed_files()) do
+    local flat = flatten_diff_lines(file)
+    local texts = {}
+    for i, dl in ipairs(flat) do texts[i] = dl.text end
+    for _, rec in ipairs(self.store:comments_for(file.path)) do
+      local start = state_mod.resolve(rec.content, rec.anchor, texts)
+      local dl = flat[start or rec.anchor]
+      local entry = {
+        anchor = rec.anchor,
+        line = rec.content[1] or "",
+        lnum = dl and (dl.new_lnum or dl.old_lnum),
+        outdated = start == nil,
+        text = rec.text,
+      }
+      local rkey = tostring(rec.anchor) .. "\0"
+        .. table.concat(rec.content, "\n") .. "\0" .. rec.text
+      best[file.path] = best[file.path] or {}
+      local prev = best[file.path][rkey]
+      if not prev or (prev.outdated and not entry.outdated) then
+        best[file.path][rkey] = entry
       end
     end
   end
-  table.sort(order)
-  for _, p in ipairs(order) do
-    table.sort(by_path[p], function(a, b) return a.lnum < b.lnum end)
+  local order = {}
+  local by_path = {}
+  for path, recs in pairs(best) do
+    order[#order + 1] = path
+    local list = {}
+    for _, e in pairs(recs) do list[#list + 1] = e end
+    table.sort(list, function(a, b) return (a.anchor or 0) < (b.anchor or 0) end)
+    by_path[path] = list
   end
+  table.sort(order)
   return { order = order, by_path = by_path }
 end
 
@@ -385,15 +460,15 @@ function Session:build()
 
   -- A stored comment rendered as real, cursor-addressable buffer rows (multi-
   -- line text splits across rows). Every row carries the same comment identity
-  -- so `dd`/`i` anywhere on it acts on the whole comment.
-  local function emit_comment(text, sha, path, lnum)
-    local ctarget = { comment = { sha = sha, path = path, lnum = lnum, text = text } }
-    for i, part in ipairs(vim.split(text, "\n", { plain = true })) do
+  -- (path + record) so `dd`/`i`/`dc` anywhere on it acts on the whole comment.
+  local function emit_comment(c)
+    local ctarget = { comment = c }
+    for i, part in ipairs(vim.split(c.text, "\n", { plain = true })) do
       emit((i == 1 and "    💬 " or "       ") .. part, ctarget, "GleanComment")
     end
   end
 
-  local function emit_hunk(hunk, hi, target_base, resolve)
+  local function emit_hunk(hunk, hi, target_base, resolve, base_ord, comments_by_ord)
     local target = vim.tbl_extend("force", target_base, { hunk = hi })
     emit("--- " .. hunk.header, target, "GleanHunkHeader")
     for li, dl in ipairs(hunk.lines) do
@@ -401,21 +476,21 @@ function Session:build()
       local hl = dl.kind == "add" and "GleanAdd"
         or dl.kind == "del" and "GleanDel"
         or "GleanContext"
-      local ad, kl, csha, cpath = nil, nil, nil, nil
-      if dl.new_lnum then ad, kl, csha, cpath = resolve(dl.new_lnum) end
       emit(marker .. dl.text,
         vim.tbl_extend("force", target, { line = li }), hl)
-      if ad then
-        for _, t in ipairs(ad.comments_at(kl)) do
-          emit_comment(t.text, csha, cpath, kl)
-        end
+      for _, c in ipairs(comments_by_ord[base_ord + li] or {}) do
+        emit_comment(c)
       end
     end
   end
 
-  local function emit_file_body(file, target_base, resolve, seen_ck)
+  local function emit_file_body(file, target_base, resolve, seen_ck, comments_by_ord)
     local seen_idx, unseen_idx = {}, {}
+    local base_ord = {}
+    local acc = 0
     for hi, hunk in ipairs(file.hunks) do
+      base_ord[hi] = acc
+      acc = acc + #hunk.lines
       if hunk_is_seen(hunk, resolve) then seen_idx[#seen_idx + 1] = hi
       else unseen_idx[#unseen_idx + 1] = hi end
     end
@@ -425,10 +500,14 @@ function Session:build()
       emit(("  %s ✓ seen (%d hunks)"):format(chev, #seen_idx),
         vim.tbl_extend("force", target_base, { seen = true }), "GleanSeen")
       if not c then
-        for _, hi in ipairs(seen_idx) do emit_hunk(file.hunks[hi], hi, target_base, resolve) end
+        for _, hi in ipairs(seen_idx) do
+          emit_hunk(file.hunks[hi], hi, target_base, resolve, base_ord[hi], comments_by_ord)
+        end
       end
     end
-    for _, hi in ipairs(unseen_idx) do emit_hunk(file.hunks[hi], hi, target_base, resolve) end
+    for _, hi in ipairs(unseen_idx) do
+      emit_hunk(file.hunks[hi], hi, target_base, resolve, base_ord[hi], comments_by_ord)
+    end
   end
 
   local mode_label = self.scope == "combined" and "combined" or "commit-by-commit"
@@ -451,7 +530,7 @@ function Session:build()
             local adapter = self:adapter_for(commit, file.path)
             local resolve = function(ln) return adapter, ln, commit.sha, file.path end
             emit_file_body(file, { commit = ci, file = fi }, resolve,
-              seen_key(commit.sha, file.path))
+              seen_key(commit.sha, file.path), self:resolve_comments(file))
           end
         end
       end
@@ -469,7 +548,8 @@ function Session:build()
           if not p then return nil end
           return self:combined_adapter(p.sha, cf.path), p.orig_lnum, p.sha, cf.path
         end
-        emit_file_body(cf, { cfile = fi }, resolve, cseen_key(cf.path))
+        emit_file_body(cf, { cfile = fi }, resolve, cseen_key(cf.path),
+          self:resolve_comments(cf))
       end
     end
   end
@@ -481,14 +561,11 @@ function Session:build()
     for _, path in ipairs(summary.order) do
       emit(path, {}, "GleanFileHeader")
       for _, e in ipairs(summary.by_path[path]) do
-        local loc = e.outdated
-          and ("L%d (Outdated, from %s)"):format(e.lnum, e.short)
-          or ("L%d"):format(e.lnum)
+        local loc = e.outdated and "(Outdated)"
+          or (e.lnum and ("L%d"):format(e.lnum) or "L?")
         emit(("  %s  %s"):format(loc, e.line), {}, e.outdated and "GleanSeen" or "GleanContext")
-        for _, t in ipairs(e.texts) do
-          for i, part in ipairs(vim.split(t.text, "\n", { plain = true })) do
-            emit((i == 1 and "    💬 " or "       ") .. part, {}, "GleanComment")
-          end
+        for i, part in ipairs(vim.split(e.text, "\n", { plain = true })) do
+          emit((i == 1 and "    💬 " or "       ") .. part, {}, "GleanComment")
         end
       end
     end
@@ -532,7 +609,7 @@ end
 -- stacks hold only the minimal delta, never a copy of the store.
 --
 --   seen:     { kind="seen", op="mark"|"unmark", groups={ {sha,path,lnums} } }
---   comment:  { kind="comment", sha, path, lnum, text }
+--   comment:  { kind="comment", op, path, record={anchor,content,text}, old_record? }
 --   collapse: { kind="collapse", key, value, prev, obj?, field? }
 -- ---------------------------------------------------------------------------
 
@@ -549,19 +626,18 @@ function Session:apply_seen(groups, op)
 end
 
 function Session:apply_comment(a, op)
-  local ad = self:combined_adapter(a.sha, a.path)
   if op == "add" then
-    ad.add_comment(a.lnum, a.text)
+    self.store:add_comment_record(a.path, a.record)
   elseif op == "remove" then
-    ad.remove_comment(a.lnum, a.text)
+    self.store:remove_comment_record(a.path, a.record)
   elseif op == "edit" then
-    ad.remove_comment(a.lnum, a.old_text)
-    ad.add_comment(a.lnum, a.text)
+    self.store:remove_comment_record(a.path, a.old_record)
+    self.store:add_comment_record(a.path, a.record)
   elseif op == "unedit" then
-    ad.remove_comment(a.lnum, a.text)
-    ad.add_comment(a.lnum, a.old_text)
+    self.store:remove_comment_record(a.path, a.record)
+    self.store:add_comment_record(a.path, a.old_record)
   end
-  self.store:save_commit(a.sha)
+  self.store:save_commit(state_mod.COMMENTS_ID)
 end
 
 -- Set a collapse key (nil clears it -> default) and mirror onto the model field
@@ -900,87 +976,100 @@ function Session:mark_visual_range(srow, erow)
 end
 
 -- ---------------------------------------------------------------------------
--- Comments (commit scope) — anchored to (commit_sha, path, new_lnum).
+-- Comments — content-addressed records { anchor, content[], text } per path,
+-- re-anchored at render time (see resolve_comments / collect_comments).
 -- ---------------------------------------------------------------------------
 
--- Resolve a row to (sha, path, new_lnum). A deletion row (no new_lnum) anchors
--- to the nearest surviving new-file line in its hunk.
--- Find the new_lnum to anchor a comment on: the row's own new_lnum, else the
--- nearest surviving new-file line in its hunk (forward then backward).
-local function anchor_lnum(hunk, idx)
-  local dl = hunk.lines[idx]
-  if dl.new_lnum then return dl.new_lnum end
-  for li = idx, #hunk.lines do
-    if hunk.lines[li].new_lnum then return hunk.lines[li].new_lnum end
-  end
-  for li = idx, 1, -1 do
-    if hunk.lines[li].new_lnum then return hunk.lines[li].new_lnum end
-  end
-  return nil
-end
-
--- Resolve a row to (adapter, new_lnum, sha, path): the addressing adapter to
--- author the comment through, the new-file line number to anchor it to, and the
--- shard id + path to persist/replay. Commit scope picks the owning commit's
--- adapter; combined scope routes to the provenance owner via a range adapter.
-function Session:comment_anchor(row)
+-- The single-line authoring target for a row: { path, anchor, content = {text} },
+-- or nil if the row is not a literal diff line. `anchor` is the row's flattened
+-- diff-line ordinal (the tiebreak / outdated fallback); `content` its text.
+function Session:comment_target(row)
   local target = self.row_map[row]
   if not target or not target.line then return nil end
-  if self.scope == "commits" then
-    if not target.commit then return nil end
-    local commit = self.commits[target.commit]
-    local file = commit.files[target.file]
-    local lnum = anchor_lnum(file.hunks[target.hunk], target.line)
-    if not lnum then return nil end
-    return self:adapter_for(commit, file.path), lnum, commit.sha, file.path
-  else
-    if not target.cfile then return nil end
-    local cf = self.combined_files[target.cfile]
-    local lnum = anchor_lnum(cf.hunks[target.hunk], target.line)
-    local p = lnum and self:provenance(cf.path)[lnum]
-    if not p then return nil end
-    return self:combined_adapter(p.sha, cf.path), p.orig_lnum, p.sha, cf.path
+  local file = self:row_file(target)
+  if not file then return nil end
+  local dl = file.hunks[target.hunk].lines[target.line]
+  return { path = file.path, anchor = target_ordinal(file, target), content = { dl.text } }
+end
+
+-- The visual-span authoring target: the contiguous run of literal diff-line rows
+-- within one file (decoration rows excluded; capture stops at the first ordinal
+-- gap), as { path, anchor, content[] }. nil if the span covers no diff rows.
+function Session:visual_comment_target(srow, erow)
+  local path, anchor, content, prev_ord
+  for row = srow, erow do
+    local t = self.row_map[row]
+    if t and t.line then
+      local file = self:row_file(t)
+      if file then
+        local ord = target_ordinal(file, t)
+        local dl = file.hunks[t.hunk].lines[t.line]
+        if not path then
+          path, anchor, content, prev_ord = file.path, ord, { dl.text }, ord
+        elseif file.path == path and ord == prev_ord + 1 then
+          content[#content + 1] = dl.text
+          prev_ord = ord
+        else
+          break
+        end
+      end
+    end
   end
+  if not path then return nil end
+  return { path = path, anchor = anchor, content = content }
+end
+
+-- Add a comment record (undoable) from an authoring target + body text.
+function Session:add_comment(ct, text)
+  if not ct or not text or text == "" then return end
+  self:perform({
+    kind = "comment", op = "add", path = ct.path,
+    record = { anchor = ct.anchor, content = ct.content, text = text },
+  })
+  self:render()
 end
 
 function Session:add_comment_at(row, text)
   if row == nil then row = self:cursor_row() end
-  if not text or text == "" then return end
-  local ad, lnum, sha, path = self:comment_anchor(row)
-  if not ad then return end
-  self:perform({ kind = "comment", sha = sha, path = path, lnum = lnum, text = text })
-  self:render()
+  self:add_comment(self:comment_target(row), text)
 end
 
--- Delete a comment anchored to the cursor row's line. With one comment it is
--- removed directly; with several, the user picks which text to drop. The
+-- Delete a comment attached to the cursor row's line (the line it re-anchors
+-- to). With one it is removed directly; with several, the user picks. The
 -- removal is an undoable "comment" action (op = "remove"), so `u` restores it.
 function Session:delete_comment_at(row)
   if row == nil then row = self:cursor_row() end
-  local ad, lnum, sha, path = self:comment_anchor(row)
-  if not ad then return end
-  local list = ad.comments_at(lnum)
+  local target = self.row_map[row]
+  local file = self:row_file(target)
+  if not file or not target.line then return end
+  local ord = target_ordinal(file, target)
+  local list = self:resolve_comments(file)[ord] or {}
   if #list == 0 then
     vim.notify("glean: no comment on this line", vim.log.levels.INFO)
     return
   end
-  local function drop(text)
-    if not text then return end
-    self:perform({ kind = "comment", op = "remove", sha = sha, path = path, lnum = lnum, text = text })
+  local function drop(c)
+    if not c then return end
+    self:perform({
+      kind = "comment", op = "remove", path = c.path,
+      record = { anchor = c.anchor, content = c.content, text = c.text },
+    })
     self:render()
   end
   if #list == 1 then
-    drop(list[1].text)
+    drop(list[1])
   else
     local choices = {}
     for _, c in ipairs(list) do choices[#choices + 1] = c.text end
-    vim.ui.select(choices, { prompt = "glean: delete comment" }, drop)
+    vim.ui.select(choices, { prompt = "glean: delete comment" }, function(_, idx)
+      if idx then drop(list[idx]) end
+    end)
   end
 end
 
 -- The comment identity under a cursor row, or nil. Comment rows are real,
--- cursor-addressable buffer lines (carrying { sha, path, lnum, text }) so `dd`
--- and `i` can act on the comment beneath the cursor directly.
+-- cursor-addressable buffer lines (carrying { path, anchor, content, text }) so
+-- `dd` and `i` can act on the comment beneath the cursor directly.
 function Session:comment_under(row)
   if row == nil then row = self:cursor_row() end
   local t = self.row_map[row]
@@ -991,7 +1080,10 @@ end
 function Session:delete_comment_under(row)
   local c = self:comment_under(row)
   if not c then return end
-  self:perform({ kind = "comment", op = "remove", sha = c.sha, path = c.path, lnum = c.lnum, text = c.text })
+  self:perform({
+    kind = "comment", op = "remove", path = c.path,
+    record = { anchor = c.anchor, content = c.content, text = c.text },
+  })
   self:render()
 end
 
@@ -1002,7 +1094,11 @@ function Session:edit_comment_under(row)
   if not c then return end
   self:open_comment_editor(vim.split(c.text, "\n", { plain = true }), function(text)
     if text == c.text then return end
-    self:perform({ kind = "comment", op = "edit", sha = c.sha, path = c.path, lnum = c.lnum, text = text, old_text = c.text })
+    self:perform({
+      kind = "comment", op = "edit", path = c.path,
+      old_record = { anchor = c.anchor, content = c.content, text = c.text },
+      record = { anchor = c.anchor, content = c.content, text = text },
+    })
     self:render()
   end)
 end
@@ -1134,6 +1230,98 @@ function Session:jump(row)
 end
 
 -- ---------------------------------------------------------------------------
+-- Ephemeral split diff (fugitive-style).
+-- ---------------------------------------------------------------------------
+
+-- Create a read-only scratch buffer holding `path` at `ref`, named
+-- `glean://<sha8>:<path>` so the originating commit is visible, with filetype
+-- inferred from the path. Empty content (e.g. the pre-image of an added file)
+-- yields an empty buffer.
+local function show_buffer(git, ref, path)
+  local sha = git:rev_parse(ref) or ref
+  local content = git:show(ref, path) or ""
+  local buf = api.nvim_create_buf(false, true)
+  local lines = vim.split(content, "\n", { plain = true })
+  if lines[#lines] == "" then lines[#lines] = nil end
+  api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  api.nvim_set_option_value("modifiable", false, { buf = buf })
+  api.nvim_set_option_value("buftype", "nofile", { buf = buf })
+  api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
+  local ft = vim.filetype.match({ filename = path, contents = lines })
+  if ft then api.nvim_set_option_value("filetype", ft, { buf = buf }) end
+  pcall(api.nvim_buf_set_name, buf, "glean://" .. sha:sub(1, 8) .. ":" .. path)
+  return buf
+end
+
+-- Resolve a cursor row to the file and the two refs that bound the hunk it
+-- belongs to: { path, post_ref, pre_ref, post_lnum, pre_lnum }. `post_ref` is
+-- the target (post-image) version and `pre_ref` is the previous (pre-image)
+-- version relative to the current commit (commit scope) or the review range
+-- (combined scope).
+function Session:diff_context(row)
+  local target = self.row_map[row]
+  if not target or not target.line then return nil end
+  local dl, path, post_ref, pre_ref
+  if self.scope == "commits" then
+    if not target.commit then return nil end
+    local commit = self.commits[target.commit]
+    local file = commit.files[target.file]
+    dl = file.hunks[target.hunk].lines[target.line]
+    path = file.path
+    if commit.sha == M.WORKTREE then
+      post_ref, pre_ref = M.WORKTREE, "HEAD"
+    else
+      post_ref, pre_ref = commit.sha, commit.sha .. "^"
+    end
+  else
+    if not target.cfile then return nil end
+    local cf = self.combined_files[target.cfile]
+    dl = cf.hunks[target.hunk].lines[target.line]
+    path = cf.path
+    post_ref, pre_ref = self.target, self.base
+  end
+  if not dl then return nil end
+  return {
+    path = path, post_ref = post_ref, pre_ref = pre_ref,
+    post_lnum = dl.new_lnum, pre_lnum = dl.old_lnum,
+  }
+end
+
+-- Open an ephemeral side-by-side diff for the file/hunk under the cursor: a
+-- full-height vertical split to the right of the glean window with the hunk's
+-- previous version on the left and the target version on the right, both in
+-- diff mode. The target side opens the live working-tree file when it is the
+-- current checkout (so LSP attaches); otherwise it is a read-only `git show`
+-- buffer. The previous side is always a read-only `git show` buffer.
+function Session:diffsplit(row)
+  if row == nil then row = self:cursor_row() end
+  local ctx = self:diff_context(row)
+  if not ctx then return end
+  if self.win and api.nvim_win_is_valid(self.win) then
+    api.nvim_set_current_win(self.win)
+  end
+  vim.cmd("rightbelow vsplit")
+  local right_win = api.nvim_get_current_win()
+  local abs = self.git.repo_root .. "/" .. ctx.path
+  local live = ctx.post_ref == M.WORKTREE or self:ref_is_head(ctx.post_ref)
+  if live and vim.fn.filereadable(abs) == 1 then
+    vim.cmd("edit " .. vim.fn.fnameescape(abs))
+    right_win = api.nvim_get_current_win()
+  else
+    api.nvim_win_set_buf(right_win, show_buffer(self.git, ctx.post_ref, ctx.path))
+  end
+  if ctx.post_lnum then pcall(api.nvim_win_set_cursor, right_win, { ctx.post_lnum, 0 }) end
+  vim.cmd("diffthis")
+  vim.cmd("leftabove vsplit")
+  local left_win = api.nvim_get_current_win()
+  api.nvim_win_set_buf(left_win, show_buffer(self.git, ctx.pre_ref, ctx.path))
+  if ctx.pre_lnum then pcall(api.nvim_win_set_cursor, left_win, { ctx.pre_lnum, 0 }) end
+  vim.cmd("diffthis")
+  api.nvim_set_current_win(right_win)
+  return right_win, left_win
+end
+
+-- ---------------------------------------------------------------------------
 -- Scope switching.
 -- ---------------------------------------------------------------------------
 
@@ -1217,12 +1405,24 @@ local function setup_keymaps(buf, session)
     session:mark_visual_range(srow, erow)
   end)
   map("n", "c", function()
-    local row = session:cursor_row()
-    if not session:comment_anchor(row) then
+    local ct = session:comment_target(session:cursor_row())
+    if not ct then
       vim.notify("glean: cannot comment here", vim.log.levels.INFO)
       return
     end
-    session:open_comment_editor({}, function(text) session:add_comment_at(row, text) end)
+    session:open_comment_editor({}, function(text) session:add_comment(ct, text) end)
+  end)
+  map("x", "c", function()
+    local srow = vim.fn.getpos("v")[2] - 1
+    local erow = vim.fn.getpos(".")[2] - 1
+    if srow > erow then srow, erow = erow, srow end
+    api.nvim_feedkeys(api.nvim_replace_termcodes("<Esc>", true, false, true), "nx", false)
+    local ct = session:visual_comment_target(srow, erow)
+    if not ct then
+      vim.notify("glean: cannot comment here", vim.log.levels.INFO)
+      return
+    end
+    session:open_comment_editor({}, function(text) session:add_comment(ct, text) end)
   end)
   map("n", "i", function() session:edit_comment_under() end)
   map("n", "dd", function() session:delete_comment_under() end)
@@ -1230,6 +1430,7 @@ local function setup_keymaps(buf, session)
   map("n", "u", function() session:undo() end)
   map("n", "<C-r>", function() session:redo() end)
   map("n", "<CR>", function() session:jump() end)
+  map("n", "D", function() session:diffsplit() end)
   map("n", "S", function() session:toggle_scope() end)
   map("n", "q", function()
     if api.nvim_win_is_valid(session.win) then

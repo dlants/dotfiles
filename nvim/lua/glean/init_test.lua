@@ -173,7 +173,7 @@ do
   s:add_comment_at(trow, "second note")
 
   local reopened = open({ scope = "commits", state_dir = dir })
-  local got = reopened.store:comments_at(repo.shas[2], "f.txt", 2)
+  local got = reopened.store:comments_for("f.txt")
   h.assert_eq("comment: count stacked", #got, 2)
   h.assert_eq("comment: first text", got[1].text, "first note")
   h.assert_eq("comment: second text", got[2].text, "second note")
@@ -194,14 +194,14 @@ do
     return t and t.commit == 1 and t.line and line == "+TWO"
   end)
   s:add_comment_at(trow, "to delete")
-  h.assert_eq("delete: present before", #s.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+  h.assert_eq("delete: present before", #s.store:comments_for("f.txt"), 1)
   s:delete_comment_at(trow)
-  h.assert_eq("delete: gone after", #s.store:comments_at(repo.shas[2], "f.txt", 2), 0)
+  h.assert_eq("delete: gone after", #s.store:comments_for("f.txt"), 0)
   s:undo()
-  h.assert_eq("delete: undo restores", #s.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+  h.assert_eq("delete: undo restores", #s.store:comments_for("f.txt"), 1)
   -- persisted across reopen.
   local s2 = open({ scope = "commits", state_dir = dir })
-  h.assert_eq("delete: restore persisted", #s2.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+  h.assert_eq("delete: restore persisted", #s2.store:comments_for("f.txt"), 1)
 end
 
 -- Authoring a single-line comment through the ephemeral editor split: writing
@@ -216,7 +216,7 @@ do
   local ebuf = api.nvim_get_current_buf()
   api.nvim_buf_set_lines(ebuf, 0, -1, false, { "a single note" })
   vim.cmd("write")
-  local got = s.store:comments_at(repo.shas[2], "f.txt", 2)
+  local got = s.store:comments_for("f.txt")
   h.assert_eq("author: stored one comment", #got, 1)
   h.assert_eq("author: text round-trips", got[1].text, "a single note")
   local crow = find_row(s, function(_, line, t)
@@ -237,7 +237,7 @@ do
   local ebuf = api.nvim_get_current_buf()
   api.nvim_buf_set_lines(ebuf, 0, -1, false, { "first line", "second line" })
   vim.cmd("write")
-  local got = s.store:comments_at(repo.shas[2], "f.txt", 2)
+  local got = s.store:comments_for("f.txt")
   h.assert_eq("multiline: stored one comment", #got, 1)
   h.assert_eq("multiline: newline preserved", got[1].text, "first line\nsecond line")
   local r1 = find_row(s, function(_, line, t)
@@ -251,6 +251,57 @@ do
   h.assert_true("multiline: continuation row present", r2 ~= nil)
   h.assert_eq("multiline: rows share identity",
     s.row_map[r1].comment.text, s.row_map[r2].comment.text)
+end
+
+-- Visual multi-line comment: a selection spanning several diff rows plus a
+-- decoration row (the hunk header) stores one comment whose content is the
+-- trimmed contiguous diff-line run, rendered inline exactly once.
+do
+  local dir = vim.fn.tempname()
+  local s = open({ state_dir = dir }) -- combined
+  local hrow = find_row(s, function(_, line, t)
+    return t and t.cfile and t.hunk and not t.line and line:find("@@", 1, true)
+  end)
+  local twrow = find_row(s, function(_, line, t)
+    return t and t.cfile and t.line and line == "+TWO"
+  end)
+  h.assert_true("visual: hunk header row", hrow ~= nil)
+  h.assert_true("visual: +TWO row", twrow ~= nil)
+  local ct = s:visual_comment_target(hrow, twrow)
+  h.assert_true("visual: target captured", ct ~= nil)
+  h.assert_true("visual: multi-line content", #ct.content >= 2)
+  for _, c in ipairs(ct.content) do
+    h.assert_true("visual: content excludes decoration", c:find("@@", 1, true) == nil)
+  end
+  s:add_comment(ct, "block note")
+  h.assert_eq("visual: one comment stored", #s.store:comments_for("f.txt"), 1)
+  local inline = 0
+  for _, t in pairs(s.row_map) do
+    if t and t.comment and t.comment.text == "block note" then inline = inline + 1 end
+  end
+  h.assert_eq("visual: rendered inline once", inline, 1)
+end
+
+-- Re-anchoring: a comment resolves by content even when its stored anchor is
+-- stale (renders inline, not outdated); when its content is gone it renders
+-- outdated and is listed in the summary.
+do
+  local dir = vim.fn.tempname()
+  local s = open({ state_dir = dir }) -- combined
+  s.store:add_comment_record("f.txt", { anchor = 1, content = { "TWO" }, text = "moved note" })
+  s.store:save_commit(state.COMMENTS_ID)
+  s:render()
+  local inline = find_row(s, function(_, line, t)
+    return t and t.comment and t.comment.text == "moved note"
+  end)
+  h.assert_true("reanchor: resolves by content", inline ~= nil)
+  h.assert_true("reanchor: not outdated", s.row_map[inline].comment.outdated == false)
+  s.store:add_comment_record("f.txt", { anchor = 2, content = { "VANISHED" }, text = "gone note" })
+  s.store:save_commit(state.COMMENTS_ID)
+  s:render()
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("reanchor: outdated in summary", joined:find("(Outdated)", 1, true) ~= nil)
+  h.assert_true("reanchor: outdated text present", joined:find("💬 gone note", 1, true) ~= nil)
 end
 
 -- Deleting a comment from its inline row (the `dd` path) drops it from the
@@ -267,9 +318,9 @@ do
   end)
   h.assert_true("dd: inline row before", crow ~= nil)
   s:delete_comment_under(crow)
-  h.assert_eq("dd: removed from store", #s.store:comments_at(repo.shas[2], "f.txt", 2), 0)
+  h.assert_eq("dd: removed from store", #s.store:comments_for("f.txt"), 0)
   s:undo()
-  h.assert_eq("dd: undo restores", #s.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+  h.assert_eq("dd: undo restores", #s.store:comments_for("f.txt"), 1)
 end
 
 -- Comment summary: a per-file section at the bottom lists each comment with its
@@ -278,17 +329,15 @@ end
 do
   local dir = vim.fn.tempname()
   local s = open({ scope = "commits", state_dir = dir })
-  -- present comment: c1's +TWO line (still in target at line 2).
+  -- present comment: c1's +TWO line (content "TWO" still in the diff at line 2).
   local twrow = find_row(s, function(_, line, t)
     return t and t.commit == 1 and t.line and line == "+TWO"
   end)
   s:add_comment_at(twrow, "live note")
-  -- outdated comment: c1's context "three" line (overwritten by c2 -> THREE).
-  local throw = find_row(s, function(_, line, t)
-    return t and t.commit == 1 and t.line and line == " three"
-  end)
-  h.assert_true("summary: found c1 three context row", throw ~= nil)
-  s:add_comment_at(throw, "stale note")
+  -- outdated comment: a record whose content no longer appears in any diff line.
+  s.store:add_comment_record("f.txt", { anchor = 99, content = { "ZZZ gone" }, text = "stale note" })
+  s.store:save_commit(state.COMMENTS_ID)
+  s:render()
 
   local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
   h.assert_true("summary: section header present",
@@ -299,9 +348,33 @@ do
   h.assert_true("summary: present comment not outdated",
     joined:find("L2  TWO", 1, true) ~= nil)
   h.assert_true("summary: outdated comment flagged",
-    joined:find("(Outdated, from " .. repo.shas[2]:sub(1, 8) .. ")", 1, true) ~= nil)
+    joined:find("(Outdated)", 1, true) ~= nil)
 end
 
+-- Comment summary (out-of-range owner): a comment authored in combined scope on
+-- an unchanged context line is owned by a commit outside base..target, so it
+-- never appears in any in-range commit's diff. It must still surface in the
+-- bottom summary.
+do
+  local dir = vim.fn.tempname()
+  local s = open({ scope = "combined", state_dir = dir })
+  -- context " one" is owned by the base commit (not in base..target).
+  local crow = find_row(s, function(_, line, t)
+    return t and t.cfile and t.line and line == " one"
+  end)
+  h.assert_true("ctx-summary: found context one row", crow ~= nil)
+  s:add_comment_at(crow, "context note")
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("ctx-summary: section header present",
+    joined:find("══ comments ══", 1, true) ~= nil)
+  h.assert_true("ctx-summary: context comment listed",
+    joined:find("💬 context note", 1, true) ~= nil)
+  -- survives reopen (owner shard loaded on demand).
+  local s2 = open({ scope = "combined", state_dir = dir })
+  local joined2 = table.concat(api.nvim_buf_get_lines(s2.buf, 0, -1, false), "\n")
+  h.assert_true("ctx-summary: persists across reopen",
+    joined2:find("💬 context note", 1, true) ~= nil)
+end
 -- Stage 2 — commits-scope seen section: marking an expanded file's only hunk
 -- seen tucks it under a default-collapsed "✓ seen (N hunks)" header.
 do
@@ -352,11 +425,11 @@ do
     return t and t.commit == 1 and t.line and line == "+TWO"
   end)
   s:add_comment_at(crow, "hi")
-  h.assert_eq("comment-undo: added", #s.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+  h.assert_eq("comment-undo: added", #s.store:comments_for("f.txt"), 1)
   s:undo()
-  h.assert_eq("comment-undo: removed", #s.store:comments_at(repo.shas[2], "f.txt", 2), 0)
+  h.assert_eq("comment-undo: removed", #s.store:comments_for("f.txt"), 0)
   s:redo()
-  h.assert_eq("comment-undo: re-added", #s.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+  h.assert_eq("comment-undo: re-added", #s.store:comments_for("f.txt"), 1)
 
   -- collapse: toggling a file header then undo restores expanded state.
   local function frow()
@@ -415,8 +488,7 @@ do
   local r2 = find_row(s, function(_, line, t) return t and t.cfile and t.line and line == "+TWO" end)
   s:add_comment_at(r3, "on three")
   s:add_comment_at(r2, "on two")
-  h.assert_eq("combined comment: THREE -> c2", #s.store:comments_at(repo.shas[3], "f.txt", 3), 1)
-  h.assert_eq("combined comment: TWO -> c1", #s.store:comments_at(repo.shas[2], "f.txt", 2), 1)
+  h.assert_eq("combined comment: both stored on f.txt", #s.store:comments_for("f.txt"), 2)
 end
 
 -- (a)/(b)/(f): supersession + follow-up. c1 edits line2; c2 supersedes it.
@@ -552,6 +624,33 @@ do
   h.assert_true("jump commits: shows TWO at post-image", content:find("TWO", 1, true) ~= nil)
 end
 
+-- Ephemeral split diff: a deletion row resolves to base (pre) / target (post),
+-- and diffsplit lays out previous-on-left, target-on-right with diff mode on.
+do
+  local s = open()
+  local r = find_row(s, function(_, line, t)
+    return t and t.cfile and t.line and line:sub(1, 1) == "-"
+  end)
+  h.assert_true("diffsplit: found a deletion row", r ~= nil)
+  local ctx = s:diff_context(r)
+  h.assert_eq("diffsplit: post_ref is target", ctx.post_ref, target)
+  h.assert_eq("diffsplit: pre_ref is base", ctx.pre_ref, base)
+  h.assert_eq("diffsplit: path", ctx.path, "f.txt")
+  local right_win, left_win = s:diffsplit(r)
+  h.assert_true("diffsplit: returns two windows",
+    type(right_win) == "number" and type(left_win) == "number")
+  h.assert_true("diffsplit: left is left of right",
+    api.nvim_win_get_position(left_win)[2] < api.nvim_win_get_position(right_win)[2])
+  h.assert_true("diffsplit: both windows in diff mode",
+    api.nvim_get_option_value("diff", { win = left_win })
+      and api.nvim_get_option_value("diff", { win = right_win }))
+  local lbuf = api.nvim_win_get_buf(left_win)
+  local lcontent = table.concat(api.nvim_buf_get_lines(lbuf, 0, -1, false), "\n")
+  h.assert_true("diffsplit: left has base content", lcontent:find("two", 1, true) ~= nil)
+  api.nvim_win_close(left_win, true)
+  if api.nvim_win_is_valid(right_win) then api.nvim_win_close(right_win, true) end
+end
+
 -- Stage 3 — the floating "worktree" commit in commit scope: content-hash seen
 -- marks and content-anchored comments, persisted to a repo-scoped shard.
 do
@@ -612,7 +711,7 @@ do
   h.assert_true("worktree comment: found +B row", crow ~= nil)
   sc:add_comment_at(crow, "note on B")
   h.assert_eq("worktree comment: stored by content",
-    #sc.store:wt_comments_for(glean.WORKTREE, "w.txt", "B"), 1)
+    #sc.store:comments_for("w.txt"), 1)
   local sc2 = openwt(cdir)
   local crow2 = find_row(sc2, function(_, line, t)
     return t and t.comment and line:find("note on B", 1, true) ~= nil
@@ -692,7 +791,7 @@ do
   h.assert_true("wt combined comment: found +D row", crow ~= nil)
   sc:add_comment_at(crow, "dirty note")
   h.assert_eq("wt combined comment: stored by content on WORKTREE",
-    #sc.store:wt_comments_for(glean.WORKTREE, "m.txt", "D"), 1)
+    #sc.store:comments_for("m.txt"), 1)
 end
 
 -- Stage 5 — jump-to-source for the floating commit + the convenience command.

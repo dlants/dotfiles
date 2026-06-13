@@ -1,5 +1,10 @@
 import { $ } from "zx";
-import { existsSync, readFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+} from "node:fs";
 import path from "node:path";
 import {
   type Finding,
@@ -91,6 +96,106 @@ export const STAGE_DONE_YIELD_SCHEMA = {
 async function git(repo: string, ...args: string[]): Promise<string> {
   const result = await $`git -C ${repo} ${args}`;
   return result.stdout;
+}
+
+/**
+ * If `repo` is a linked git worktree (its git-dir differs from the shared
+ * git-common-dir), return the directory that contains the worktrees — the
+ * parent of the common dir. For the bare-repo + worktrees layout this is the
+ * project root that holds `main/`, the sibling worktrees, and `new-worktree.sh`.
+ * Returns undefined for an ordinary, non-worktree checkout.
+ */
+export async function detectWorktreeRoot(
+  repo: string,
+): Promise<string | undefined> {
+  const common = (
+    await $`git -C ${repo} rev-parse --path-format=absolute --git-common-dir`.nothrow()
+  ).stdout.trim();
+  const gitDir = (
+    await $`git -C ${repo} rev-parse --path-format=absolute --git-dir`.nothrow()
+  ).stdout.trim();
+  if (!common || !gitDir) return undefined;
+  if (path.resolve(common) === path.resolve(gitDir)) return undefined;
+  return path.dirname(common);
+}
+
+/** Best-effort detection of the repo's default branch (for seeding worktrees). */
+export async function detectDefaultBranch(repo: string): Promise<string> {
+  const head = (
+    await $`git -C ${repo} symbolic-ref --quiet refs/remotes/origin/HEAD`.nothrow()
+  ).stdout.trim();
+  if (head) return head.replace(/^refs\/remotes\/origin\//, "");
+  for (const candidate of ["main", "master"]) {
+    const r =
+      await $`git -C ${repo} show-ref --verify --quiet refs/heads/${candidate}`.nothrow();
+    if (r.exitCode === 0) return candidate;
+  }
+  return "main";
+}
+
+/**
+ * Prepare the working directory for the implementation and ensure `branch`
+ * exists, returning the repo dir and plan path to actually operate on.
+ *
+ * - Not a worktree: create `branch` in-place (the original behavior).
+ * - A worktree with `new-worktree.sh`: run that script to spin up a fresh
+ *   sibling worktree for `branch` (seeded from `main/`).
+ * - A worktree without the script: create the worktree ourselves from the
+ *   default branch.
+ *
+ * In the worktree cases the plan file is copied into the new worktree if it
+ * didn't come across (it is usually untracked, so it won't).
+ */
+export async function prepareImplementation({
+  repo,
+  planAbs,
+  branch,
+  log,
+}: {
+  repo: string;
+  planAbs: string;
+  branch: string;
+  log: LogFn;
+}): Promise<{ repo: string; planAbs: string }> {
+  const worktreeRoot = await detectWorktreeRoot(repo);
+  if (!worktreeRoot) {
+    await git(repo, "checkout", "-b", branch);
+    log(`Created branch ${branch}`);
+    return { repo, planAbs };
+  }
+
+  const target = path.join(worktreeRoot, branch);
+  if (existsSync(target)) {
+    throw new Error(`Worktree target already exists: ${target}`);
+  }
+
+  const script = path.join(worktreeRoot, "new-worktree.sh");
+  if (existsSync(script)) {
+    log(`Running new-worktree.sh for ${branch}`);
+    await $`bash ${script} ${branch}`;
+  } else {
+    const base = await detectDefaultBranch(repo);
+    log(`No new-worktree.sh found; creating worktree ${branch} from ${base}`);
+    await git(repo, "worktree", "add", "-b", branch, target, base);
+  }
+
+  if (!existsSync(target)) {
+    throw new Error(`Worktree was not created at ${target}`);
+  }
+
+  const planRel = path.relative(repo, planAbs);
+  const newPlanAbs =
+    planRel.startsWith("..") || path.isAbsolute(planRel)
+      ? path.join(target, path.basename(planAbs))
+      : path.join(target, planRel);
+  if (!existsSync(newPlanAbs)) {
+    mkdirSync(path.dirname(newPlanAbs), { recursive: true });
+    copyFileSync(planAbs, newPlanAbs);
+    log(`Copied plan into worktree: ${newPlanAbs}`);
+  }
+
+  log(`Implementing in worktree ${target}`);
+  return { repo: target, planAbs: newPlanAbs };
 }
 
 export function defaultBranchName(planPath: string): string {
@@ -223,21 +328,25 @@ export async function runImplementPlan({
   thread: ThreadFn;
   log: LogFn;
 }): Promise<{ branch: string; stages: Stage[] }> {
-  const repo = params.repo;
-  const planAbs = path.isAbsolute(params.plan)
+  const planParamAbs = path.isAbsolute(params.plan)
     ? params.plan
-    : path.join(repo, params.plan);
-  if (!existsSync(planAbs)) {
-    throw new Error(`Plan file not found: ${planAbs}`);
+    : path.join(params.repo, params.plan);
+  if (!existsSync(planParamAbs)) {
+    throw new Error(`Plan file not found: ${planParamAbs}`);
   }
-  const planBody = readFileSync(planAbs, "utf8");
 
   const branch = params.branch ?? defaultBranchName(params.plan);
-  await git(repo, "checkout", "-b", branch);
-  log(`Created branch ${branch}`);
+  const { repo, planAbs } = await prepareImplementation({
+    repo: params.repo,
+    planAbs: planParamAbs,
+    branch,
+    log,
+  });
+  const planBody = readFileSync(planAbs, "utf8");
+  const planLabel = path.relative(repo, planAbs);
 
   const { stages } = await thread<{ stages: Stage[] }>(
-    buildExtractStagesPrompt(params.plan, planBody),
+    buildExtractStagesPrompt(planLabel, planBody),
     STAGES_YIELD_SCHEMA,
   );
   if (stages.length === 0) {
@@ -253,7 +362,7 @@ export async function runImplementPlan({
     log(`Stage ${n}/${stages.length}: ${stage.title}`);
 
     await thread<{ done: boolean; notes?: string }>(
-      buildImplementStagePrompt(stage, n, stages.length, params.plan),
+      buildImplementStagePrompt(stage, n, stages.length, planLabel),
       STAGE_DONE_YIELD_SCHEMA,
       {
         cwd: repo,
@@ -281,7 +390,7 @@ export async function runImplementPlan({
 
     log(`Stage ${n}: review found ${findingCount} finding(s); addressing.`);
     await thread<{ done: boolean; notes?: string }>(
-      buildAddressReviewPrompt(results, stage, n, stages.length, params.plan),
+      buildAddressReviewPrompt(results, stage, n, stages.length, planLabel),
       STAGE_DONE_YIELD_SCHEMA,
       {
         cwd: repo,
