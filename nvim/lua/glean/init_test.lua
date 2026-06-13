@@ -187,6 +187,28 @@ do
     #marks > 0 and marks[1][4].virt_lines ~= nil)
 end
 
+-- Stage 2 — commits-scope seen section: marking an expanded file's only hunk
+-- seen tucks it under a default-collapsed "✓ seen (N hunks)" header.
+do
+  local s = open({ scope = "commits", state_dir = vim.fn.tempname() })
+  local frow = find_row(s, function(_, line, t)
+    return t and t.commit == 1 and t.file and not t.hunk and line:find("f.txt", 1, true)
+  end)
+  h.assert_true("seen-section: found c1 f.txt header", frow ~= nil)
+  s:toggle_seen(frow)
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("seen-section: header present",
+    joined:find("✓ seen (1 hunks)", 1, true) ~= nil)
+  h.assert_true("seen-section: collapsed chevron",
+    joined:find("▸ ✓ seen", 1, true) ~= nil)
+  h.assert_true("seen-section: seen hunk body hidden", joined:find("\n+TWO", 1, true) == nil)
+  -- the seen-section row carries a {seen=true} target with no hunk/line.
+  local srow = find_row(s, function(_, _, t)
+    return t and t.commit == 1 and t.seen and not t.hunk
+  end)
+  h.assert_true("seen-section: row has seen target", srow ~= nil)
+end
+
 -- Stage 4 — combined overlay via provenance.
 -- (c)/(d): marking f.txt seen in combined routes each new line to its owning
 -- commit (TWO -> c1, THREE -> c2); the file then drops to a "seen up to" row.

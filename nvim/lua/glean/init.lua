@@ -390,24 +390,40 @@ function Session:build()
     return row
   end
 
-  local function emit_file_body(adapter, fi, file, target_base)
+  local function emit_hunk(hunk, hi, target_base, resolve)
+    local target = vim.tbl_extend("force", target_base, { hunk = hi })
+    emit(hunk.header, target, "GleanHunkHeader")
+    for li, dl in ipairs(hunk.lines) do
+      local marker = dl.kind == "add" and "+" or dl.kind == "del" and "-" or " "
+      local hl = dl.kind == "add" and "GleanAdd"
+        or dl.kind == "del" and "GleanDel"
+        or "GleanContext"
+      local ad, kl = nil, nil
+      if dl.new_lnum then ad, kl = resolve(dl.new_lnum) end
+      if ad and ad.is_seen(kl) then hl = "GleanSeen" end
+      local row = emit(marker .. dl.text,
+        vim.tbl_extend("force", target, { line = li }), hl)
+      if ad then
+        local texts = ad.comments_at(kl)
+        if #texts > 0 then comments[#comments + 1] = { row = row, texts = texts } end
+      end
+    end
+  end
+
+  local function emit_file_body(file, target_base, resolve, seen_ck)
+    local seen_idx, unseen_idx = {}, {}
     for hi, hunk in ipairs(file.hunks) do
-      local target = vim.tbl_extend("force", target_base, { hunk = hi })
-      emit(hunk.header, target, "GleanHunkHeader")
-      for li, dl in ipairs(hunk.lines) do
-        local marker = dl.kind == "add" and "+" or dl.kind == "del" and "-" or " "
-        local hl = dl.kind == "add" and "GleanAdd"
-          or dl.kind == "del" and "GleanDel"
-          or "GleanContext"
-        if adapter and dl.new_lnum and adapter.is_seen(dl.new_lnum) then
-          hl = "GleanSeen"
-        end
-        local row = emit(marker .. dl.text,
-          vim.tbl_extend("force", target, { line = li }), hl)
-        if adapter and dl.new_lnum then
-          local texts = adapter.comments_at(dl.new_lnum)
-          if #texts > 0 then comments[#comments + 1] = { row = row, texts = texts } end
-        end
+      if hunk_is_seen(hunk, resolve) then seen_idx[#seen_idx + 1] = hi
+      else unseen_idx[#unseen_idx + 1] = hi end
+    end
+    for _, hi in ipairs(unseen_idx) do emit_hunk(file.hunks[hi], hi, target_base, resolve) end
+    if #seen_idx > 0 then
+      local c = self.collapse[seen_ck]; if c == nil then c = true end
+      local chev = c and CHEVRON_CLOSED or CHEVRON_OPEN
+      emit(("  %s ✓ seen (%d hunks)"):format(chev, #seen_idx),
+        vim.tbl_extend("force", target_base, { seen = true }), "GleanSeen")
+      if not c then
+        for _, hi in ipairs(seen_idx) do emit_hunk(file.hunks[hi], hi, target_base, resolve) end
       end
     end
   end
@@ -427,8 +443,10 @@ function Session:build()
           emit(("  %s %s %s%s"):format(fchev, fmark, file.path, kind),
             { commit = ci, file = fi }, "GleanFileHeader")
           if not file.collapsed then
-            emit_file_body(self:adapter_for(commit, file.path), fi, file,
-              { commit = ci, file = fi })
+            local adapter = self:adapter_for(commit, file.path)
+            local resolve = function(ln) return adapter, ln end
+            emit_file_body(file, { commit = ci, file = fi }, resolve,
+              seen_key(commit.sha, file.path))
           end
         end
       end

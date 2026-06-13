@@ -240,6 +240,14 @@ hunks get the clean per-hunk seen/unseen split.
 
 ### Stage 2 — unified body renderer, commits scope first
 
+> **Status: DONE.** Split `emit_file_body` into `emit_hunk` + a partitioning
+> `emit_file_body(file, target_base, resolve, seen_ck)`; seen hunks group under a
+> default-collapsed `  ▸ ✓ seen (N hunks)` header (GleanSeen). Wired the
+> commits-scope call site with `resolve = function(ln) return adapter, ln end`.
+> The combined block is left untouched (its inline renderer is replaced in
+> Stage 3). Added a commits-scope seen-section test (isolated `state_dir`). All
+> suites green (init 105, git 40, diff 35, provenance 8, state 34).
+
 Lowest-risk: commits scope render currently shows everything, so only the seen
 section is *added*; no existing commits-scope assertion should break.
 
