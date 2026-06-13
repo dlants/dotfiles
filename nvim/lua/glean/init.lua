@@ -147,13 +147,24 @@ local function hunk_new_range(hunk)
   return nil
 end
 
--- The anchor new-file lines of a hunk: the new_lnum of each context/add line,
--- or for a pure-deletion hunk (no new lines) a single synthetic anchor
--- `max(new_start, 1)`.
+-- The anchor new-file lines of a hunk: the new_lnum of each ADD line (the lines
+-- this hunk actually introduces). Context lines are excluded because under the
+-- combined per-line ownership model they may be owned by commits outside the
+-- displayed base..target range (whose seen-state is neither tracked nor
+-- persisted), which would make a hunk impossible to mark fully seen. For a hunk
+-- with no add lines (a deletion that carries only context + deletions) we fall
+-- back to its context new_lnums so the deletion follows its surrounding lines;
+-- and for a pure-deletion hunk (no new lines at all) a single synthetic anchor
+-- `max(new_start, 1)` -- the new-file line just after the removed region.
 local function hunk_anchor_lnums(hunk)
   local out = {}
   for _, dl in ipairs(hunk.lines) do
-    if dl.new_lnum then out[#out + 1] = dl.new_lnum end
+    if dl.kind == "add" and dl.new_lnum then out[#out + 1] = dl.new_lnum end
+  end
+  if #out == 0 then
+    for _, dl in ipairs(hunk.lines) do
+      if dl.new_lnum then out[#out + 1] = dl.new_lnum end
+    end
   end
   if #out == 0 and hunk.new_start then
     out[1] = math.max(hunk.new_start, 1)
@@ -257,92 +268,16 @@ function Session:provenance(path)
   return self._prov[path]
 end
 
--- sha -> chronological index within base..target.
-function Session:commit_index()
-  if not self._cidx then
-    self._cidx = {}
-    for i, c in ipairs(self.commits) do self._cidx[c.sha] = i end
-  end
-  return self._cidx
-end
-
--- The tighter re-diff over `Xe^..target` used to elide a seen prefix. For a
--- real target it is `git diff Xe^..target`. For the work-tree target the end is
--- the live work tree, so it is `git diff <from>` (two-dot to the work tree),
--- where `from` is `HEAD` when the earliest unseen contributor is the floating
--- commit itself (its parent is HEAD) and `Xe^` otherwise.
-function Session:tighter_diff(xe, path)
-  if self.target == M.WORKTREE then
-    local from = (xe == M.WORKTREE) and "HEAD" or (xe .. "^")
-    return self.git:diff_to_worktree(from, path)
-  end
-  return self.git:range_diff(xe .. "^", self.target, path)
-end
-
--- Project the raw combined diff into display files, overlaying seen state:
--- fully-seen files collapse to a single "seen up to" row; partially-seen files
--- are re-diffed over the tighter Xe^..target range (Xe = earliest unseen
--- contributor) and filtered to hunks that still contain an unseen new line.
+-- Project the raw combined diff into display files. Seen hunks are now rendered
+-- in a collapsible per-file "seen" section by the shared body renderer, so this
+-- is a thin pass that only applies the file-collapse override and exposes the
+-- raw base..target hunks.
 function Session:compute_combined()
-  local cidx = self:commit_index()
   local out = {}
   for _, raw in ipairs(self.files) do
-    local path = raw.path
-    local cov = self.collapse[cfile_key(path)]
+    local cov = self.collapse[cfile_key(raw.path)]
     if cov ~= nil then raw.collapsed = cov end
-    local prov = self:provenance(path)
-    local earliest_contrib, earliest_unseen, newest = nil, nil, nil
-    local any_new, seen_count = false, 0
-    for _, hunk in ipairs(raw.hunks) do
-      for _, dl in ipairs(hunk.lines) do
-        if dl.new_lnum then
-          any_new = true
-          local p = prov[dl.new_lnum]
-          local idx = p and cidx[p.sha]
-          if idx then
-            if not earliest_contrib or idx < earliest_contrib then earliest_contrib = idx end
-            if not newest or idx > newest then newest = idx end
-            if self:combined_adapter(p.sha, path).is_seen(p.orig_lnum) then
-              seen_count = seen_count + 1
-            elseif not earliest_unseen or idx < earliest_unseen then
-              earliest_unseen = idx
-            end
-          end
-        end
-      end
-    end
-    if not any_new or (earliest_unseen and seen_count == 0) then
-      -- Nothing seen (or a pure-deletion file): show the full combined diff.
-      out[#out + 1] = { path = path, kind = raw.kind, hunks = raw.hunks, raw = raw }
-    elseif not earliest_unseen then
-      out[#out + 1] = {
-        path = path, kind = raw.kind, hunks = {}, raw = raw,
-        fully_seen = true, seen_up_to = newest and self.commits[newest].sha,
-      }
-    else
-      local xe = self.commits[earliest_unseen].sha
-      local files = self:tighter_diff(xe, path)
-      local rf = files and files[1]
-      local hunks = {}
-      if rf then
-        for _, hunk in ipairs(rf.hunks) do
-          local keep = false
-          for _, dl in ipairs(hunk.lines) do
-            local p = dl.new_lnum and prov[dl.new_lnum]
-            if p and not self:combined_adapter(p.sha, path).is_seen(p.orig_lnum) then
-              keep = true
-              break
-            end
-          end
-          if keep then hunks[#hunks + 1] = hunk end
-        end
-      end
-      local has_prefix = seen_count > 0 and earliest_contrib and earliest_unseen > earliest_contrib
-      out[#out + 1] = {
-        path = path, kind = raw.kind, hunks = hunks, raw = raw,
-        seen_up_to = has_prefix and xe or nil,
-      }
-    end
+    out[#out + 1] = { path = raw.path, kind = raw.kind, hunks = raw.hunks, raw = raw }
   end
   return out
 end
@@ -454,41 +389,17 @@ function Session:build()
   else
     self.combined_files = self:compute_combined()
     for fi, cf in ipairs(self.combined_files) do
-      if cf.fully_seen then
-        emit(("✓ %s  ⟶ seen up to %s"):format(cf.path, (cf.seen_up_to or ""):sub(1, 8)),
-          { cfile = fi }, "GleanSeen")
-      else
-        local chevron = cf.raw.collapsed and CHEVRON_CLOSED or CHEVRON_OPEN
-        local kind = cf.kind and (" [" .. cf.kind .. "]") or ""
-        emit(chevron .. " " .. cf.path .. kind, { cfile = fi }, "GleanFileHeader")
-        if not cf.raw.collapsed then
-          if cf.seen_up_to then
-            emit(("  ⟶ seen up to %s^"):format(cf.seen_up_to:sub(1, 8)),
-              { cfile = fi, marker = true }, "GleanSeen")
-          end
-          local prov = self:provenance(cf.path)
-          for hi, hunk in ipairs(cf.hunks) do
-            local target = { cfile = fi, hunk = hi }
-            emit(hunk.header, target, "GleanHunkHeader")
-            for li, dl in ipairs(hunk.lines) do
-              local marker = dl.kind == "add" and "+" or dl.kind == "del" and "-" or " "
-              local hl = dl.kind == "add" and "GleanAdd"
-                or dl.kind == "del" and "GleanDel"
-                or "GleanContext"
-              local owner = dl.new_lnum and prov[dl.new_lnum]
-              local owner_ad = owner and self:combined_adapter(owner.sha, cf.path)
-              if owner_ad and owner_ad.is_seen(owner.orig_lnum) then
-                hl = "GleanSeen"
-              end
-              local row = emit(marker .. dl.text,
-                vim.tbl_extend("force", target, { line = li }), hl)
-              if owner_ad then
-                local texts = owner_ad.comments_at(owner.orig_lnum)
-                if #texts > 0 then comments[#comments + 1] = { row = row, texts = texts } end
-              end
-            end
-          end
+      local chevron = cf.raw.collapsed and CHEVRON_CLOSED or CHEVRON_OPEN
+      local kind = cf.kind and (" [" .. cf.kind .. "]") or ""
+      emit(chevron .. " " .. cf.path .. kind, { cfile = fi }, "GleanFileHeader")
+      if not cf.raw.collapsed then
+        local prov = self:provenance(cf.path)
+        local resolve = function(ln)
+          local p = prov[ln]
+          if not p then return nil end
+          return self:combined_adapter(p.sha, cf.path), p.orig_lnum
         end
+        emit_file_body(cf, { cfile = fi }, resolve, cseen_key(cf.path))
       end
     end
   end
@@ -926,7 +837,6 @@ function Session:reload()
   self.store = store
   self._wt_lines = nil
   self._prov = nil
-  self._cidx = nil
   self.combined_files = nil
   self:apply_collapse()
   self:render()

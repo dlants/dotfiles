@@ -225,12 +225,13 @@ do
   h.assert_true("combined: THREE seen on c2",
     state.covers(s.store:seen_ranges(repo.shas[3], "f.txt"), 3))
   local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
-  h.assert_true("combined: f.txt fully-seen row", joined:find("✓ f.txt", 1, true) ~= nil)
+  h.assert_true("combined: f.txt seen section", joined:find("✓ seen (1 hunks)", 1, true) ~= nil)
+  h.assert_true("combined: f.txt header still shown", joined:find("▾ f.txt", 1, true) ~= nil)
   h.assert_true("combined: f.txt body elided", joined:find("\n+TWO", 1, true) == nil)
   -- reopen: persisted seen still collapses f.txt in combined.
   local s2 = open({ state_dir = dir })
   local joined2 = table.concat(api.nvim_buf_get_lines(s2.buf, 0, -1, false), "\n")
-  h.assert_true("combined reopen: f.txt still fully seen", joined2:find("✓ f.txt", 1, true) ~= nil)
+  h.assert_true("combined reopen: f.txt still fully seen", joined2:find("✓ seen", 1, true) ~= nil)
   h.assert_true("combined reopen: g.txt still shown", joined2:find("▾ g.txt", 1, true) ~= nil)
 end
 
@@ -287,18 +288,18 @@ do
   cs2:toggle_seen(c2hdr)
   local done = open2(r2.shas[3])
   local j3 = table.concat(api.nvim_buf_get_lines(done.buf, 0, -1, false), "\n")
-  h.assert_true("follow-up: x.txt fully seen after c2", j3:find("✓ x.txt", 1, true) ~= nil)
+  h.assert_true("follow-up: x.txt fully seen after c2", j3:find("✓ seen", 1, true) ~= nil)
 end
 
 -- Re-diff branch: a file with two far-apart hunks from two commits; once the
 -- earlier hunk is marked seen, the combined view re-diffs the tighter
 -- Xe^..target range and shows a "seen up to" marker plus only the later hunk.
 do
-  local base_content = "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\n"
+  local base_content = "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\n"
   local r3 = testutil.make_repo({
     { msg = "base", files = { ["y.txt"] = base_content } },
-    { msg = "c1: edit l2", files = { ["y.txt"] = "l1\nL2\nl3\nl4\nl5\nl6\nl7\nl8\n" } },
-    { msg = "c2: edit l7", files = { ["y.txt"] = "l1\nL2\nl3\nl4\nl5\nl6\nL7\nl8\n" } },
+    { msg = "c1: edit l2", files = { ["y.txt"] = "l1\nL2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\n" } },
+    { msg = "c2: edit l10", files = { ["y.txt"] = "l1\nL2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nL10\nl11\n" } },
   })
   local function run3(args)
     local cmd = { "git" }
@@ -313,15 +314,18 @@ do
       open_window = false, state_dir = dir,
     })
   end
-  -- Mark only c1's L2 line seen on its owning commit.
+  -- Mark the L2 hunk seen via the UI (routes each line, incl. context, to its
+  -- owning commit). It forms its own hunk, separate from the L10 hunk.
   local s = open3()
-  s.store:mark_seen(r3.shas[2], "y.txt", { 2, 2 })
-  s.store:save_commit(r3.shas[2])
+  local l2row = find_row(s, function(_, line, t)
+    return t and t.cfile and t.hunk and line:find("+L2", 1, true)
+  end)
+  s:toggle_seen(l2row)
   local s2 = open3()
   local joined = table.concat(api.nvim_buf_get_lines(s2.buf, 0, -1, false), "\n")
-  h.assert_true("redirff: seen-up-to marker shown", joined:find("seen up to", 1, true) ~= nil)
-  h.assert_true("rediff: L7 (unseen) shown", joined:find("\n+L7", 1, true) ~= nil)
-  h.assert_true("rediff: L2 hunk elided", joined:find("\n+L2", 1, true) == nil)
+  h.assert_true("two-hunk: L2 seen section", joined:find("✓ seen (1 hunks)", 1, true) ~= nil)
+  h.assert_true("two-hunk: L10 (unseen) shown", joined:find("\n+L10", 1, true) ~= nil)
+  h.assert_true("two-hunk: L2 hunk collapsed", joined:find("\n+L2", 1, true) == nil)
 end
 
 -- Stage 5 — jump-to-source.
@@ -491,7 +495,7 @@ do
   -- (a)/(b): committed and uncommitted edits both show; D is unseen initially.
   h.assert_true("wt combined: committed +B shown", joined:find("\n+B", 1, true) ~= nil)
   h.assert_true("wt combined: uncommitted +D shown", joined:find("\n+D", 1, true) ~= nil)
-  h.assert_true("wt combined: m.txt not yet fully seen", joined:find("✓ m.txt", 1, true) == nil)
+  h.assert_true("wt combined: m.txt not yet fully seen", joined:find("✓ seen", 1, true) == nil)
   -- The dirty line is owned by the floating commit (zero sha remapped).
   h.assert_eq("wt combined: +D owned by WORKTREE", s:provenance("m.txt")[4].sha, glean.WORKTREE)
 
@@ -506,11 +510,11 @@ do
   h.assert_true("wt combined: dirty D hash-seen on WORKTREE",
     #s.store:seen_blocks(glean.WORKTREE, "m.txt") > 0)
   local jseen = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
-  h.assert_true("wt combined: m.txt fully seen", jseen:find("✓ m.txt", 1, true) ~= nil)
+  h.assert_true("wt combined: m.txt fully seen", jseen:find("✓ seen (1 hunks)", 1, true) ~= nil)
   -- reopen: persisted committed + floating seen still collapses the file.
   local s2 = openwm(dir)
   local j2 = table.concat(api.nvim_buf_get_lines(s2.buf, 0, -1, false), "\n")
-  h.assert_true("wt combined reopen: m.txt still fully seen", j2:find("✓ m.txt", 1, true) ~= nil)
+  h.assert_true("wt combined reopen: m.txt still fully seen", j2:find("✓ seen", 1, true) ~= nil)
 
   -- (d): a comment on the dirty line lands in the floating shard by line hash.
   local cdir = vim.fn.tempname()

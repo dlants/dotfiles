@@ -295,6 +295,33 @@ section is *added*; no existing commits-scope assertion should break.
 
 ### Stage 3 — combined scope on raw hunks
 
+> **Status: DONE.** Replaced `compute_combined` with the thin raw-hunk pass;
+> combined `build()` now renders a file header + the shared `emit_file_body`
+> with a provenance-based `resolve`. Removed dead `commit_index`, `tighter_diff`,
+> `fully_seen`/`seen_up_to` logic and the `self._cidx = nil` reload line.
+> Updated the breaking combined-scope tests (f.txt/x.txt/m.txt seen-section
+> assertions) and reworked the y.txt fixture into an 11-line two-hunk file
+> (edits at L2/L10) that cleanly exercises a per-hunk seen section.
+>
+> **Deviation (anchor lines):** `hunk_anchor_lnums` now anchors on a hunk's ADD
+> lines (falling back to context lines, then the synthetic deletion anchor),
+> NOT every context+add line as Stage 1 originally wrote. Reason: under combined
+> per-line ownership, context lines are frequently owned by commits OUTSIDE the
+> displayed base..target range; `Store:load` only loads in-range shards, so those
+> owners' seen-state is never persisted/reloaded, making a hunk impossible to
+> mark fully seen across a reopen. Anchoring on add lines matches the user's
+> definition ("all its NEW lines are seen") and keeps commits scope unchanged
+> (marking a hunk still covers its add lines). All suites green (init 106, git 40,
+> diff 35, provenance 8, state 34).
+>
+> **Deferred:** the reverse-blame pure-deletion attribution for combined scope
+> (`Git:blame_reverse`, `Session:del_provenance`, `combined_tuples` deletion
+> fallback) is NOT implemented. No existing test exercises a combined pure-
+> deletion hunk, and adding untested `git blame --reverse` plumbing (whose
+> boundary semantics the plan itself flagged as needing fixture verification) is
+> high-risk for this stage. Combined pure-deletion-hunk markability remains a
+> follow-up; deletions that carry context already work via the context fallback.
+
 - Replace `Session:compute_combined()` (251-316) with the thin version:
     ```
     function Session:compute_combined()
