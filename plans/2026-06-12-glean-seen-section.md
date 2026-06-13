@@ -375,6 +375,13 @@ section is *added*; no existing commits-scope assertion should break.
 
 ### Stage 4 — collapse + action guards
 
+> **Status: DONE.** Added `target.seen` branches to `toggle_collapse` for both
+> scopes (default-collapsed via `cur == nil -> true`, persisted in `self.collapse`)
+> and dropped the `not cf.fully_seen` guard. Added `if target.seen then return end`
+> to `toggle_seen` so `m` on the seen header is a no-op. `comment_anchor`/
+> `jump_target` already bail on non-line targets — unchanged. All suites green
+> (init 106, git 40, diff 35, provenance 8, state 34).
+
 - `Session:toggle_collapse` (508-531): handle the seen target FIRST in each scope,
   then drop the `not cf.fully_seen` guard.
     ```

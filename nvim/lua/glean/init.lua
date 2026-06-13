@@ -475,7 +475,12 @@ function Session:toggle_collapse(row)
   if not target then return end
   if self.scope == "commits" then
     local commit = self.commits[target.commit]
-    if target.file then
+    if target.seen then
+      local file = commit.files[target.file]
+      local k = seen_key(commit.sha, file.path)
+      local cur = self.collapse[k]; if cur == nil then cur = true end
+      self.collapse[k] = not cur
+    elseif target.file then
       local file = commit.files[target.file]
       file.collapsed = not file.collapsed
       self.collapse[file_key(commit.sha, file.path)] = file.collapsed
@@ -484,9 +489,14 @@ function Session:toggle_collapse(row)
       self.collapse[commit_key(commit.sha)] = commit.collapsed
     end
   else
-    if target.cfile then
+    if target.seen then
       local cf = self.combined_files[target.cfile]
-      if cf and not cf.fully_seen then
+      local k = cseen_key(cf.path)
+      local cur = self.collapse[k]; if cur == nil then cur = true end
+      self.collapse[k] = not cur
+    elseif target.cfile then
+      local cf = self.combined_files[target.cfile]
+      if cf then
         cf.raw.collapsed = not cf.raw.collapsed
         self.collapse[cfile_key(cf.path)] = cf.raw.collapsed
       end
@@ -562,6 +572,7 @@ function Session:toggle_seen(row)
   if row == nil then row = self:cursor_row() end
   local target = self.row_map[row]
   if not target then return end
+  if target.seen then return end
   local touched = {}
   if self.scope == "commits" then
     if not target.commit then return end
