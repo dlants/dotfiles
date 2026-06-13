@@ -186,6 +186,12 @@ hunks get the clean per-hunk seen/unseen split.
 
 ### Stage 1 — data-model additions (keys + hunk predicate)
 
+> **Status: DONE.** Implemented `hunk_anchor_lnums`, rewrote `hunk_is_seen` to
+> use anchors (incl. synthetic pure-deletion anchor), and extended
+> `hunk_new_range` to return `{a,a}` for `new_count==0`. `seen_key`/`cseen_key`
+> were already present. All glean test suites green (init 100, git 40, diff 35,
+> provenance 8, state 34). No `luacheck` available in env.
+
 - Goal: helpers exist for the new collapse keys and the seen test, no behavior
   change yet.
 - Add near lines 84-86:

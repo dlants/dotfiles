@@ -132,30 +132,46 @@ end
 local CHEVRON_OPEN = "▾"
 local CHEVRON_CLOSED = "▸"
 
--- The new-file line range a hunk introduces, or nil for a pure-deletion hunk
--- (new_count == 0) which addresses no new-file line.
+-- The new-file line range a hunk introduces. For a pure-deletion hunk
+-- (new_count == 0) this is the synthetic anchor `max(new_start, 1)` -- the
+-- new-file line just after the removed region -- so the deletion is markable
+-- via the normal range/tuple paths. nil only when the hunk has no new_start.
 local function hunk_new_range(hunk)
   if hunk.new_count and hunk.new_count > 0 then
     return { hunk.new_start, hunk.new_start + hunk.new_count - 1 }
   end
+  if hunk.new_start then
+    local a = math.max(hunk.new_start, 1)
+    return { a, a }
+  end
   return nil
 end
 
--- A hunk is "seen" iff it has at least one new line and every new line resolves
--- to an adapter that reports it seen. `resolve(new_lnum) -> (adapter, key_lnum)`
--- returns nil for a line with no owner (which makes the hunk unseen). Pure
--- deletion/context hunks have no new line and are therefore never seen.
-local function hunk_is_seen(hunk, resolve)
-  local any = false
+-- The anchor new-file lines of a hunk: the new_lnum of each context/add line,
+-- or for a pure-deletion hunk (no new lines) a single synthetic anchor
+-- `max(new_start, 1)`.
+local function hunk_anchor_lnums(hunk)
+  local out = {}
   for _, dl in ipairs(hunk.lines) do
-    if dl.new_lnum then
-      local ad, kl = resolve(dl.new_lnum)
-      if not ad then return false end
-      any = true
-      if not ad.is_seen(kl) then return false end
-    end
+    if dl.new_lnum then out[#out + 1] = dl.new_lnum end
   end
-  return any
+  if #out == 0 and hunk.new_start then
+    out[1] = math.max(hunk.new_start, 1)
+  end
+  return out
+end
+
+-- A hunk is "seen" iff it has at least one anchor line and every anchor resolves
+-- to an adapter that reports it seen. `resolve(new_lnum) -> (adapter, key_lnum)`
+-- returns nil for a line with no owner (which makes the hunk unseen).
+local function hunk_is_seen(hunk, resolve)
+  local anchors = hunk_anchor_lnums(hunk)
+  if #anchors == 0 then return false end
+  for _, ln in ipairs(anchors) do
+    local ad, kl = resolve(ln)
+    if not ad or not ad.is_seen(kl) then return false end
+  end
+  return true
 end
 
 -- All new-file ranges a file changes within one commit's diff.
