@@ -375,6 +375,17 @@ marker (cmarker_key), and `m` unmarks both owners. Full glean suite green
 
 ### Stage 5 — test sweep + docs
 
+**Status: DONE.** Full glean suite re-run green with no changes needed
+(diff 35, git 40, init 221, intraline 49, marker 17, provenance 8, state 52 —
+all pass). The partial-seen tests the plan flagged as likely casualties never
+broke: earlier stages (2–4) introduced their marker assertions alongside the
+collapsing behavior, so no pre-existing test asserted raw `+`-line text for a
+now-collapsed run. No marker `c`/`<CR>` regressions. Documented the overloaded
+`m` (marker unmark vs whole-hunk toggle), visual `m` partial-mark/coalesce, and
+`=` marker-collapse in the `init.lua` header comment (~16–22); there is no
+standalone glean README/help in-repo, so the module header is the canonical doc
+location. No `luacheck` on PATH.
+
 - Goal: confirm no regressions and document the keybinding.
 - Re-run `nvim -l nvim/lua/glean/run_tests.lua` (or `init_test.lua`). Any existing
   test that marked a *partial* range seen and asserted the raw `+`-line text is

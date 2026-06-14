@@ -12,6 +12,14 @@
 --
 -- Collapse is ephemeral session view-state: it is initialized from seen status
 -- when a scope is (re)built, then evolves independently and is never persisted.
+--
+-- Keymaps of note (`setup_keymaps`):
+--   - normal `m` is overloaded: on a marker row/line (a collapsed seen sub-range
+--     inside an unseen hunk, or any line of an expanded one) it unmarks that run;
+--     on any other target it toggles the whole hunk/file/commit seen.
+--   - visual `m` marks the selected lines seen; a partial selection renders as a
+--     collapsed `✓ marked N lines` marker row (overlapping marks coalesce).
+--   - `=` toggles collapse, including expanding/collapsing a marker row.
 local git_mod = require("glean.git")
 local state_mod = require("glean.state")
 local provenance = require("glean.provenance")
