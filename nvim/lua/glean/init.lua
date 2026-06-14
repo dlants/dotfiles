@@ -627,13 +627,25 @@ function Session:render()
   self:highlight_cursor_hunk()
 end
 
--- Phase 2 of rendering: intra-line emphasis. For each paired del/add line whose
--- token alignment finds them similar enough, paint just the changed token spans
--- in NS_INTRA (above the phase-1 full-line highlight). Dissimilar pairs (align
--- returns nil) keep only their dim full-line background. The marker prefix shifts
--- every span by one byte. Computed synchronously here; Stage 5 moves it async.
+-- Phase 2 of rendering: intra-line emphasis, computed asynchronously. For each
+-- paired del/add line whose token alignment finds them similar enough, paint
+-- just the changed token spans in NS_INTRA (above the phase-1 full-line
+-- highlight). Dissimilar pairs (align returns nil) keep only their dim full-line
+-- background. The marker prefix shifts every span by one byte.
+--
+-- The work-list is processed in chunks via vim.schedule so a large diff stays
+-- snappy. Each render bumps `self._intra_gen` and clears NS_INTRA synchronously;
+-- every chunk re-checks (via intraline.is_current) that its captured generation
+-- still matches and the buffer is still valid, so a re-render/reload mid-flight
+-- abandons stale work instead of writing onto a freshly rendered buffer.
+local INTRA_CHUNK = 24
 function Session:apply_intraline(intra_work)
+  self._intra_gen = (self._intra_gen or 0) + 1
+  local gen = self._intra_gen
   api.nvim_buf_clear_namespace(self.buf, NS_INTRA, 0, -1)
+  if #intra_work == 0 then
+    return
+  end
   local function paint(row, segs, hl)
     for _, seg in ipairs(segs) do
       api.nvim_buf_set_extmark(self.buf, NS_INTRA, row, 1 + seg.start_col, {
@@ -644,13 +656,26 @@ function Session:apply_intraline(intra_work)
       })
     end
   end
-  for _, w in ipairs(intra_work) do
-    local res = intraline.align(w.del_text, w.add_text)
-    if res then
-      paint(w.del_row, res.a_segs, "GleanDelEmph")
-      paint(w.add_row, res.b_segs, "GleanAddEmph")
+  local idx = 1
+  local function step()
+    if not intraline.is_current(gen, self._intra_gen, api.nvim_buf_is_valid(self.buf)) then
+      return
+    end
+    local stop = math.min(idx + INTRA_CHUNK - 1, #intra_work)
+    for k = idx, stop do
+      local w = intra_work[k]
+      local res = intraline.align(w.del_text, w.add_text)
+      if res then
+        paint(w.del_row, res.a_segs, "GleanDelEmph")
+        paint(w.add_row, res.b_segs, "GleanAddEmph")
+      end
+    end
+    idx = stop + 1
+    if idx <= #intra_work then
+      vim.schedule(step)
     end
   end
+  vim.schedule(step)
 end
 
 -- Mark every row of the hunk under the cursor with a `▌` bar in the sign column,

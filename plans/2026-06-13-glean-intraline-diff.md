@@ -338,6 +338,20 @@ stage; current behavior leaves unmatched lines on the dim phase-1 background).
 
 ## Stage 5 — Asynchronous refinement + cancellation
 
+**Status: DONE.** `Session:apply_intraline` is now a chunked, cancellable async
+driver. Each render bumps `self._intra_gen` and synchronously clears `NS_INTRA`,
+then schedules work in chunks of `INTRA_CHUNK=24` pairs via `vim.schedule`.
+Before each chunk it calls the new pure predicate
+`intraline.is_current(gen, current_gen, buf_valid)` — captured generation must
+still match `self._intra_gen` and `nvim_buf_is_valid(self.buf)` must hold — so a
+re-render/reload mid-flight (which bumps the generation) cleanly abandons stale
+work, and a closed buffer never errors. Phase 1 remains a complete render; phase
+2 is purely additive. New unit tests (3 asserts) cover `is_current`
+valid/stale-gen/invalid-buffer. Full suite green (43 intraline asserts; all 6
+suites pass). Note: stylua is installed but the repo enforces no stylua config
+and ships 2-space files repo-wide, so new code follows the existing 2-space
+convention (stylua --check diffs the whole repo, not just this change).
+
 - Goal: move phase-2 off the synchronous path into a chunked, cancellable
   driver keyed by `self._intra_gen`; re-render/reload mid-flight abandons stale
   work and clears `NS_INTRA`.

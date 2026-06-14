@@ -156,4 +156,11 @@ do
   h.assert_eq("build_pairs: no adds", #work, 0)
 end
 
+-- is_current gates async refinement chunks: valid buffer + matching generation.
+do
+  h.assert_eq("is_current: valid + match", intraline.is_current(3, 3, true), true)
+  h.assert_eq("is_current: stale gen", intraline.is_current(2, 3, true), false)
+  h.assert_eq("is_current: invalid buffer", intraline.is_current(3, 3, false), false)
+end
+
 h.finish()

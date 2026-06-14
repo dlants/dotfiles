@@ -230,4 +230,12 @@ function M.build_pairs(dels, adds)
   return work
 end
 
+-- is_current decides whether an in-flight async refinement chunk may still run:
+-- the buffer must remain valid and the generation captured when the chunk was
+-- scheduled must still match the session's current generation. A re-render or
+-- reload bumps the generation, so any stale chunk cleanly abandons its work.
+function M.is_current(gen, current_gen, buf_valid)
+  return buf_valid and gen == current_gen
+end
+
 return M
