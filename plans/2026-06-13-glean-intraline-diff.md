@@ -255,6 +255,19 @@ the repo's 2-space convention.
 
 ## Stage 2 — Affine-gap alignment with early termination
 
+**Status: DONE.** Added `M.align(a, b)` to `intraline.lua`: Gotoh affine-gap DP
+over token sequences with three cost matrices (`Mm`/`Ga`/`Gb`). Only equal tokens
+align on the diagonal (LCS-style); substitutions are modeled as gap-in-b +
+gap-in-a, so gap states can transition into each other (the open term of each gap
+matrix includes the other gap matrix). Constants: `GAP_OPEN=3`, `GAP_EXTEND=1`,
+threshold `max(m,n)*COST_FACTOR` with `COST_FACTOR=2`. Early termination bails to
+`nil` when a row's frontier minimum exceeds the threshold; a final cost over
+threshold (or `INF`) also returns `nil`. Backtrace collects changed token indices
+per side, merged into byte-range `{start_col, end_col}` segments (end exclusive).
+Identical lines return empty segment lists (chosen convention). 4 new test blocks
+(10 asserts): substitution, contiguous insertion, dissimilar→nil, identical→empty.
+Full suite green (330 asserts across 6 suites).
+
 - Goal: `align(a, b)` returns merged changed segments for similar lines and
   `nil` for dissimilar ones; contiguous runs are preferred.
 - Verification (unit):

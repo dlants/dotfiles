@@ -38,4 +38,148 @@ function M.tokenize(s)
   return tokens
 end
 
+-- Affine-gap (Gotoh) token alignment cost constants. GAP_OPEN > GAP_EXTEND so a
+-- contiguous run of changed tokens is cheaper than the same number scattered,
+-- which keeps highlight segments blocky. Unequal tokens never align on the
+-- diagonal (LCS-style: only equal tokens match); a substitution is therefore
+-- modeled as a gap on each side.
+local GAP_OPEN = 3
+local GAP_EXTEND = 1
+-- Early-termination / "too different" threshold, scaled by the longer token
+-- sequence. If the cheapest alignment cost exceeds this, the pair is abandoned.
+local COST_FACTOR = 2
+local INF = math.huge
+
+-- Merge a sorted list of changed token indices into byte-range segments
+-- { start_col, end_col } (end_col exclusive). Consecutive token indices are
+-- byte-adjacent (tokenization covers every byte), so they coalesce.
+local function merge_segments(tokens, changed)
+  local segs = {}
+  local i = 1
+  while i <= #changed do
+    local j = i
+    while j < #changed and changed[j + 1] == changed[j] + 1 do
+      j = j + 1
+    end
+    local first = tokens[changed[i]]
+    local last = tokens[changed[j]]
+    segs[#segs + 1] = { start_col = first.col, end_col = last.col + last.len }
+    i = j + 1
+  end
+  return segs
+end
+
+-- align(a, b) aligns the token sequences of two raw line strings with an
+-- affine-gap DP. Returns { a_segs, b_segs } (byte-range segments of changed
+-- tokens on each side) for sufficiently similar lines, or nil when the lines are
+-- too different (early termination). Identical lines yield empty segment lists.
+function M.align(a, b)
+  local ta = M.tokenize(a)
+  local tb = M.tokenize(b)
+  local m = #ta
+  local n = #tb
+  local max_cost = math.max(m, n) * COST_FACTOR
+
+  -- Three cost matrices (Gotoh): Mm = last step aligned a token to b token;
+  -- Ga = gap in a (a token from b consumed); Gb = gap in b (a token from a
+  -- consumed). Rows 0..m, cols 0..n.
+  local Mm, Ga, Gb = {}, {}, {}
+  for i = 0, m do
+    Mm[i], Ga[i], Gb[i] = {}, {}, {}
+  end
+  Mm[0][0], Ga[0][0], Gb[0][0] = 0, INF, INF
+  for j = 1, n do
+    Mm[0][j] = INF
+    Ga[0][j] = GAP_OPEN + (j - 1) * GAP_EXTEND
+    Gb[0][j] = INF
+  end
+  for i = 1, m do
+    Mm[i][0] = INF
+    Ga[i][0] = INF
+    Gb[i][0] = GAP_OPEN + (i - 1) * GAP_EXTEND
+  end
+
+  for i = 1, m do
+    local row_min = INF
+    for j = 1, n do
+      if ta[i].text == tb[j].text then
+        Mm[i][j] = math.min(Mm[i - 1][j - 1], Ga[i - 1][j - 1], Gb[i - 1][j - 1])
+      else
+        Mm[i][j] = INF
+      end
+      Ga[i][j] = math.min(math.min(Mm[i][j - 1], Gb[i][j - 1]) + GAP_OPEN, Ga[i][j - 1] + GAP_EXTEND)
+      Gb[i][j] = math.min(math.min(Mm[i - 1][j], Ga[i - 1][j]) + GAP_OPEN, Gb[i - 1][j] + GAP_EXTEND)
+      row_min = math.min(row_min, Mm[i][j], Ga[i][j], Gb[i][j])
+    end
+    -- Early termination: no cell in this frontier is cheap enough to recover.
+    if m > 0 and n > 0 and row_min > max_cost then
+      return nil
+    end
+  end
+
+  local final = math.min(Mm[m][n], Ga[m][n], Gb[m][n])
+  if final == INF or final > max_cost then
+    return nil
+  end
+
+  -- Backtrace, collecting changed token indices on each side.
+  local a_changed, b_changed = {}, {}
+  local i, j = m, n
+  local state -- "M" | "Ga" | "Gb"
+  if Mm[m][n] <= Ga[m][n] and Mm[m][n] <= Gb[m][n] then
+    state = "M"
+  elseif Ga[m][n] <= Gb[m][n] then
+    state = "Ga"
+  else
+    state = "Gb"
+  end
+  while i > 0 or j > 0 do
+    if state == "M" then
+      local prev = Mm[i][j]
+      i, j = i - 1, j - 1
+      if Mm[i][j] == prev then
+        state = "M"
+      elseif Ga[i][j] == prev then
+        state = "Ga"
+      else
+        state = "Gb"
+      end
+    elseif state == "Ga" then
+      b_changed[#b_changed + 1] = j
+      if Ga[i][j - 1] + GAP_EXTEND == Ga[i][j] then
+        state = "Ga"
+      elseif Mm[i][j - 1] + GAP_OPEN == Ga[i][j] then
+        state = "M"
+      else
+        state = "Gb"
+      end
+      j = j - 1
+    else -- "Gb"
+      a_changed[#a_changed + 1] = i
+      if Gb[i - 1][j] + GAP_EXTEND == Gb[i][j] then
+        state = "Gb"
+      elseif Mm[i - 1][j] + GAP_OPEN == Gb[i][j] then
+        state = "M"
+      else
+        state = "Ga"
+      end
+      i = i - 1
+    end
+  end
+
+  -- Backtrace collected indices in descending order; reverse for merge.
+  local function reverse(t)
+    local r = {}
+    for k = #t, 1, -1 do
+      r[#r + 1] = t[k]
+    end
+    return r
+  end
+
+  return {
+    a_segs = merge_segments(ta, reverse(a_changed)),
+    b_segs = merge_segments(tb, reverse(b_changed)),
+  }
+end
+
 return M

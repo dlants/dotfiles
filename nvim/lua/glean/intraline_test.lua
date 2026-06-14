@@ -57,4 +57,42 @@ do
   h.assert_eq("tokenize: punct[3] col", toks[3].col, 2)
 end
 
+-- Render a segment list to a compact comparison string.
+local function segs_to_str(segs)
+  local parts = {}
+  for _, s in ipairs(segs) do
+    parts[#parts + 1] = ("%d:%d"):format(s.start_col, s.end_col)
+  end
+  return table.concat(parts, "|")
+end
+
+-- A one-token substitution highlights only that token on each side.
+do
+  local r = intraline.align("value = 1", "value = 2")
+  h.assert_true("align: sub non-nil", r ~= nil)
+  h.assert_eq("align: sub a_segs", segs_to_str(r.a_segs), "8:9")
+  h.assert_eq("align: sub b_segs", segs_to_str(r.b_segs), "8:9")
+end
+
+-- An inserted word run is a single contiguous segment on the longer side.
+do
+  local r = intraline.align("f(x)", "f(x, y)")
+  h.assert_true("align: insert non-nil", r ~= nil)
+  h.assert_eq("align: insert a_segs empty", segs_to_str(r.a_segs), "")
+  h.assert_eq("align: insert b_segs", segs_to_str(r.b_segs), "3:6")
+end
+
+-- Completely different lines early-terminate to nil.
+do
+  h.assert_true("align: dissimilar nil", intraline.align("import os", "return None") == nil)
+end
+
+-- Identical lines yield empty segment lists (no emphasis).
+do
+  local r = intraline.align("same line", "same line")
+  h.assert_true("align: identical non-nil", r ~= nil)
+  h.assert_eq("align: identical a_segs", segs_to_str(r.a_segs), "")
+  h.assert_eq("align: identical b_segs", segs_to_str(r.b_segs), "")
+end
+
 h.finish()
