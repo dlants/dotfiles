@@ -301,6 +301,19 @@ No luacheck on PATH.
 
 ### Stage 3 — overload normal `m` (unmark) + `=` toggle + action wiring
 
+**Status: DONE.** Added a `target.marker` branch at the top of `toggle_seen`
+(returns `Session:unmark_marker(target)`), a `Session:unmark_marker` helper that
+groups the run's `[lo, hi_line]` lines by `(sha, path)` — commits via
+`commit.sha`, combined via `provenance` owner — and unmarks only currently-seen
+lines via a reversible `{kind="seen", op="unmark"}` action. Added a
+`target.marker` branch at the top of `toggle_collapse` (before `section_of`, since
+marker rows also carry `sec`) routing through `collapse_action`, and a marker
+branch in `collapse_action` keying on `marker_key`/`cmarker_key` (content-hashed,
+default collapsed, no model mirror). New init_test Stage 3 block covers mark,
+supersede (merge), toggle+reload persistence, unmark via collapsed row and via
+expanded line, whole-hunk transition, and fall-through. Full glean suite green
+(209 init assertions, +18). No luacheck on PATH.
+
 - Goal: visual `m` marks a sub-range (existing); normal `m` on a marker row/line
   unmarks the whole run, and on a non-marker target toggles the full hunk as
   today; `=` toggles a marker open/closed and persists across reload.

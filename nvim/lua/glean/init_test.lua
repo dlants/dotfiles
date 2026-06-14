@@ -445,6 +445,105 @@ do
   h.assert_true("marker: expanded shows L2", joined2:find("\n+L2", 1, true) ~= nil)
 end
 
+-- Stage 3 — marker interaction: visual `m` marks a sub-range (creating a
+-- marker), `=` toggles it open/closed (persisting across reload), and normal
+-- `m` on a marker row/line unmarks the whole run.
+do
+  local mrepo = testutil.make_repo({
+    { msg = "base", files = { ["m.txt"] = "head\n" } },
+    { msg = "c1: add block", files = { ["m.txt"] = "head\nL1\nL2\nL3\nL4\n" } },
+  })
+  local mdir = vim.fn.tempname()
+  local mrun = function(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = mrepo.root, env = mrepo.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local csha = mrepo.shas[2]
+  local function fresh()
+    return glean.open({
+      base = mrepo.shas[1], target = csha, repo_root = mrepo.root,
+      run = mrun, open_window = false, state_dir = mdir, scope = "commits",
+    })
+  end
+  local function lrow(s, text)
+    return find_row(s, function(_, line, t)
+      return t and t.line and t.sec == "unseen" and line == text
+    end)
+  end
+
+  -- Behavior 1 (mark): visual `m` over +L1,+L2 creates a marker.
+  local s = fresh()
+  local r1, r2 = lrow(s, "+L1"), lrow(s, "+L2")
+  s:mark_visual_range(r1, r2)
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("stage3 mark: marker present", joined:find("✓ marked 2 lines", 1, true) ~= nil)
+  h.assert_eq("stage3 mark: store has range", #s.store:seen_ranges(csha, "m.txt"), 1)
+
+  -- Behavior 2 (supersede): mark +L3 too -> single merged marker of 3 lines.
+  local r3 = lrow(s, "+L3")
+  s:mark_visual_range(r3, r3)
+  joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("stage3 supersede: merged marker", joined:find("✓ marked 3 lines", 1, true) ~= nil)
+  h.assert_true("stage3 supersede: no 2-line marker", joined:find("marked 2 lines", 1, true) == nil)
+  h.assert_eq("stage3 supersede: one merged range", #s.store:seen_ranges(csha, "m.txt"), 1)
+
+  -- Behavior 4 (toggle): `=` on the marker row expands it; `=` again collapses;
+  -- the expanded state survives reload.
+  local mrow = find_row(s, function(_, _, t) return t and t.marker and not t.line end)
+  s:toggle_collapse(mrow)
+  joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("stage3 toggle: expanded after =", joined:find("▾ ✓ marked 3 lines", 1, true) ~= nil)
+  h.assert_true("stage3 toggle: shows L1", joined:find("\n+L1", 1, true) ~= nil)
+  s:reload()
+  joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("stage3 toggle: expansion survives reload", joined:find("▾ ✓ marked 3 lines", 1, true) ~= nil)
+  local mrow2 = find_row(s, function(_, _, t) return t and t.marker and not t.line end)
+  s:toggle_collapse(mrow2)
+  joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("stage3 toggle: collapsed after second =", joined:find("\n  ✓ marked 3 lines", 1, true) ~= nil)
+
+  -- Behavior 3 (unmark): `m` on the collapsed marker row removes the run.
+  local mrow3 = find_row(s, function(_, _, t) return t and t.marker and not t.line end)
+  s:toggle_seen(mrow3)
+  joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("stage3 unmark: marker gone", joined:find("marked", 1, true) == nil)
+  h.assert_true("stage3 unmark: lines visible again", joined:find("\n+L1", 1, true) ~= nil)
+  h.assert_eq("stage3 unmark: store empty", #s.store:seen_ranges(csha, "m.txt"), 0)
+
+  -- Behavior 3b (unmark via expanded line): mark, expand, `m` on a marked line.
+  local s2 = fresh()
+  s2:mark_visual_range(lrow(s2, "+L1"), lrow(s2, "+L2"))
+  local mr = find_row(s2, function(_, _, t) return t and t.marker and not t.line end)
+  s2:toggle_collapse(mr)
+  local mline = find_row(s2, function(_, line, t)
+    return t and t.marker and t.line and line == "+L1"
+  end)
+  s2:toggle_seen(mline)
+  joined = table.concat(api.nvim_buf_get_lines(s2.buf, 0, -1, false), "\n")
+  h.assert_true("stage3 unmark-line: marker gone", joined:find("marked", 1, true) == nil)
+  h.assert_eq("stage3 unmark-line: store empty", #s2.store:seen_ranges(csha, "m.txt"), 0)
+
+  -- Behavior 5 (whole-hunk transition): marking all add lines fully seens the
+  -- hunk; it moves to the seen section and draws no marker rows.
+  local s3 = fresh()
+  s3:mark_visual_range(lrow(s3, "+L1"), lrow(s3, "+L4"))
+  joined = table.concat(api.nvim_buf_get_lines(s3.buf, 0, -1, false), "\n")
+  h.assert_true("stage3 whole-hunk: seen section", joined:find("✓ seen (", 1, true) ~= nil)
+  h.assert_true("stage3 whole-hunk: no marker", joined:find("marked", 1, true) == nil)
+
+  -- Behavior 6 (fall-through): normal `m` on an ordinary hunk line still toggles
+  -- the whole hunk seen.
+  local s4 = fresh()
+  local hline = lrow(s4, "+L1")
+  s4:toggle_seen(hline)
+  joined = table.concat(api.nvim_buf_get_lines(s4.buf, 0, -1, false), "\n")
+  h.assert_true("stage3 fall-through: whole hunk seen", joined:find("✓ seen (", 1, true) ~= nil)
+  h.assert_eq("stage3 fall-through: all lines seen",
+    #s4.store:seen_ranges(csha, "m.txt"), 1)
+end
+
 -- Unseen section: changed hunks render under a default-expanded
 -- "● unseen (N hunks)" header. Collapsing any row in the section (here a diff
 -- line) hides the section body but leaves the file header in place.

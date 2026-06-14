@@ -1010,6 +1010,15 @@ function Session:toggle_collapse(row)
   local target = self.row_map[row]
   if not target then return end
 
+  -- A marker row carries `sec` too, but it toggles only its own collapse key,
+  -- not the whole section, so handle it before the section branch.
+  if target.marker then
+    local action = self:collapse_action(target)
+    if action then self:perform(action) end
+    self:render()
+    return
+  end
+
   -- Section rows (seen/unseen headers, hunks, diff lines) collapse just their
   -- section, leaving the file header in place. Collapsing parks the cursor on
   -- the header; expanding restores the row the user left off on inside it.
@@ -1048,7 +1057,20 @@ function Session:collapse_action(target)
   -- key, obj/field (model mirror, optional), and the boolean the override
   -- toggles to (nil-as-collapsed default for seen sections).
   local key, obj, field, default_collapsed
-  if self.scope == "commits" then
+  -- A marker row toggles only its content-addressed marker key (default
+  -- collapsed), with no model mirror -- like the seen-section override.
+  if target.marker then
+    local path
+    if self.scope == "commits" then
+      path = self.commits[target.commit].files[target.file].path
+    else
+      path = self.combined_files[target.cfile].path
+    end
+    key = (self.scope == "combined")
+      and cmarker_key(path, target.marker.texts)
+      or marker_key(path, target.marker.texts)
+    default_collapsed = true
+  elseif self.scope == "commits" then
     local commit = self.commits[target.commit]
     if target.seen then
       key, default_collapsed = seen_key(commit.sha, commit.files[target.file].path), true
@@ -1151,6 +1173,8 @@ function Session:toggle_seen(row)
   if row == nil then row = self:cursor_row() end
   local target = self.row_map[row]
   if not target then return end
+  -- A marker row/line unmarks its run rather than toggling the whole hunk.
+  if target.marker then return self:unmark_marker(target) end
   if target.seen then return end
   -- Normalize the target to {sha, path, lnums} groups; combined_adapter resolves
   -- either scope's sha to the correct addressing adapter.
@@ -1373,6 +1397,53 @@ function Session:mark_visual_range(srow, erow)
   self:render()
 end
 
+-- Unmark a marker run seen: a marker target carries {lo, hi_line} indices into
+-- its hunk's lines; translate each line to its new_lnum (provenance owner in
+-- combined scope), group by (sha, path), and unmark exactly those lines. The
+-- derived marker disappears once its lines are no longer seen.
+function Session:unmark_marker(target)
+  local mk = target.marker
+  if not mk then return end
+  local groups, by_key = {}, {}
+  local function add(sha, path, lnum)
+    local k = sha .. "\0" .. path
+    local g = by_key[k]
+    if not g then
+      g = { sha = sha, path = path, lnums = {} }
+      by_key[k] = g
+      groups[#groups + 1] = g
+    end
+    g.lnums[#g.lnums + 1] = lnum
+  end
+  if self.scope == "commits" then
+    local commit = self.commits[target.commit]
+    local file = commit.files[target.file]
+    for li = mk.lo, mk.hi_line do
+      local dl = file.hunks[target.hunk].lines[li]
+      if dl.new_lnum then add(commit.sha, file.path, dl.new_lnum) end
+    end
+  else
+    local cf = self.combined_files[target.cfile]
+    for li = mk.lo, mk.hi_line do
+      local dl = cf.hunks[target.hunk].lines[li]
+      local p = dl.new_lnum and self:provenance(cf.path)[dl.new_lnum]
+      if p then add(p.sha, cf.path, p.orig_lnum) end
+    end
+  end
+  -- Unmark only lines currently seen, so the action reverses exactly.
+  local changed = {}
+  for _, g in ipairs(groups) do
+    local ad = self:combined_adapter(g.sha, g.path)
+    local lnums = {}
+    for _, l in ipairs(g.lnums) do
+      if ad.is_seen(l) then lnums[#lnums + 1] = l end
+    end
+    if #lnums > 0 then changed[#changed + 1] = { sha = g.sha, path = g.path, lnums = lnums } end
+  end
+  if #changed == 0 then return end
+  self:perform({ kind = "seen", op = "unmark", groups = changed })
+  self:render()
+end
 -- ---------------------------------------------------------------------------
 -- Comments — content-addressed records { anchor, content[], text } per path,
 -- re-anchored at render time (see resolve_comments / collect_comments).
