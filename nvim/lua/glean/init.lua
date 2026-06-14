@@ -91,6 +91,16 @@ local function cseen_key(path) return "cs:" .. path end
 local function unseen_key(sha, path) return "u:" .. sha .. "\0" .. path end
 local function cunseen_key(path) return "cu:" .. path end
 
+-- Content-addressed collapse key for a marker (a contiguous seen run inside an
+-- unseen hunk). Keyed on the run's joined line texts so it stays stable when the
+-- new-file line numbers shift (live/worktree) between renders.
+local function marker_key(path, texts)
+  return "mk:" .. path .. "\0" .. state_mod.line_hash(table.concat(texts, "\n"))
+end
+local function cmarker_key(path, texts)
+  return "cmk:" .. path .. "\0" .. state_mod.line_hash(table.concat(texts, "\n"))
+end
+
 -- Build the review model for `base..target`: the net diff `files`, the ordered
 -- `commits` (each with its own `commit_diff` files), and the `shas` to load from
 -- the store. For a work-tree target the diff runs base->work tree and the
@@ -186,9 +196,45 @@ local function hunk_is_seen(hunk, resolve)
     local ad, kl = resolve(ln)
     if not ad or not ad.is_seen(kl) then return false end
   end
+
   return true
 end
 
+-- The marker runs of a hunk: each maximal run of consecutive diff lines that
+-- have a `new_lnum` and that `resolve` reports seen. A line with no `new_lnum`
+-- (a deletion) or an unseen line breaks the run. Returns a list of descriptors
+-- `{lo, hi_line, lnum_lo, lnum_hi, n, texts}` where `lo`/`hi_line` index into
+-- `hunk.lines` (inclusive), `lnum_lo`/`lnum_hi` span the run's new-file lines,
+-- and `texts` are the run's line texts (for the content-addressed marker key).
+local function hunk_marker_runs(hunk, resolve)
+  local runs = {}
+  local cur = nil
+  local function close()
+    if cur then runs[#runs + 1] = cur end
+    cur = nil
+  end
+  for i, dl in ipairs(hunk.lines) do
+    local seen = false
+    if dl.new_lnum then
+      local ad, kl = resolve(dl.new_lnum)
+      seen = ad ~= nil and ad.is_seen(kl)
+    end
+    if seen then
+      if not cur then
+        cur = { lo = i, hi_line = i, lnum_lo = dl.new_lnum, lnum_hi = dl.new_lnum, n = 1, texts = { dl.text } }
+      else
+        cur.hi_line = i
+        cur.lnum_hi = dl.new_lnum
+        cur.n = cur.n + 1
+        cur.texts[#cur.texts + 1] = dl.text
+      end
+    else
+      close()
+    end
+  end
+  close()
+  return runs
+end
 -- All new-file ranges a file changes within one commit's diff.
 local function file_new_ranges(file)
   local ranges = {}
@@ -1963,5 +2009,12 @@ function M.setup(opts)
     M.open_dirty()
   end, {})
 end
+
+-- Internal helpers exposed for unit tests only.
+M._internal = {
+  hunk_marker_runs = hunk_marker_runs,
+  marker_key = marker_key,
+  cmarker_key = cmarker_key,
+}
 
 return M
