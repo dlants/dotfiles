@@ -182,34 +182,125 @@ function M.align(a, b)
   }
 end
 
--- pair_lines couples a hunk's deleted lines with its added lines positionally
--- (order-preserving): del[i] pairs with add[i] for i in 1..min(#del, #add), and
--- any surplus lines on the longer side are left unpaired. Returns
+-- similarity(a, b) scores how alike two lines are, in [0, 1], or nil when they
+-- are too different to align at all (M.align early-terminates). The score is the
+-- fraction of bytes left unchanged by the token alignment: identical lines score
+-- 1, and the more bytes the alignment marks as changed, the lower the score.
+-- Normalizing by both lines' length keeps long and short lines comparable.
+local function similarity(a, b)
+  local r = M.align(a, b)
+  if r == nil then
+    return nil
+  end
+  local changed = 0
+  for _, s in ipairs(r.a_segs) do
+    changed = changed + (s.end_col - s.start_col)
+  end
+  for _, s in ipairs(r.b_segs) do
+    changed = changed + (s.end_col - s.start_col)
+  end
+  local total = #a + #b
+  if total == 0 then
+    return 1
+  end
+  return 1 - changed / total
+end
+
+-- A pair is kept only when its similarity beats this threshold; below it, the
+-- two lines read as independent (full rewrite) and stay unpaired.
+local PAIR_THRESHOLD = 0.5
+
+-- pair_lines couples a hunk's deleted lines with its added lines by similarity,
+-- order-preserving (a Needleman-Wunsch alignment one level up, with whole lines
+-- as the elements). Every (del, add) cell is scored with `similarity`; the outer
+-- DP then picks a non-crossing set of pairs that maximizes total similarity.
+-- Each matched pair contributes `sim - PAIR_THRESHOLD` (so a pair is only worth
+-- taking when its similarity clears the threshold) and gaps (an unpaired del or
+-- add) contribute nothing. Returns
 -- { pairs = { { di, ai }, ... }, del_unpaired = { di, ... },
 --   add_unpaired = { ai, ... } } with 1-based indices into the input lists.
 --
--- This is the order-preserving positional coupling; the inner per-pair token
--- alignment (M.align) is run by the caller on each returned pair.
+-- The inner per-pair token alignment (M.align) is re-run by the caller on each
+-- returned pair to obtain the changed-token segments.
 function M.pair_lines(del_texts, add_texts)
   local m = #del_texts
   local n = #add_texts
-  local k = math.min(m, n)
-  local pairs_out, del_unpaired, add_unpaired = {}, {}, {}
-  for i = 1, k do
-    pairs_out[#pairs_out + 1] = { i, i }
+
+  -- sim[i][j] is the normalized similarity of del i and add j, or nil when too
+  -- different to ever pair.
+  local sim = {}
+  for i = 1, m do
+    sim[i] = {}
+    for j = 1, n do
+      sim[i][j] = similarity(del_texts[i], add_texts[j])
+    end
   end
-  for i = k + 1, m do
-    del_unpaired[#del_unpaired + 1] = i
+
+  -- dp[i][j] = best achievable score aligning del 1..i against add 1..j. Gaps
+  -- add 0; a diagonal step pairs del i with add j for `sim - PAIR_THRESHOLD`,
+  -- which is only positive (and so only chosen) when the pair clears threshold.
+  local dp = {}
+  for i = 0, m do
+    dp[i] = {}
+    dp[i][0] = 0
   end
-  for j = k + 1, n do
-    add_unpaired[#add_unpaired + 1] = j
+  for j = 0, n do
+    dp[0][j] = 0
+  end
+  for i = 1, m do
+    for j = 1, n do
+      local best = math.max(dp[i - 1][j], dp[i][j - 1])
+      local s = sim[i][j]
+      if s ~= nil then
+        local diag = dp[i - 1][j - 1] + (s - PAIR_THRESHOLD)
+        if diag > best then
+          best = diag
+        end
+      end
+      dp[i][j] = best
+    end
+  end
+
+  -- Backtrace: prefer a diagonal pairing only when it actually produced the
+  -- cell's score (and cleared threshold), otherwise step through the gap.
+  local pairs_rev = {}
+  local del_paired, add_paired = {}, {}
+  local i, j = m, n
+  while i > 0 and j > 0 do
+    local s = sim[i][j]
+    if s ~= nil and (s - PAIR_THRESHOLD) >= 0 and dp[i][j] == dp[i - 1][j - 1] + (s - PAIR_THRESHOLD) then
+      pairs_rev[#pairs_rev + 1] = { i, j }
+      del_paired[i] = true
+      add_paired[j] = true
+      i, j = i - 1, j - 1
+    elseif dp[i - 1][j] >= dp[i][j - 1] then
+      i = i - 1
+    else
+      j = j - 1
+    end
+  end
+
+  local pairs_out = {}
+  for k = #pairs_rev, 1, -1 do
+    pairs_out[#pairs_out + 1] = pairs_rev[k]
+  end
+  local del_unpaired, add_unpaired = {}, {}
+  for di = 1, m do
+    if not del_paired[di] then
+      del_unpaired[#del_unpaired + 1] = di
+    end
+  end
+  for ai = 1, n do
+    if not add_paired[ai] then
+      add_unpaired[#add_unpaired + 1] = ai
+    end
   end
   return { pairs = pairs_out, del_unpaired = del_unpaired, add_unpaired = add_unpaired }
 end
 
 -- build_pairs couples a hunk's del/add lines into a flat work-list ready for the
 -- renderer. `dels`/`adds` are lists of { row, text } (buffer row + raw line text,
--- marker prefix excluded). Pairing is the order-preserving positional coupling of
+-- marker prefix excluded). Pairing is the order-preserving similarity coupling of
 -- M.pair_lines; each returned item is
 -- { del_row, add_row, del_text, add_text }. Unpaired surplus lines yield no item
 -- (their phase-1 full-line highlight stands).

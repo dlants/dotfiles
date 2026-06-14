@@ -610,13 +610,20 @@ function Session:render()
   api.nvim_buf_set_lines(self.buf, 0, -1, false, lines)
   api.nvim_set_option_value("modifiable", false, { buf = self.buf })
   api.nvim_buf_clear_namespace(self.buf, NS, 0, -1)
+  -- Per-row full-line extmark ids for add/del lines, so phase-2 can downgrade an
+  -- aligned line's background to foreground-only (the emphasis layer then paints
+  -- just the changed spans with the diff background).
+  self._line_marks = {}
   for _, hl in ipairs(highlights) do
-    api.nvim_buf_set_extmark(self.buf, NS, hl.row, 0, {
+    local id = api.nvim_buf_set_extmark(self.buf, NS, hl.row, 0, {
       end_row = hl.row + 1,
       end_col = 0,
       hl_group = hl.hl,
       hl_eol = true,
     })
+    if hl.hl == "GleanAdd" or hl.hl == "GleanDel" then
+      self._line_marks[hl.row] = { id = id, base = hl.hl }
+    end
   end
   self:apply_intraline(intra_work)
   if cur then
@@ -646,13 +653,30 @@ function Session:apply_intraline(intra_work)
   if #intra_work == 0 then
     return
   end
+  -- Downgrade an aligned line's full-line background (placed in phase 1) to a
+  -- foreground-only color, by re-setting its extmark in place. The changed spans
+  -- then carry the diff background, so emphasis reads as "background = changed".
+  local TEXT_HL = { GleanAdd = "GleanAddText", GleanDel = "GleanDelText" }
+  local function downgrade(row)
+    local mark = self._line_marks and self._line_marks[row]
+    if not mark then
+      return
+    end
+    api.nvim_buf_set_extmark(self.buf, NS, row, 0, {
+      id = mark.id,
+      end_row = row + 1,
+      end_col = 0,
+      hl_group = TEXT_HL[mark.base],
+      hl_eol = true,
+    })
+  end
   local function paint(row, segs, hl)
     for _, seg in ipairs(segs) do
       api.nvim_buf_set_extmark(self.buf, NS_INTRA, row, 1 + seg.start_col, {
         end_row = row,
         end_col = 1 + seg.end_col,
         hl_group = hl,
-        priority = 200,
+        priority = 4200,
       })
     end
   end
@@ -666,8 +690,17 @@ function Session:apply_intraline(intra_work)
       local w = intra_work[k]
       local res = intraline.align(w.del_text, w.add_text)
       if res then
-        paint(w.del_row, res.a_segs, "GleanDelEmph")
-        paint(w.add_row, res.b_segs, "GleanAddEmph")
+        -- Only drop a side's full-line background when it actually has changed
+        -- spans to paint; an empty seg list means that line is unchanged, so it
+        -- keeps the default full-line highlight.
+        if #res.a_segs > 0 then
+          downgrade(w.del_row)
+          paint(w.del_row, res.a_segs, "GleanDelEmph")
+        end
+        if #res.b_segs > 0 then
+          downgrade(w.add_row)
+          paint(w.add_row, res.b_segs, "GleanAddEmph")
+        end
       end
     end
     idx = stop + 1
@@ -1802,20 +1835,43 @@ function M.open_dirty(opts)
     repo_root = repo_root, base = base, target = target,
   }))
 end
-function M.setup(opts)
-  M.config = vim.tbl_extend("force", M.config, opts or {})
+-- A foreground-only spec carrying just the visible attributes of `src` (its
+-- foreground color + emphasis), dropping its background. Used for aligned diff
+-- lines, whose background moves to the changed spans only.
+local function fg_only(src)
+  local hl = api.nvim_get_hl(0, { name = src, link = false })
+  return { fg = hl.fg, bold = hl.bold, italic = hl.italic }
+end
+
+-- Highlight groups are (re)applied here and on every ColorScheme, because the
+-- foreground-only GleanAddText/GleanDelText are derived from the resolved
+-- DiffAdd/DiffDelete colors rather than a static link.
+local function setup_highlights()
   api.nvim_set_hl(0, "GleanFileHeader", { link = "Title", default = true })
   api.nvim_set_hl(0, "GleanCommitHeader", { link = "Title", default = true })
   api.nvim_set_hl(0, "GleanHunkHeader", { link = "Comment", default = true })
   api.nvim_set_hl(0, "GleanAdd", { link = "DiffAdd", default = true })
   api.nvim_set_hl(0, "GleanDel", { link = "DiffDelete", default = true })
-  api.nvim_set_hl(0, "GleanAddEmph", { link = "DiffText", default = true })
-  api.nvim_set_hl(0, "GleanDelEmph", { link = "DiffText", default = true })
+  -- Emphasis on a changed span uses the full diff background (green/red).
+  api.nvim_set_hl(0, "GleanAddEmph", { link = "DiffAdd", default = true })
+  api.nvim_set_hl(0, "GleanDelEmph", { link = "DiffDelete", default = true })
+  -- The body of an aligned line: just colored text, no background.
+  api.nvim_set_hl(0, "GleanAddText", fg_only("DiffAdd"))
+  api.nvim_set_hl(0, "GleanDelText", fg_only("DiffDelete"))
   api.nvim_set_hl(0, "GleanContext", { link = "Normal", default = true })
   api.nvim_set_hl(0, "GleanSeen", { link = "NonText", default = true })
   api.nvim_set_hl(0, "GleanComment", { link = "WarningMsg", default = true })
   api.nvim_set_hl(0, "GleanModeHeader", { link = "Title", default = true })
   api.nvim_set_hl(0, "GleanCurrentHunk", { link = "Identifier", default = true })
+end
+
+function M.setup(opts)
+  M.config = vim.tbl_extend("force", M.config, opts or {})
+  setup_highlights()
+  api.nvim_create_autocmd("ColorScheme", {
+    group = api.nvim_create_augroup("GleanHighlights", { clear = true }),
+    callback = setup_highlights,
+  })
   api.nvim_create_user_command("Glean", function(o)
     if o.bang then
       M.open_dirty()
