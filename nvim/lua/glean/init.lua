@@ -15,6 +15,7 @@
 local git_mod = require("glean.git")
 local state_mod = require("glean.state")
 local provenance = require("glean.provenance")
+local intraline = require("glean.intraline")
 local M = {}
 local api = vim.api
 
@@ -23,6 +24,7 @@ local api = vim.api
 -- rather than line ranges, since uncommitted lines have no stable line numbers.
 M.WORKTREE = "WORKTREE"
 local NS = api.nvim_create_namespace("glean_hl")
+local NS_INTRA = api.nvim_create_namespace("glean_intra_hl")
 local NS_CURSOR = api.nvim_create_namespace("glean_cursor_hl")
 
 M.config = {
@@ -453,6 +455,7 @@ function Session:build()
   local lines = {}
   local row_map = {}
   local highlights = {}
+  local intra_work = {}
   local function emit(text, target, hl)
     lines[#lines + 1] = text
     local row = #lines - 1
@@ -474,16 +477,25 @@ function Session:build()
   local function emit_hunk(hunk, hi, target_base, resolve, base_ord, comments_by_ord, sec)
     local target = vim.tbl_extend("force", target_base, { hunk = hi, sec = sec })
     emit("--- " .. hunk.header, target, "GleanHunkHeader")
+    local dels, adds = {}, {}
     for li, dl in ipairs(hunk.lines) do
       local marker = dl.kind == "add" and "+" or dl.kind == "del" and "-" or " "
       local hl = dl.kind == "add" and "GleanAdd"
         or dl.kind == "del" and "GleanDel"
         or "GleanContext"
-      emit(marker .. dl.text,
+      local row = emit(marker .. dl.text,
         vim.tbl_extend("force", target, { line = li }), hl)
+      if dl.kind == "del" then
+        dels[#dels + 1] = { row = row, text = dl.text }
+      elseif dl.kind == "add" then
+        adds[#adds + 1] = { row = row, text = dl.text }
+      end
       for _, c in ipairs(comments_by_ord[base_ord + li] or {}) do
         emit_comment(c)
       end
+    end
+    for _, w in ipairs(intraline.build_pairs(dels, adds)) do
+      intra_work[#intra_work + 1] = w
     end
   end
 
@@ -583,11 +595,11 @@ function Session:build()
     end
   end
 
-  return lines, row_map, highlights
+  return lines, row_map, highlights, intra_work
 end
 
 function Session:render()
-  local lines, row_map, highlights = self:build()
+  local lines, row_map, highlights, intra_work = self:build()
   self.row_map = row_map
   local win = self.win
   local cur
@@ -606,12 +618,39 @@ function Session:render()
       hl_eol = true,
     })
   end
+  self:apply_intraline(intra_work)
   if cur then
     local last = math.max(1, #lines)
     cur[1] = math.min(cur[1], last)
     pcall(api.nvim_win_set_cursor, win, cur)
   end
   self:highlight_cursor_hunk()
+end
+
+-- Phase 2 of rendering: intra-line emphasis. For each paired del/add line whose
+-- token alignment finds them similar enough, paint just the changed token spans
+-- in NS_INTRA (above the phase-1 full-line highlight). Dissimilar pairs (align
+-- returns nil) keep only their dim full-line background. The marker prefix shifts
+-- every span by one byte. Computed synchronously here; Stage 5 moves it async.
+function Session:apply_intraline(intra_work)
+  api.nvim_buf_clear_namespace(self.buf, NS_INTRA, 0, -1)
+  local function paint(row, segs, hl)
+    for _, seg in ipairs(segs) do
+      api.nvim_buf_set_extmark(self.buf, NS_INTRA, row, 1 + seg.start_col, {
+        end_row = row,
+        end_col = 1 + seg.end_col,
+        hl_group = hl,
+        priority = 200,
+      })
+    end
+  end
+  for _, w in ipairs(intra_work) do
+    local res = intraline.align(w.del_text, w.add_text)
+    if res then
+      paint(w.del_row, res.a_segs, "GleanDelEmph")
+      paint(w.add_row, res.b_segs, "GleanAddEmph")
+    end
+  end
 end
 
 -- Mark every row of the hunk under the cursor with a `▌` bar in the sign column,
@@ -1745,6 +1784,8 @@ function M.setup(opts)
   api.nvim_set_hl(0, "GleanHunkHeader", { link = "Comment", default = true })
   api.nvim_set_hl(0, "GleanAdd", { link = "DiffAdd", default = true })
   api.nvim_set_hl(0, "GleanDel", { link = "DiffDelete", default = true })
+  api.nvim_set_hl(0, "GleanAddEmph", { link = "DiffText", default = true })
+  api.nvim_set_hl(0, "GleanDelEmph", { link = "DiffText", default = true })
   api.nvim_set_hl(0, "GleanContext", { link = "Normal", default = true })
   api.nvim_set_hl(0, "GleanSeen", { link = "NonText", default = true })
   api.nvim_set_hl(0, "GleanComment", { link = "WarningMsg", default = true })

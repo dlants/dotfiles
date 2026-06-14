@@ -306,6 +306,24 @@ asserts across 6 suites).
   - Expected: correct `{di, ai}` pairs; no pair references a missing index.
 - Before moving on: confirm tests, type checks, and linting all pass.
 
+**Status: DONE.** Wired phase-2 emphasis synchronously into the renderer.
+`Session:build()` now also returns a flat `intra_work` list — `emit_hunk`
+collects each hunk's del/add lines (buffer `row` + raw `text`) and feeds them
+to the new pure `intraline.build_pairs(dels, adds)` (positional pairing via
+`pair_lines`, surplus dropped), yielding `{del_row, add_row, del_text,
+add_text}` items. New `Session:apply_intraline(intra_work)` clears `NS_INTRA`
+(new namespace `glean_intra_hl`), runs `intraline.align` per pair, and paints
+changed token spans as `NS_INTRA` extmarks at `1 + seg.start/end_col` (marker
+offset) with `priority = 200` above the phase-1 full-line highlight; nil
+(dissimilar) pairs keep only their dim background. New highlight groups
+`GleanAddEmph`/`GleanDelEmph` link `DiffText` by default, defined in `M.setup`.
+2 new unit tests cover `build_pairs` (positional coupling carrying rows/texts;
+deletion-only hunk yields no work). Full suite green (348 asserts across 6
+suites). Deviations: still synchronous (Stage 5 moves it async); the per-hunk
+signal-to-noise gate (`HUNK_GATE`) and whole-line emphasis on unmatched lines
+are not yet implemented — deferred (the plan does not assign them to a numbered
+stage; current behavior leaves unmatched lines on the dim phase-1 background).
+
 ## Stage 4 — Synchronous wiring (prove it visually first)
 
 - Goal: emphasis extmarks render correctly when computed *synchronously* at the

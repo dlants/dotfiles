@@ -136,4 +136,24 @@ do
   h.assert_eq("pair_lines: empty add_unpaired", #r.add_unpaired, 0)
 end
 
+-- build_pairs couples del/add work items positionally, carrying rows + texts and
+-- dropping surplus lines.
+do
+  local work = intraline.build_pairs(
+    { { row = 10, text = "value = 1" }, { row = 12, text = "extra" } },
+    { { row = 20, text = "value = 2" } }
+  )
+  h.assert_eq("build_pairs: count", #work, 1)
+  h.assert_eq("build_pairs: del_row", work[1].del_row, 10)
+  h.assert_eq("build_pairs: add_row", work[1].add_row, 20)
+  h.assert_eq("build_pairs: del_text", work[1].del_text, "value = 1")
+  h.assert_eq("build_pairs: add_text", work[1].add_text, "value = 2")
+end
+
+-- No add lines means no work items (deletion-only hunk).
+do
+  local work = intraline.build_pairs({ { row = 1, text = "a" } }, {})
+  h.assert_eq("build_pairs: no adds", #work, 0)
+end
+
 h.finish()

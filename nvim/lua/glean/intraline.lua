@@ -207,4 +207,27 @@ function M.pair_lines(del_texts, add_texts)
   return { pairs = pairs_out, del_unpaired = del_unpaired, add_unpaired = add_unpaired }
 end
 
+-- build_pairs couples a hunk's del/add lines into a flat work-list ready for the
+-- renderer. `dels`/`adds` are lists of { row, text } (buffer row + raw line text,
+-- marker prefix excluded). Pairing is the order-preserving positional coupling of
+-- M.pair_lines; each returned item is
+-- { del_row, add_row, del_text, add_text }. Unpaired surplus lines yield no item
+-- (their phase-1 full-line highlight stands).
+function M.build_pairs(dels, adds)
+  local del_texts, add_texts = {}, {}
+  for _, d in ipairs(dels) do
+    del_texts[#del_texts + 1] = d.text
+  end
+  for _, a in ipairs(adds) do
+    add_texts[#add_texts + 1] = a.text
+  end
+  local paired = M.pair_lines(del_texts, add_texts)
+  local work = {}
+  for _, p in ipairs(paired.pairs) do
+    local d, a = dels[p[1]], adds[p[2]]
+    work[#work + 1] = { del_row = d.row, add_row = a.row, del_text = d.text, add_text = a.text }
+  end
+  return work
+end
+
 return M
