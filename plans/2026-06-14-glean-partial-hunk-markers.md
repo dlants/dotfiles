@@ -347,6 +347,17 @@ expanded line, whole-hunk transition, and fall-through. Full glean suite green
 ### Stage 4 — combined scope
 
 - Goal: markers work in combined scope, including multi-owner runs.
+
+**Status: DONE.** Verified the marker machinery already flows through combined
+scope unchanged: `emit_hunk` selects `cmarker_key` by scope (init.lua ~535),
+`collapse_action` keys markers on `cmarker_key` (~1070), and `unmark_marker`
+groups run lines by `provenance` owner (~1429), mirroring `mark_visual_range`.
+No production changes were needed. Added a combined-scope test (init_test.lua
+~652) with a fixture whose single hunk's add lines are owned by two commits
+(mm.txt: A1@c1, A2/A3@c2): marking A1+A2 creates one marker routed to both
+owners' stores, A3 stays unseen so the hunk stays unseen, `=` toggles the
+marker (cmarker_key), and `m` unmarks both owners. Full glean suite green
+(init 221 assertions, +12; all suites pass). No luacheck on PATH.
 - Mostly free (shared `emit_hunk`/`resolve`), but verify and fix combined unmark
   grouping (provenance → owner) and `cmarker_key` usage in `toggle_collapse`/
   `collapse_action`.

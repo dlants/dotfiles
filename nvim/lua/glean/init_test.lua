@@ -649,6 +649,67 @@ do
   h.assert_true("combined reopen: g.txt still shown", joined2:find("▾ g.txt", 1, true) ~= nil)
 end
 
+-- Stage 4 — combined-scope markers: a partial seen run inside an unseen hunk
+-- whose lines are owned by two different commits. Marking the sub-range routes
+-- each line to its owner store; the run renders as one marker; `=` toggles it;
+-- `m` unmarks both owners.
+do
+  local crepo = testutil.make_repo({
+    { msg = "base", files = { ["mm.txt"] = "ctx\n" } },
+    { msg = "c1: add A1", files = { ["mm.txt"] = "ctx\nA1\n" } },
+    { msg = "c2: add A2,A3", files = { ["mm.txt"] = "ctx\nA1\nA2\nA3\n" } },
+  })
+  local crun = function(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = crepo.root, env = crepo.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local cdir = vim.fn.tempname()
+  local function copen()
+    return glean.open({
+      base = crepo.shas[1], target = crepo.shas[3], repo_root = crepo.root,
+      run = crun, open_window = false, state_dir = cdir, scope = "combined",
+    })
+  end
+  local function crow(s, text)
+    return find_row(s, function(_, line, t)
+      return t and t.cfile and t.line and t.sec == "unseen" and line == text
+    end)
+  end
+
+  -- Mark A1 (owned c1) + A2 (owned c2); A3 stays unseen so the hunk stays
+  -- unseen and the run collapses to a single marker.
+  local s = copen()
+  s:mark_visual_range(crow(s, "+A1"), crow(s, "+A2"))
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("combined marker: marker present", joined:find("✓ marked 2 lines", 1, true) ~= nil)
+  h.assert_true("combined marker: hunk stays unseen", joined:find("✓ seen (", 1, true) == nil)
+  h.assert_true("combined marker: A3 still visible", joined:find("\n+A3", 1, true) ~= nil)
+  h.assert_true("combined marker: A1 hidden", joined:find("\n+A1", 1, true) == nil)
+  -- Each line routed to its owning commit's store.
+  h.assert_true("combined marker: A1 seen on c1",
+    state.covers(s.store:seen_ranges(crepo.shas[2], "mm.txt"), 2))
+  h.assert_true("combined marker: A2 seen on c2",
+    state.covers(s.store:seen_ranges(crepo.shas[3], "mm.txt"), 3))
+
+  -- `=` toggles the marker open (cmarker_key) then closed.
+  local mrow = find_row(s, function(_, _, t) return t and t.marker and not t.line end)
+  s:toggle_collapse(mrow)
+  joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("combined marker: expanded after =", joined:find("▾ ✓ marked 2 lines", 1, true) ~= nil)
+  h.assert_true("combined marker: expanded shows A1", joined:find("\n+A1", 1, true) ~= nil)
+
+  -- `m` on the marker unmarks both owners' stores.
+  local mrow2 = find_row(s, function(_, _, t) return t and t.marker and not t.line end)
+  s:toggle_seen(mrow2)
+  joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("combined marker: marker gone after unmark", joined:find("marked", 1, true) == nil)
+  h.assert_true("combined marker: A1 visible again", joined:find("\n+A1", 1, true) ~= nil)
+  h.assert_eq("combined marker: c1 store empty", #s.store:seen_ranges(crepo.shas[2], "mm.txt"), 0)
+  h.assert_eq("combined marker: c2 store empty", #s.store:seen_ranges(crepo.shas[3], "mm.txt"), 0)
+end
+
 -- (e): comments in combined route to the owning commit of each line.
 do
   local dir = vim.fn.tempname()
