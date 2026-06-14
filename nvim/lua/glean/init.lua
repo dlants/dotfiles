@@ -1115,8 +1115,74 @@ function Session:toggle_seen(row)
     if #lnums > 0 then changed[#changed + 1] = { sha = g.sha, path = g.path, lnums = lnums } end
   end
   if #changed == 0 then return end
+  -- Resolve the next hunk to land on *before* marking: marking relocates rows
+  -- (the cursor's row number is preserved by render but its semantic target
+  -- changes), so deciding afterwards skips a hunk. A hunk's identity
+  -- (commit/file/cfile + hunk index) is stable across the seen-move.
+  local next_key = self:next_hunk_key(row)
   self:perform({ kind = "seen", op = op, groups = changed })
   self:render()
+  self:move_to_hunk_key(next_key)
+end
+
+-- Stable identity of a hunk target, surviving its relocation into the seen
+-- section (the hunk index into file.hunks does not change when marked seen).
+local function hunk_key(t)
+  if not t then return nil end
+  if t.commit then return ("c:%d:%d:%d"):format(t.commit, t.file or 0, t.hunk or 0) end
+  if t.cfile then return ("f:%d:%d"):format(t.cfile, t.hunk or 0) end
+  return nil
+end
+
+-- The identity of the next still-unseen hunk after `row`'s hunk, in document
+-- order. Captured before a mark so the cursor can reliably land on it once the
+-- just-marked hunk's rows relocate.
+function Session:next_hunk_key(row)
+  local cur_key = hunk_key(self.row_map[row])
+  local best, best_t
+  for r, t in pairs(self.row_map) do
+    if t.hunk and not t.line and t.sec ~= "seen" and hunk_key(t) ~= cur_key then
+      if r > row and (not best or r < best) then best, best_t = r, t end
+    end
+  end
+  return hunk_key(best_t)
+end
+
+-- Park the cursor on a hunk header row and scroll so as much of the hunk as
+-- possible is visible: if its last row is below the viewport, scroll down until
+-- the bottom shows -- but never so far that the header itself scrolls off the
+-- top. Only ever scrolls down (revealing more of the hunk), never up.
+function Session:move_to_hunk_row(row)
+  if not (self.win and api.nvim_win_is_valid(self.win)) then return end
+  pcall(api.nvim_win_set_cursor, self.win, { row + 1, 0 })
+  local key = hunk_key(self.row_map[row])
+  if not key then return end
+  local last = row
+  for r, t in pairs(self.row_map) do
+    if hunk_key(t) == key and r > last then last = r end
+  end
+  api.nvim_win_call(self.win, function()
+    local view = vim.fn.winsaveview()
+    local height = api.nvim_win_get_height(self.win)
+    local top = view.topline - 1
+    local bottom = top + height - 1
+    if last > bottom then
+      local new_top = math.max(top, math.min(last - height + 1, row))
+      view.topline = new_top + 1
+      vim.fn.winrestview(view)
+    end
+  end)
+end
+
+-- Move the cursor to the rendered header row of the hunk with `key`, if any.
+function Session:move_to_hunk_key(key)
+  if not key then return self:move_to_next_hunk() end
+  if not (self.win and api.nvim_win_is_valid(self.win)) then return end
+  for r, t in pairs(self.row_map) do
+    if t.hunk and not t.line and hunk_key(t) == key then
+      return self:move_to_hunk_row(r)
+    end
+  end
   self:move_to_next_hunk()
 end
 
@@ -1133,7 +1199,7 @@ function Session:move_to_next_hunk()
       if r >= cur and (not best or r < best) then best = r end
     end
   end
-  if best then pcall(api.nvim_win_set_cursor, self.win, { best + 1, 0 }) end
+  if best then self:move_to_hunk_row(best) end
 end
 
 -- Move the cursor to the nearest rendered row matching `pred` in the given
@@ -1152,7 +1218,14 @@ function Session:nav_to(pred, forward)
       end
     end
   end
-  if best then pcall(api.nvim_win_set_cursor, self.win, { best + 1, 0 }) end
+  if best then
+    local t = self.row_map[best]
+    if t.hunk and not t.line and not t.seen then
+      self:move_to_hunk_row(best)
+    else
+      pcall(api.nvim_win_set_cursor, self.win, { best + 1, 0 })
+    end
+  end
 end
 
 local function is_hunk_row(t)

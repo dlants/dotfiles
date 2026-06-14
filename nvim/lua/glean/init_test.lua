@@ -918,4 +918,85 @@ do
   h.assert_eq("buffer: reused on reopen", s2.buf, s.buf)
 end
 
+-- Multi-hunk navigation: a file with three well-separated hunks (the third very
+-- long) exercises move-to-next-hunk after a mark and scroll-into-view on ]c.
+do
+  local function lines_with(overrides, n)
+    local t = {}
+    for i = 1, n do t[i] = overrides[i] or ("line" .. i) end
+    return table.concat(t, "\n") .. "\n"
+  end
+  local base_overrides = {}
+  local tgt_overrides = { [10] = "line10_X", [30] = "line30_Y" }
+  for i = 50, 89 do tgt_overrides[i] = "line" .. i .. "_Z" end
+  local mrepo = testutil.make_repo({
+    { msg = "base", files = { ["m.txt"] = lines_with(base_overrides, 90) } },
+    { msg = "edit", files = { ["m.txt"] = lines_with(tgt_overrides, 90) } },
+  })
+  local function open_m()
+    return glean.open({
+      base = mrepo.shas[1],
+      target = mrepo.shas[2],
+      repo_root = mrepo.root,
+      run = function(args)
+        local cmd = { "git" }
+        for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+        local res = vim.system(cmd, { cwd = mrepo.root, env = mrepo.env, text = true }):wait()
+        return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+      end,
+      open_window = true,
+      state_dir = vim.fn.tempname(),
+    })
+  end
+
+  local function hunk_headers(s)
+    local hs = {}
+    local n = api.nvim_buf_line_count(s.buf)
+    for row = 0, n - 1 do
+      local t = s.row_map[row]
+      if t and t.hunk and not t.line and t.sec ~= "seen" then hs[#hs + 1] = row end
+    end
+    return hs
+  end
+
+  -- test 1: mark a middle line of hunk 1 seen; cursor lands on hunk 2's header.
+  do
+    local s = open_m()
+    local hs = hunk_headers(s)
+    h.assert_true("multihunk: three hunks rendered", #hs == 3)
+    local h1 = s.row_map[hs[1]]
+    local h2 = s.row_map[hs[2]]
+    -- a body line of hunk 1 (between its header and hunk 2's header).
+    local mid
+    for row = hs[1] + 1, hs[2] - 1 do
+      local t = s.row_map[row]
+      if t and t.line and t.cfile == h1.cfile and t.hunk == h1.hunk then mid = row break end
+    end
+    h.assert_true("multihunk: found hunk 1 body line", mid ~= nil)
+    s:toggle_seen(mid)
+    local cur = s:cursor_row()
+    local ct = s.row_map[cur]
+    h.assert_true("multihunk: cursor on a hunk header after mark",
+      ct and ct.hunk and not ct.line)
+    h.assert_true("multihunk: cursor on hunk 2 (not skipped to hunk 3)",
+      ct.cfile == h2.cfile and ct.hunk == h2.hunk)
+  end
+
+  -- test 2: focus the long hunk 3 via ]c; its header scrolls to the top line.
+  do
+    local s = open_m()
+    api.nvim_set_option_value("scrolloff", 0, { win = s.win })
+    local hs = hunk_headers(s)
+    -- park on hunk 2, then ]c forward to hunk 3 (long, taller than the window).
+    api.nvim_win_set_cursor(s.win, { hs[2] + 1, 0 })
+    s:next_hunk()
+    local h3 = hs[3]
+    h.assert_eq("multihunk: ]c lands on hunk 3 header", s:cursor_row(), h3)
+    local topline = api.nvim_win_call(s.win, function()
+      return vim.fn.winsaveview().topline
+    end)
+    h.assert_eq("multihunk: hunk 3 header scrolled to top", topline - 1, h3)
+  end
+end
+
 h.finish()
