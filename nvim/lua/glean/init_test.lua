@@ -397,6 +397,54 @@ do
   h.assert_true("seen-section: row has seen target", srow ~= nil)
 end
 
+-- Stage 2 — marker rendering: a partial seen run inside an unseen hunk renders
+-- as a default-collapsed "✓ marked N lines" row; the marked lines are hidden
+-- while the rest of the hunk stays visible and the hunk remains unseen.
+do
+  local mrepo = testutil.make_repo({
+    { msg = "base", files = { ["m.txt"] = "head\n" } },
+    { msg = "c1: add block", files = { ["m.txt"] = "head\nL1\nL2\nL3\nL4\n" } },
+  })
+  local mdir = vim.fn.tempname()
+  local mrun = function(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = mrepo.root, env = mrepo.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local s = glean.open({
+    base = mrepo.shas[1], target = mrepo.shas[2], repo_root = mrepo.root,
+    run = mrun, open_window = false, state_dir = mdir, scope = "commits",
+  })
+  -- mark new-file lines 2..3 (L1,L2) seen, leaving L3,L4 unseen.
+  local csha = mrepo.shas[2]
+  s.store:mark_seen(csha, "m.txt", { 2, 3 })
+  s.store:save_commit(csha)
+  s:render()
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("marker: collapsed row present", joined:find("✓ marked 2 lines", 1, true) ~= nil)
+  h.assert_true("marker: marked lines hidden", joined:find("\n+L1", 1, true) == nil)
+  h.assert_true("marker: marked lines hidden 2", joined:find("\n+L2", 1, true) == nil)
+  h.assert_true("marker: unseen lines visible", joined:find("\n+L3", 1, true) ~= nil)
+  h.assert_true("marker: hunk stays unseen", joined:find("✓ seen (", 1, true) == nil)
+  -- the marker row carries a {marker=...} target with no line and the right span.
+  local mrow = find_row(s, function(_, _, t) return t and t.marker and not t.line end)
+  h.assert_true("marker: row has marker target", mrow ~= nil)
+  local mk = s.row_map[mrow].marker
+  h.assert_eq("marker: span lo lnum", mk.lnum_lo, 2)
+  h.assert_eq("marker: span hi lnum", mk.lnum_hi, 3)
+  h.assert_eq("marker: run length", mk.n, 2)
+  -- expanding the marker (flip its collapse key) shows the marked lines with the
+  -- seen highlight, under an open-chevron header.
+  local key = glean._internal.marker_key("m.txt", mk.texts)
+  s.collapse[key] = false
+  s:render()
+  local joined2 = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("marker: expanded header", joined2:find("▾ ✓ marked 2 lines", 1, true) ~= nil)
+  h.assert_true("marker: expanded shows L1", joined2:find("\n+L1", 1, true) ~= nil)
+  h.assert_true("marker: expanded shows L2", joined2:find("\n+L2", 1, true) ~= nil)
+end
+
 -- Unseen section: changed hunks render under a default-expanded
 -- "● unseen (N hunks)" header. Collapsing any row in the section (here a diff
 -- line) hides the section body but leaves the file header in place.

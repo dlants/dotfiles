@@ -268,6 +268,18 @@ Full glean suite green (380 assertions). No luacheck on PATH.
 
 ### Stage 2 — render markers in `emit_hunk` (commits scope)
 
+**Status: DONE.** `emit_hunk` now takes a `path` arg and walks `hunk.lines`,
+emitting `hunk_marker_runs` as marker rows: collapsed (default) → one
+`  ✓ marked N lines` row (no `line` field, `GleanSeen`); expanded → a
+`  ▾ ✓ marked N lines` header plus each run line rendered `GleanSeen` with
+`{line=ri, marker=…}`. Marker target carries `{lo, hi_line, lnum_lo, lnum_hi,
+n, texts}`; collapse key is `marker_key`/`cmarker_key` by scope (default
+collapsed). Non-marker lines, comments, and intraline pairing unchanged (runs
+excluded from del/add pairing). New init_test covers collapsed row, hidden
+marked lines, visible unseen lines, hunk staying unseen, marker target span, and
+manual-expand showing the lines. Full glean suite green (191 init assertions).
+No luacheck on PATH.
+
 - Goal: an unseen hunk with a partial seen run renders the run as a default-
   collapsed `✓ marked N lines` row; expanding (manually flipping the collapse key
   in a test) shows the lines with `GleanSeen`.

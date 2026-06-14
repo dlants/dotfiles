@@ -520,24 +520,59 @@ function Session:build()
     end
   end
 
-  local function emit_hunk(hunk, hi, target_base, resolve, base_ord, comments_by_ord, sec)
+  local function emit_hunk(hunk, hi, target_base, resolve, base_ord, comments_by_ord, sec, path)
     local target = vim.tbl_extend("force", target_base, { hunk = hi, sec = sec })
     emit("--- " .. hunk.header, target, "GleanHunkHeader")
+    local runs = hunk_marker_runs(hunk, resolve)
+    local run_at = {}
+    for _, run in ipairs(runs) do run_at[run.lo] = run end
     local dels, adds = {}, {}
-    for li, dl in ipairs(hunk.lines) do
-      local marker = dl.kind == "add" and "+" or dl.kind == "del" and "-" or " "
-      local hl = dl.kind == "add" and "GleanAdd"
-        or dl.kind == "del" and "GleanDel"
-        or "GleanContext"
-      local row = emit(marker .. dl.text,
-        vim.tbl_extend("force", target, { line = li }), hl)
-      if dl.kind == "del" then
-        dels[#dels + 1] = { row = row, text = dl.text }
-      elseif dl.kind == "add" then
-        adds[#adds + 1] = { row = row, text = dl.text }
-      end
-      for _, c in ipairs(comments_by_ord[base_ord + li] or {}) do
-        emit_comment(c)
+    local li = 1
+    while li <= #hunk.lines do
+      local run = run_at[li]
+      if run then
+        local mk = (self.scope == "combined")
+          and cmarker_key(path, run.texts) or marker_key(path, run.texts)
+        local collapsed = self.collapse[mk]
+        if collapsed == nil then collapsed = true end
+        local mtarget = vim.tbl_extend("force", target, { marker = {
+          lo = run.lo, hi_line = run.hi_line,
+          lnum_lo = run.lnum_lo, lnum_hi = run.lnum_hi,
+          n = run.n, texts = run.texts,
+        } })
+        local label = ("marked %d line%s"):format(run.n, run.n == 1 and "" or "s")
+        if collapsed then
+          emit("  ✓ " .. label, mtarget, "GleanSeen")
+        else
+          emit("  " .. CHEVRON_OPEN .. " ✓ " .. label, mtarget, "GleanSeen")
+          for ri = run.lo, run.hi_line do
+            local dl = hunk.lines[ri]
+            local m = dl.kind == "add" and "+" or dl.kind == "del" and "-" or " "
+            emit(m .. dl.text,
+              vim.tbl_extend("force", mtarget, { line = ri }), "GleanSeen")
+            for _, c in ipairs(comments_by_ord[base_ord + ri] or {}) do
+              emit_comment(c)
+            end
+          end
+        end
+        li = run.hi_line + 1
+      else
+        local dl = hunk.lines[li]
+        local m = dl.kind == "add" and "+" or dl.kind == "del" and "-" or " "
+        local hl = dl.kind == "add" and "GleanAdd"
+          or dl.kind == "del" and "GleanDel"
+          or "GleanContext"
+        local row = emit(m .. dl.text,
+          vim.tbl_extend("force", target, { line = li }), hl)
+        if dl.kind == "del" then
+          dels[#dels + 1] = { row = row, text = dl.text }
+        elseif dl.kind == "add" then
+          adds[#adds + 1] = { row = row, text = dl.text }
+        end
+        for _, c in ipairs(comments_by_ord[base_ord + li] or {}) do
+          emit_comment(c)
+        end
+        li = li + 1
       end
     end
     for _, w in ipairs(intraline.build_pairs(dels, adds)) do
@@ -562,7 +597,7 @@ function Session:build()
         vim.tbl_extend("force", target_base, { seen = true }), "GleanSeen")
       if not c then
         for _, hi in ipairs(seen_idx) do
-          emit_hunk(file.hunks[hi], hi, target_base, resolve, base_ord[hi], comments_by_ord, "seen")
+          emit_hunk(file.hunks[hi], hi, target_base, resolve, base_ord[hi], comments_by_ord, "seen", file.path)
         end
       end
     end
@@ -573,7 +608,7 @@ function Session:build()
         vim.tbl_extend("force", target_base, { unseen = true }), "GleanFileHeader")
       if not c then
         for _, hi in ipairs(unseen_idx) do
-          emit_hunk(file.hunks[hi], hi, target_base, resolve, base_ord[hi], comments_by_ord, "unseen")
+          emit_hunk(file.hunks[hi], hi, target_base, resolve, base_ord[hi], comments_by_ord, "unseen", file.path)
         end
       end
     end
