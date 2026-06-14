@@ -614,12 +614,14 @@ function Session:render()
   self:highlight_cursor_hunk()
 end
 
--- Highlight every row of the hunk under the cursor with CursorLine, so the
--- active hunk reads as a single block. Cleared and reapplied on each move.
+-- Mark every row of the hunk under the cursor with a `▌` bar in the sign column,
+-- so the active hunk's extent reads as a single contiguous block in the gutter.
+-- Cleared and reapplied on each move.
 function Session:highlight_cursor_hunk()
   if not (self.buf and api.nvim_buf_is_valid(self.buf)) then return end
   api.nvim_buf_clear_namespace(self.buf, NS_CURSOR, 0, -1)
   if not (self.win and api.nvim_win_is_valid(self.win)) then return end
+  api.nvim_set_option_value("signcolumn", "yes:1", { win = self.win })
   local t = self.row_map[self:cursor_row()]
   if not (t and t.hunk) then return end
   local function same(o)
@@ -629,7 +631,8 @@ function Session:highlight_cursor_hunk()
   for r, o in pairs(self.row_map) do
     if same(o) then
       api.nvim_buf_set_extmark(self.buf, NS_CURSOR, r, 0, {
-        line_hl_group = "CursorLine",
+        sign_text = "▌",
+        sign_hl_group = "GleanCurrentHunk",
         priority = 100,
       })
     end
@@ -1248,8 +1251,8 @@ function Session:edit_comment_under(row)
 end
 
 -- Open an ephemeral, multi-line comment editor in a split above the glean
--- window, seeded with `initial` lines. `:w` submits the (trimmed-of-empty)
--- buffer text to `on_submit`; `q` or `<C-c>` cancels. The scratch buffer is
+-- window, seeded with `initial` lines. `:w` or `<CR>` (normal mode) submits the
+-- (trimmed-of-empty) buffer text to `on_submit`; `q` or `<C-c>` cancels. The scratch buffer is
 -- wiped on close so nothing persists outside the review store.
 function Session:open_comment_editor(initial, on_submit)
   local ebuf = api.nvim_create_buf(false, true)
@@ -1281,6 +1284,7 @@ function Session:open_comment_editor(initial, on_submit)
   end
 
   api.nvim_create_autocmd("BufWriteCmd", { buffer = ebuf, callback = function() finish(true) end })
+  vim.keymap.set("n", "<CR>", function() finish(true) end, { buffer = ebuf, nowait = true, silent = true })
   vim.keymap.set("n", "q", function() finish(false) end, { buffer = ebuf, nowait = true, silent = true })
   vim.keymap.set("n", "<C-c>", function() finish(false) end, { buffer = ebuf, silent = true })
   vim.cmd("startinsert")
@@ -1734,7 +1738,6 @@ function M.open_dirty(opts)
     repo_root = repo_root, base = base, target = target,
   }))
 end
-
 function M.setup(opts)
   M.config = vim.tbl_extend("force", M.config, opts or {})
   api.nvim_set_hl(0, "GleanFileHeader", { link = "Title", default = true })
@@ -1746,6 +1749,7 @@ function M.setup(opts)
   api.nvim_set_hl(0, "GleanSeen", { link = "NonText", default = true })
   api.nvim_set_hl(0, "GleanComment", { link = "WarningMsg", default = true })
   api.nvim_set_hl(0, "GleanModeHeader", { link = "Title", default = true })
+  api.nvim_set_hl(0, "GleanCurrentHunk", { link = "Identifier", default = true })
   api.nvim_create_user_command("Glean", function(o)
     if o.bang then
       M.open_dirty()

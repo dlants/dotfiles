@@ -182,4 +182,29 @@ function M.align(a, b)
   }
 end
 
+-- pair_lines couples a hunk's deleted lines with its added lines positionally
+-- (order-preserving): del[i] pairs with add[i] for i in 1..min(#del, #add), and
+-- any surplus lines on the longer side are left unpaired. Returns
+-- { pairs = { { di, ai }, ... }, del_unpaired = { di, ... },
+--   add_unpaired = { ai, ... } } with 1-based indices into the input lists.
+--
+-- This is the order-preserving positional coupling; the inner per-pair token
+-- alignment (M.align) is run by the caller on each returned pair.
+function M.pair_lines(del_texts, add_texts)
+  local m = #del_texts
+  local n = #add_texts
+  local k = math.min(m, n)
+  local pairs_out, del_unpaired, add_unpaired = {}, {}, {}
+  for i = 1, k do
+    pairs_out[#pairs_out + 1] = { i, i }
+  end
+  for i = k + 1, m do
+    del_unpaired[#del_unpaired + 1] = i
+  end
+  for j = k + 1, n do
+    add_unpaired[#add_unpaired + 1] = j
+  end
+  return { pairs = pairs_out, del_unpaired = del_unpaired, add_unpaired = add_unpaired }
+end
+
 return M

@@ -287,6 +287,17 @@ Full suite green (330 asserts across 6 suites).
 
 ## Stage 3 — Line pairing
 
+**Status: DONE.** Added `M.pair_lines(del_texts, add_texts)` to
+`intraline.lua`: order-preserving positional coupling — `del[i]` pairs with
+`add[i]` for `i in 1..min(#del,#add)`, surplus on the longer side left
+unpaired. Returns `{ pairs = {{di, ai}, ...}, del_unpaired = {...},
+add_unpaired = {...} }` with 1-based indices. (Deviation from the plan's
+sketched outer NW/similarity-matrix pairing: Stage 3's verification calls for
+positional pairing, so the fancier order-preserving alignment is deferred; the
+caller runs `M.align` per returned pair.) 4 new test blocks (12 asserts) cover
+equal-length, surplus-del, surplus-add, and empty inputs. Full suite green (342
+asserts across 6 suites).
+
 - Goal: `pair_lines` couples del/add lines within a hunk run (positional).
 - Verification (unit):
   - Behavior: equal-length runs pair index-for-index; unequal runs leave the

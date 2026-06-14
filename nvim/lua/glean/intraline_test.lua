@@ -95,4 +95,45 @@ do
   h.assert_eq("align: identical b_segs", segs_to_str(r.b_segs), "")
 end
 
+-- Render a pair list to a compact comparison string.
+local function pairs_to_str(pairs_out)
+  local parts = {}
+  for _, p in ipairs(pairs_out) do
+    parts[#parts + 1] = ("%d-%d"):format(p[1], p[2])
+  end
+  return table.concat(parts, "|")
+end
+
+-- Equal-length runs pair index-for-index with no surplus.
+do
+  local r = intraline.pair_lines({ "a", "b", "c" }, { "x", "y", "z" })
+  h.assert_eq("pair_lines: equal pairs", pairs_to_str(r.pairs), "1-1|2-2|3-3")
+  h.assert_eq("pair_lines: equal del_unpaired", #r.del_unpaired, 0)
+  h.assert_eq("pair_lines: equal add_unpaired", #r.add_unpaired, 0)
+end
+
+-- Surplus del lines are left unpaired.
+do
+  local r = intraline.pair_lines({ "a", "b", "c" }, { "x" })
+  h.assert_eq("pair_lines: more del pairs", pairs_to_str(r.pairs), "1-1")
+  h.assert_eq("pair_lines: more del unpaired", table.concat(r.del_unpaired, ","), "2,3")
+  h.assert_eq("pair_lines: more del add_unpaired", #r.add_unpaired, 0)
+end
+
+-- Surplus add lines are left unpaired.
+do
+  local r = intraline.pair_lines({ "a" }, { "x", "y", "z" })
+  h.assert_eq("pair_lines: more add pairs", pairs_to_str(r.pairs), "1-1")
+  h.assert_eq("pair_lines: more add del_unpaired", #r.del_unpaired, 0)
+  h.assert_eq("pair_lines: more add unpaired", table.concat(r.add_unpaired, ","), "2,3")
+end
+
+-- Empty inputs produce no pairs and no unpaired surplus.
+do
+  local r = intraline.pair_lines({}, {})
+  h.assert_eq("pair_lines: empty pairs", #r.pairs, 0)
+  h.assert_eq("pair_lines: empty del_unpaired", #r.del_unpaired, 0)
+  h.assert_eq("pair_lines: empty add_unpaired", #r.add_unpaired, 0)
+end
+
 h.finish()
