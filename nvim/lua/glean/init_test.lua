@@ -445,6 +445,43 @@ do
   h.assert_true("marker: expanded shows L2", joined2:find("\n+L2", 1, true) ~= nil)
 end
 
+-- Deletion lines collapse into a marker too: visually marking only the deleted
+-- rows of a mixed (del+add) hunk yields a "✓ marked N lines" marker, hides those
+-- rows, records a committed del identity, and leaves the hunk unseen (its add
+-- line is still unreviewed). Regression: del lines (no new_lnum) used to be
+-- ignored by the marker scan, so a del-only mark never collapsed.
+do
+  local drepo = testutil.make_repo({
+    { msg = "base", files = { ["d.txt"] = "head\nA\nB\nC\nfoot\n" } },
+    { msg = "c1: rework", files = { ["d.txt"] = "head\nX\nfoot\n" } },
+  })
+  local ddir = vim.fn.tempname()
+  local drun = function(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = drepo.root, env = drepo.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local s = glean.open({
+    base = drepo.shas[1], target = drepo.shas[2], repo_root = drepo.root,
+    run = drun, open_window = false, state_dir = ddir, scope = "commits",
+  })
+  local function drow(text)
+    return find_row(s, function(_, line, t) return t and t.line and line == text end)
+  end
+  s:mark_visual_range(drow("-A"), drow("-C"))
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("del marker: collapsed row present", joined:find("✓ marked 3 lines", 1, true) ~= nil)
+  h.assert_true("del marker: deleted rows hidden", joined:find("\n-A", 1, true) == nil)
+  h.assert_true("del marker: add line still visible", joined:find("\n+X", 1, true) ~= nil)
+  h.assert_true("del marker: hunk stays unseen", joined:find("✓ seen (", 1, true) == nil)
+  h.assert_true("del marker: committed del identity stored",
+    #s.store:seen_del_ranges(drepo.shas[2], "d.txt") > 0)
+end
+
+-- Stage 3 — marker interaction: visual `m` marks a sub-range (creating a
+-- marker), `=` toggles it open/closed (persisting across reload), and normal
+-- `m` on a marker row/line unmarks the whole run.
 -- Stage 3 — marker interaction: visual `m` marks a sub-range (creating a
 -- marker), `=` toggles it open/closed (persisting across reload), and normal
 -- `m` on a marker row/line unmarks the whole run.

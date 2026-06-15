@@ -12,14 +12,14 @@ local h = testutil.new()
 
 local I = glean._internal
 
--- A fake adapter whose seen set is a set of new-file line numbers.
-local function fake_resolve(seen)
-  local ad = { is_seen = function(ln) return seen[ln] == true end }
-  return function(ln) return ad, ln end
+-- A fake predicate whose seen set is a set of line texts. The real renderer
+-- passes a closure over the line-identity store; here we key on text so both
+-- adds and deletions can be marked seen.
+local function fake_seen(seen)
+  return function(dl) return seen[dl.text] == true end
 end
-
 -- Hunk: lines 1..8 where lines map to new_lnum 1..7 (line 5 is a deletion,
--- no new_lnum). Mark new_lnums {2,3,4} and {7} seen.
+-- no new_lnum).
 local hunk = {
   lines = {
     { kind = "context", text = "l1", new_lnum = 1 },
@@ -32,8 +32,7 @@ local hunk = {
     { kind = "context", text = "l8", new_lnum = 8 },
   },
 }
-
-local runs = I.hunk_marker_runs(hunk, fake_resolve({ [2] = true, [3] = true, [4] = true, [7] = true }))
+local runs = I.hunk_marker_runs(hunk, fake_seen({ l2 = true, l3 = true, l4 = true, l7 = true }))
 h.assert_eq("two runs", #runs, 2)
 h.assert_eq("run1 lo", runs[1].lo, 2)
 h.assert_eq("run1 hi_line", runs[1].hi_line, 4)
@@ -44,14 +43,21 @@ h.assert_eq("run1 texts", table.concat(runs[1].texts, ","), "l2,l3,l4")
 h.assert_eq("run2 lo", runs[2].lo, 7)
 h.assert_eq("run2 n", runs[2].n, 1)
 h.assert_eq("run2 lnum_lo", runs[2].lnum_lo, 7)
-
--- A deletion (no new_lnum) breaks a run even if both sides are seen.
-local broken = I.hunk_marker_runs(hunk, fake_resolve({ [4] = true, [5] = true }))
-h.assert_eq("deletion breaks run -> two runs", #broken, 2)
-
+-- A seen deletion joins a contiguous run with an adjacent seen add.
+local with_del = I.hunk_marker_runs(hunk, fake_seen({ l4 = true, gone = true }))
+h.assert_eq("add+del coalesce -> one run", #with_del, 1)
+h.assert_eq("add+del run texts", table.concat(with_del[1].texts, ","), "l4,gone")
+h.assert_eq("add+del run n", with_del[1].n, 2)
+-- A pure-deletion run collapses on its own (lnum bounds are nil).
+local del_only = I.hunk_marker_runs(hunk, fake_seen({ gone = true }))
+h.assert_eq("del-only -> one run", #del_only, 1)
+h.assert_eq("del-only texts", table.concat(del_only[1].texts, ","), "gone")
+h.assert_true("del-only lnum_lo nil", del_only[1].lnum_lo == nil)
+-- An unseen changed line in the middle breaks the run.
+local broken = I.hunk_marker_runs(hunk, fake_seen({ l2 = true, l4 = true }))
+h.assert_eq("gap breaks run -> two runs", #broken, 2)
 -- No seen lines -> no runs.
-h.assert_eq("no seen -> no runs", #I.hunk_marker_runs(hunk, fake_resolve({})), 0)
-
+h.assert_eq("no seen -> no runs", #I.hunk_marker_runs(hunk, fake_seen({})), 0)
 -- Marker keys are content-addressed and scope-prefixed.
 local k1 = I.marker_key("f.txt", { "a", "b" })
 local k2 = I.marker_key("f.txt", { "a", "b" })

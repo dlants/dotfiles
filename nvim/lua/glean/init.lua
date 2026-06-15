@@ -162,13 +162,15 @@ end
 local CHEVRON_OPEN = "▾"
 local CHEVRON_CLOSED = "▸"
 
--- The marker runs of a hunk: each maximal run of consecutive diff lines that
--- have a `new_lnum` and that `resolve` reports seen. A line with no `new_lnum`
--- (a deletion) or an unseen line breaks the run. Returns a list of descriptors
+-- The marker runs of a hunk: each maximal run of consecutive *changed* (add or
+-- del) diff lines that `is_seen(dl)` reports seen. A context line or an unseen
+-- changed line breaks the run, so a contiguous block of seen deletions collapses
+-- into its own marker exactly like seen additions. Returns a list of descriptors
 -- `{lo, hi_line, lnum_lo, lnum_hi, n, texts}` where `lo`/`hi_line` index into
--- `hunk.lines` (inclusive), `lnum_lo`/`lnum_hi` span the run's new-file lines,
--- and `texts` are the run's line texts (for the content-addressed marker key).
-local function hunk_marker_runs(hunk, resolve)
+-- `hunk.lines` (inclusive), `lnum_lo`/`lnum_hi` span the run's new-file lines
+-- (nil across a pure-deletion run), and `texts` are the run's line texts (for
+-- the content-addressed marker key).
+local function hunk_marker_runs(hunk, is_seen)
   local runs = {}
   local cur = nil
   local function close()
@@ -176,17 +178,14 @@ local function hunk_marker_runs(hunk, resolve)
     cur = nil
   end
   for i, dl in ipairs(hunk.lines) do
-    local seen = false
-    if dl.new_lnum then
-      local ad, kl = resolve(dl.new_lnum)
-      seen = ad ~= nil and ad.is_seen(kl)
-    end
-    if seen then
+    local changed = dl.kind == "add" or dl.kind == "del"
+    if changed and is_seen(dl) then
       if not cur then
         cur = { lo = i, hi_line = i, lnum_lo = dl.new_lnum, lnum_hi = dl.new_lnum, n = 1, texts = { dl.text } }
       else
         cur.hi_line = i
-        cur.lnum_hi = dl.new_lnum
+        cur.lnum_hi = dl.new_lnum or cur.lnum_hi
+        cur.lnum_lo = cur.lnum_lo or dl.new_lnum
         cur.n = cur.n + 1
         cur.texts[#cur.texts + 1] = dl.text
       end
@@ -196,39 +195,6 @@ local function hunk_marker_runs(hunk, resolve)
   end
   close()
   return runs
-end
-
--- The addressing adapter for a (commit, path): real commits use the line-range
--- adapter; the floating commit uses the content-hash adapter, supplied the
--- working-tree file's current line texts so it can translate new_lnum ↔ content.
-function Session:adapter_for(commit, path)
-  if commit.sha == M.WORKTREE then
-    return state_mod.hash_adapter(self.store, M.WORKTREE, path, self:worktree_lines(path))
-  end
-  return state_mod.range_adapter(self.store, commit.sha, path)
-end
-
--- The addressing adapter for a combined-scope owner sha: the floating commit's
--- uncommitted lines (owner sha == WORKTREE, via blame's zero-sha remap) use the
--- content-hash adapter; every real commit uses the line-range adapter.
-function Session:combined_adapter(sha, path)
-  if sha == M.WORKTREE then
-    return state_mod.hash_adapter(self.store, M.WORKTREE, path, self:worktree_lines(path))
-  end
-  return state_mod.range_adapter(self.store, sha, path)
-end
-
--- The working-tree file's current lines (array indexed by new_lnum), cached.
--- This is the live content the floating commit's content hashes are matched
--- against; for both tracked-dirty and untracked files new_lnum == file line.
-function Session:worktree_lines(path)
-  self._wt_lines = self._wt_lines or {}
-  if self._wt_lines[path] == nil then
-    local abs = self.git.repo_root .. "/" .. path
-    local ok, lines = pcall(vim.fn.readfile, abs)
-    self._wt_lines[path] = (ok and lines) or {}
-  end
-  return self._wt_lines[path]
 end
 
 -- ---------------------------------------------------------------------------
@@ -550,12 +516,18 @@ function Session:build()
     end
   end
 
-  local function emit_hunk(hunk, hi, target_base, resolve, base_ord, comments_by_ord, sec, path)
+  local function emit_hunk(hunk, hi, target_base, owner, base_ord, comments_by_ord, sec, path)
     local target = vim.tbl_extend("force", target_base, { hunk = hi, sec = sec })
     emit("--- " .. hunk.header, target, "GleanHunkHeader")
     -- Markers are an unseen-hunk affordance only: a hunk in the seen section is
-    -- fully seen and always renders whole, never collapsing sub-ranges.
-    local runs = sec == "seen" and {} or hunk_marker_runs(hunk, resolve)
+    -- fully seen and always renders whole, never collapsing sub-ranges. A run is
+    -- any contiguous block of seen changed lines (adds or dels), via the shared
+    -- line-identity predicate.
+    local seen_line = function(dl)
+      local id = self:line_identity(dl, path, owner)
+      return id ~= nil and self.store:is_seen(id)
+    end
+    local runs = sec == "seen" and {} or hunk_marker_runs(hunk, seen_line)
     local run_at = {}
     for _, run in ipairs(runs) do run_at[run.lo] = run end
     local dels, adds = {}, {}
@@ -612,7 +584,7 @@ function Session:build()
     end
   end
 
-  local function emit_file_body(file, target_base, resolve, owner, seen_ck, comments_by_ord, unseen_ck)
+  local function emit_file_body(file, target_base, owner, seen_ck, comments_by_ord, unseen_ck)
     local seen_idx, unseen_idx = {}, {}
     local base_ord = {}
     local acc = 0
@@ -629,7 +601,7 @@ function Session:build()
         vim.tbl_extend("force", target_base, { seen = true }), "GleanSeen")
       if not c then
         for _, hi in ipairs(seen_idx) do
-          emit_hunk(file.hunks[hi], hi, target_base, resolve, base_ord[hi], comments_by_ord, "seen", file.path)
+          emit_hunk(file.hunks[hi], hi, target_base, owner, base_ord[hi], comments_by_ord, "seen", file.path)
         end
       end
     end
@@ -640,7 +612,7 @@ function Session:build()
         vim.tbl_extend("force", target_base, { unseen = true }), "GleanFileHeader")
       if not c then
         for _, hi in ipairs(unseen_idx) do
-          emit_hunk(file.hunks[hi], hi, target_base, resolve, base_ord[hi], comments_by_ord, "unseen", file.path)
+          emit_hunk(file.hunks[hi], hi, target_base, owner, base_ord[hi], comments_by_ord, "unseen", file.path)
         end
       end
     end
@@ -663,9 +635,7 @@ function Session:build()
           emit(("  %s %s %s%s"):format(fchev, fmark, file.path, kind),
             { commit = ci, file = fi }, "GleanFileHeader")
           if not file.collapsed then
-            local adapter = self:adapter_for(commit, file.path)
-            local resolve = function(ln) return adapter, ln, commit.sha, file.path end
-            emit_file_body(file, { commit = ci, file = fi }, resolve,
+            emit_file_body(file, { commit = ci, file = fi },
               self:commit_owner(commit),
               seen_key(commit.sha, file.path), self:resolve_comments(file),
               unseen_key(commit.sha, file.path))
@@ -680,13 +650,7 @@ function Session:build()
       local kind = cf.kind and (" [" .. cf.kind .. "]") or ""
       emit(chevron .. " " .. cf.path .. kind, { cfile = fi }, "GleanFileHeader")
       if not cf.raw.collapsed then
-        local prov = self:provenance(cf.path)
-        local resolve = function(ln)
-          local p = prov[ln]
-          if not p then return nil end
-          return self:combined_adapter(p.sha, cf.path), p.orig_lnum, p.sha, cf.path
-        end
-        emit_file_body(cf, { cfile = fi }, resolve, self:combined_owner(cf.path),
+        emit_file_body(cf, { cfile = fi }, self:combined_owner(cf.path),
           cseen_key(cf.path), self:resolve_comments(cf), cunseen_key(cf.path))
       end
     end
