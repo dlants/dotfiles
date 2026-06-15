@@ -212,6 +212,18 @@ function Git:blame(ref, path, first, last)
   return self:run(args)
 end
 
+-- Reverse (forward-walking) porcelain blame over `start_rev..end_rev` for a
+-- path. For each line present in `start_rev`'s version, git reports the *last*
+-- revision in the range in which the line still existed; the commit that removed
+-- it is that revision's child. The porcelain header `<sha> <orig> <final>` then
+-- gives, for each `final` line of the start file, the reporting commit `sha` and
+-- that line's number `orig` in the reporting commit (the deleter's parent), so
+-- combined-scope deletions resolve to the same immutable identity as commit
+-- scope. Returns the raw output; parsing reuses provenance.parse_blame.
+function Git:reverse_blame(start_rev, end_rev, path)
+  return self:run({ "blame", "-p", "--reverse", start_rev .. ".." .. end_rev, "--", path })
+end
+
 -- A cheap signature of the working-tree state, used by the live-update timer to
 -- skip a rebuild when nothing changed. Combines HEAD, the tracked diff against
 -- HEAD (catches in-file content edits), and the porcelain status (catches

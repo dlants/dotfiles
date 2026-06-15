@@ -1515,9 +1515,9 @@ do
     base = mr.shas[1], target = mr.shas[4], repo_root = mr.root, run = runmr,
     open_window = false, state_dir = vim.fn.tempname(), -- combined scope
   })
-  local r = s:del_remover("t.txt", "x")
+  local r = s:del_attribution("t.txt")[1]
   h.assert_true("del dup: resolves", r ~= nil)
-  h.assert_eq("del dup: first remover in stack order is c1", r.sha, mr.shas[2])
+  h.assert_eq("del dup: deleter of base line is c1", r.sha, mr.shas[2])
 end
 
 -- Stage 5 invariants — locked as tests.

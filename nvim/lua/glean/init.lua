@@ -213,14 +213,14 @@ end
 
 -- The per-line owner closure for a combined-scope file: an add/context line's
 -- owner is its blame provenance (sha + orig_lnum). A deletion is owned by the
--- commit that first removed it (resolved via `del_remover`, in that commit's
+-- commit that removed it (resolved via `del_attribution`, in that commit's
 -- immutable pre-image coords), or WORKTREE when the removal is uncommitted.
 function Session:combined_owner(path)
   local prov = self:provenance(path)
   return function(dl)
     if dl.kind == "del" then
-      local r = self:del_remover(path, dl.text)
-      if r then return r.sha, r.lnum end
+      local a = self:del_attribution(path)[dl.old_lnum]
+      if a then return a.sha, a.lnum end
       return M.WORKTREE
     end
     if not dl.new_lnum then return nil end
@@ -230,37 +230,35 @@ function Session:combined_owner(path)
   end
 end
 
--- Resolve a combined-scope deletion (path + text) to the immutable identity of
--- the commit that first removed it: scan the ordered commit stack's commit_diff
--- for the first del line with the same path+text, adopting that commit's
--- pre-image `old_lnum`. Identical to the commit-scope `(sha, old_lnum)`, so a
--- mark made in one view is seen in the other. A deletion present only in the
--- work tree (no committed remover) returns nil → content-hashed under WORKTREE.
--- Cached per path as text -> { sha, lnum }; the first remover in stack order
--- wins deterministically when the same text is deleted by several commits.
-function Session:del_remover(path, text)
-  self._del_remover = self._del_remover or {}
-  local by_text = self._del_remover[path]
-  if by_text == nil then
-    by_text = {}
+-- Resolve combined-scope deletions to the immutable identity of the commit that
+-- removed each line, numerically via `git blame --reverse` over base..target.
+-- Reverse blame reports, for every base line, the *last* revision in which the
+-- line still existed (`sha`) and its number there (`orig`); the line's deleter
+-- is that revision's child in the ordered stack, and `orig` equals the deleter's
+-- pre-image `old_lnum` -- the very `(sha, old_lnum)` commit scope records, so a
+-- mark made in one view is seen in the other. The porcelain `final` field is the
+-- base line number, i.e. the combined diff's del `old_lnum`, which keys the
+-- returned map `old_lnum -> { sha, lnum }`. Lines that survive to the target, or
+-- whose deleter is the floating work tree, are omitted -> content-hashed under
+-- WORKTREE. Cached per path.
+function Session:del_attribution(path)
+  self._del_attr = self._del_attr or {}
+  if self._del_attr[path] == nil then
+    local map = {}
+    local end_rev = self.target ~= M.WORKTREE and self.target or "HEAD"
+    -- child[sha] = the commit whose deletion removed a line last present in <sha>.
+    local child, prev = {}, self.git:rev_parse(self.base) or self.base
     for _, c in ipairs(self.commits) do
-      if c.sha ~= M.WORKTREE then
-        for _, f in ipairs(c.files) do
-          if f.path == path then
-            for _, h in ipairs(f.hunks) do
-              for _, dl in ipairs(h.lines) do
-                if dl.kind == "del" and by_text[dl.text] == nil then
-                  by_text[dl.text] = { sha = c.sha, lnum = dl.old_lnum }
-                end
-              end
-            end
-          end
-        end
-      end
+      if c.sha ~= M.WORKTREE then child[prev] = c.sha; prev = c.sha end
     end
-    self._del_remover[path] = by_text
+    local out = self.git:reverse_blame(self.base, end_rev, path)
+    for final, p in pairs((out and provenance.parse_blame(out)) or {}) do
+      local deleter = child[p.sha]
+      if deleter then map[final] = { sha = deleter, lnum = p.orig_lnum } end
+    end
+    self._del_attr[path] = map
   end
-  return by_text[text]
+  return self._del_attr[path]
 end
 
 -- The stable seen-identity of one changed diff line, or nil for a context line
@@ -1755,7 +1753,7 @@ function Session:reload()
   self.store = store
   self._wt_lines = nil
   self._prov = nil
-  self._del_remover = nil
+  self._del_attr = nil
   self.combined_files = nil
   self:apply_collapse()
   self:render()
