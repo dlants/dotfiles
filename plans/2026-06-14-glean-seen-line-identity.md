@@ -221,6 +221,40 @@ blocks duplicated across `toggle_seen` / `mark_visual_range` / `unmark_marker`.
 - [x] Flat seen-identity store landed; full suite green (state 64, init 221).
 - Before moving on: confirm tests, type checks, and linting all pass.
 
+> **Stage 2 status: DONE.** init.lua gained the canonical resolver:
+> `Session:commit_owner`/`combined_owner` (per-line owner closures),
+> `line_identity`/`changed_lines`/`line_seen`/`hunk_seen`, and `file_seen`/
+> `commit_seen` rewritten to fold over `hunk_seen` (changed lines only, context
+> excluded). `emit_file_body` now takes an `owner` and places hunks via
+> `self:hunk_seen(...)`; the commit/file header glyphs read the same predicate,
+> so placement ⇔ glyph by construction. Add lines resolve in both scopes
+> (commit `(sha,new_lnum)`/worktree hash; combined blame owner); commit-scope
+> del lines resolve to `(sha,old_lnum)`; combined-scope del lines stay untracked
+> (no `new_lnum` → unowned), parity with today, closing in Stage 4.
+> Action layer: `apply_seen` now accepts either an identity list (`a.ids`, used
+> by commit-scope `toggle_seen`) or legacy `groups` (combined scope +
+> visual/marker, untouched this stage). `toggle_seen` commit branch folds the
+> target to `target_identities` and marks/unmarks via `store:mark`/`unmark`, so
+> commit-scope del lines now participate. `target_seen` reimplemented on
+> `hunk_seen`. Decisions/deviations:
+> - Pulled the commit-scope mark path onto identities now (rather than fully in
+>   Stage 3) because placement ⇔ predicate requires the renderer and the action
+>   layer to agree on the same identity set once del lines count. The broader
+>   Stage 3 purge (delete `target_seen`/`hunk_anchor_lnums`/`hunk_is_seen`, and
+>   migrate visual/marker to identities) remains. `hunk_anchor_lnums`/
+>   `hunk_is_seen`/`target_groups` are now dead but left for Stage 3 to remove.
+> - `hunk_marker_runs` still keyed off the adapter `resolve` closure (kept
+>   alongside the new `owner`); its per-line seen check coincides with the
+>   identity predicate for add lines, so markers stay consistent.
+> - init_test `stage3 fall-through` shared its store with the prior whole-hunk
+>   mark; under the corrected `file_seen` (changed-lines, not full range incl.
+>   context) that commit now collapses as fully seen, so the test was given its
+>   own fresh store to exercise fall-through from scratch.
+> - Added init tests: resolver placement⇔predicate + header-glyph agreement,
+>   commit-scope deletion-only hunk participates (seen section + `seen_del`),
+>   and per-line committed-vs-dirty identity (committed `B` line-addressed,
+>   edited `D` content-addressed). Full suite green (init 221→233, state 64).
+
 ## Stage 2 — Canonical resolver + renderer reads through it
 
 - Goal: introduce `Session:changed_lines(hunk)`, `Session:line_identity(file,

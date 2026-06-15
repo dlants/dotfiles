@@ -534,8 +534,12 @@ do
   h.assert_true("stage3 whole-hunk: no marker", joined:find("marked", 1, true) == nil)
 
   -- Behavior 6 (fall-through): normal `m` on an ordinary hunk line still toggles
-  -- the whole hunk seen.
-  local s4 = fresh()
+  -- the whole hunk seen. Uses its own store so the hunk starts unseen (the
+  -- shared mdir already has it fully marked from the prior whole-hunk behavior).
+  local s4 = glean.open({
+    base = mrepo.shas[1], target = csha, repo_root = mrepo.root,
+    run = mrun, open_window = false, state_dir = vim.fn.tempname(), scope = "commits",
+  })
   local hline = lrow(s4, "+L1")
   s4:toggle_seen(hline)
   joined = table.concat(api.nvim_buf_get_lines(s4.buf, 0, -1, false), "\n")
@@ -1207,4 +1211,111 @@ do
   end
 end
 
+-- Stage 2 — canonical resolver: the file-header glyph and the seen-section
+-- placement are now the same computation, so marking a hunk's changed lines
+-- (with context lines left untouched) makes the file header agree it is seen.
+do
+  local s = open({ scope = "commits", state_dir = vim.fn.tempname() })
+  -- c2 has two files (f.txt + g.txt), so it stays expanded after we mark only
+  -- f.txt; that keeps the f.txt header visible to read its glyph.
+  local frow = find_row(s, function(_, line, t)
+    return t and t.commit == 2 and t.file and not t.hunk and line:find("f.txt", 1, true)
+  end)
+  h.assert_true("resolver: found c2 f.txt header", frow ~= nil)
+  local commit = s.commits[2]
+  local file
+  for _, f in ipairs(commit.files) do
+    if f.path == "f.txt" then file = f end
+  end
+  h.assert_true("resolver: file_seen false before mark", not s:file_seen(commit, file))
+  s:toggle_seen(frow)
+  h.assert_true("resolver: file_seen true after marking changed lines",
+    s:file_seen(commit, file))
+  local _, fline = find_row(s, function(_, line, t)
+    return t and t.commit == 2 and t.file and not t.hunk and line:find("f.txt", 1, true)
+  end)
+  h.assert_true("resolver: f.txt header glyph agrees (✓)", fline:find("✓", 1, true) ~= nil)
+  -- Placement ⇔ predicate: every rendered hunk row's section equals hunk_seen.
+  local n = api.nvim_buf_line_count(s.buf)
+  local agree = true
+  for row = 0, n - 1 do
+    local t = s.row_map[row]
+    if t and t.commit and t.file and t.hunk and not t.line and not t.marker then
+      local c = s.commits[t.commit]
+      local cf = c.files[t.file]
+      local seen = s:hunk_seen(cf.hunks[t.hunk], cf.path, s:commit_owner(c))
+      if seen ~= (t.sec == "seen") then agree = false end
+    end
+  end
+  h.assert_true("resolver: placement ⇔ hunk_seen for every hunk row", agree)
+end
+-- Stage 2 — commit-scope deletion-only hunk participates: a hunk that only
+-- removes a line (no add lines) is markable seen and tucks into the seen
+-- section; its del identity persists in the commit's pre-image coords.
+do
+  local dr = testutil.make_repo({
+    { msg = "base", files = { ["d.txt"] = "a\nb\nc\n" } },
+    { msg = "c1: delete b", files = { ["d.txt"] = "a\nc\n" } },
+  })
+  local function rund(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = dr.root, env = dr.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local s = glean.open({
+    base = dr.shas[1], target = dr.shas[2], repo_root = dr.root, run = rund,
+    open_window = false, state_dir = vim.fn.tempname(), scope = "commits",
+  })
+  local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("del-hunk: shows -b deletion", joined:find("\n-b", 1, true) ~= nil)
+  h.assert_true("del-hunk: starts unseen", joined:find("✓ seen", 1, true) == nil)
+  local frow = find_row(s, function(_, line, t)
+    return t and t.commit == 1 and t.file and not t.hunk and line:find("d.txt", 1, true)
+  end)
+  s:toggle_seen(frow)
+  local jseen = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
+  h.assert_true("del-hunk: marking moves it to the seen section",
+    jseen:find("✓ seen", 1, true) ~= nil)
+  h.assert_true("del-hunk: del identity persisted in pre-image coords",
+    #s.store:seen_del_ranges(dr.shas[2], "d.txt") > 0)
+end
+-- Stage 2 — per-line committed-vs-dirty identity: in a file with a committed
+-- edit plus an uncommitted edit, the committed add line keeps its (sha, lnum)
+-- identity while only the edited line falls back to a content hash.
+do
+  local wm = testutil.make_repo({
+    { msg = "base", files = { ["m.txt"] = "a\nb\nc\nd\n" } },
+    { msg = "c1: b->B", files = { ["m.txt"] = "a\nB\nc\nd\n" } },
+  })
+  local f = assert(io.open(wm.root .. "/m.txt", "w"))
+  f:write("a\nB\nc\nD\n") -- uncommitted edit of line 4
+  f:close()
+  local function runwm(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = wm.root, env = wm.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local s = glean.open({
+    base = wm.shas[1], target = glean.WORKTREE, repo_root = wm.root, run = runwm,
+    open_window = false, state_dir = vim.fn.tempname(), -- combined scope
+  })
+  local cf = s.combined_files[1]
+  local owner = s:combined_owner(cf.path)
+  local function id_for(text)
+    for _, hunk in ipairs(cf.hunks) do
+      for _, dl in ipairs(hunk.lines) do
+        if dl.kind == "add" and dl.text == text then
+          return s:line_identity(dl, cf.path, owner)
+        end
+      end
+    end
+  end
+  local bid = id_for("B")
+  local did = id_for("D")
+  h.assert_true("identity: committed B is line-addressed", bid ~= nil and bid.kind == "add")
+  h.assert_eq("identity: committed B owned by c1", bid.sha, wm.shas[2])
+  h.assert_true("identity: dirty D is content-addressed", did ~= nil and did.kind == "wt")
+end
 h.finish()
