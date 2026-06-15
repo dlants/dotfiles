@@ -1179,6 +1179,15 @@ local function hunk_key(t)
   return nil
 end
 
+-- Whether two hunk targets belong to the same displayed file (commit+file in
+-- the commits scope, cfile in combined).
+local function same_file(a, b)
+  if not (a and b) then return false end
+  if a.commit then return a.commit == b.commit and a.file == b.file end
+  if a.cfile then return a.cfile == b.cfile end
+  return false
+end
+
 -- The seen-identities a target row addresses: every changed (add/del) line of
 -- the commit (commit header), file (file header), or hunk it covers. Context
 -- and unowned lines carry no identity and are excluded, so marking a unit is
@@ -1282,9 +1291,9 @@ function Session:toggle_seen(row)
   -- (the cursor's row number is preserved by render but its semantic target
   -- changes), so deciding afterwards skips a hunk. A hunk's identity
   -- (commit/file/cfile + hunk index) is stable across the seen-move.
-  -- Marking advances to the next still-unseen hunk; unmarking keeps focus on the
-  -- hunk just revived, landing on its head once it relocates to the unseen body.
-  local dest_key = op == "unmark" and hunk_key(target) or self:next_hunk_key(row)
+  -- Marking advances to the next still-unseen hunk; unmarking lands on the next
+  -- seen hunk of the same file (or the file's first unseen hunk when none remain).
+  local dest_key = op == "unmark" and self:revive_dest_key(row, target) or self:next_hunk_key(row)
   self:perform(action)
   self:render()
   self:move_to_hunk_key(dest_key)
@@ -1302,6 +1311,30 @@ function Session:next_hunk_key(row)
     end
   end
   return hunk_key(best_t)
+end
+
+-- Where to land after un-marking the hunk at `row`: the next *seen* hunk of the
+-- same file after it (still in the seen section), or, when none remain, the
+-- first unseen hunk of that file. Captured before the mark so the cursor can
+-- reliably land once the just-revived hunk's rows relocate.
+function Session:revive_dest_key(row, target)
+  local cur_key = hunk_key(target)
+  local best, best_t
+  for r, t in pairs(self.row_map) do
+    if t.hunk and not t.line and t.sec == "seen" and same_file(t, target)
+      and hunk_key(t) ~= cur_key and r > row and (not best or r < best) then
+      best, best_t = r, t
+    end
+  end
+  if best_t then return hunk_key(best_t) end
+  best, best_t = nil, nil
+  for r, t in pairs(self.row_map) do
+    if t.hunk and not t.line and t.sec == "unseen" and same_file(t, target)
+      and (not best or r < best) then
+      best, best_t = r, t
+    end
+  end
+  return best_t and hunk_key(best_t) or cur_key
 end
 
 -- Park the cursor on a hunk header row and scroll so as much of the hunk as
