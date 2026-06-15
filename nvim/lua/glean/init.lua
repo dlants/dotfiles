@@ -844,6 +844,34 @@ function Session:highlight_cursor_hunk()
 end
 
 -- ---------------------------------------------------------------------------
+-- The inclusive [lo, hi] row span of the hunk under `row` (the same set of rows
+-- highlight_cursor_hunk paints), or nil when the row is not inside a hunk.
+function Session:hunk_range(row)
+  local t = self.row_map[row]
+  if not (t and t.hunk) then return end
+  local function same(o)
+    return o and o.hunk == t.hunk and o.commit == t.commit
+      and o.file == t.file and o.cfile == t.cfile
+  end
+  local lo, hi
+  for r, o in pairs(self.row_map) do
+    if same(o) then
+      if not lo or r < lo then lo = r end
+      if not hi or r > hi then hi = r end
+    end
+  end
+  return lo, hi
+end
+
+-- Linewise-select the hunk under the cursor. Wired to the `ac` text object, so
+-- it composes in both visual (`vac`) and operator-pending (`dac`, etc.) modes.
+function Session:select_hunk_textobj()
+  local lo, hi = self:hunk_range(self:cursor_row())
+  if not (lo and self.win and api.nvim_win_is_valid(self.win)) then return end
+  api.nvim_win_set_cursor(self.win, { lo + 1, 0 })
+  vim.cmd("normal! V")
+  api.nvim_win_set_cursor(self.win, { hi + 1, 0 })
+end
 -- Undo / redo — the buffer is a non-modifiable projection, so native undo does
 -- not apply. Each user action (seen toggle, comment, collapse) is captured as a
 -- small reversible action table; undo applies its reversal and moves it to the
@@ -1875,6 +1903,7 @@ local function setup_keymaps(buf, session)
   map("n", "dc", function() session:delete_comment_at() end)
   map("n", "u", function() session:undo() end)
   map("n", "<C-r>", function() session:redo() end)
+  map({ "x", "o" }, "ac", function() session:select_hunk_textobj() end)
   map("n", "]c", function() session:next_hunk() end)
   map("n", "[c", function() session:prev_hunk() end)
   map("n", "]f", function() session:next_file() end)
@@ -2020,7 +2049,8 @@ function M.resolve_dirty(git)
   return base or M.config.default_base, M.WORKTREE
 end
 
--- Open a review of "current branch + dirty" with no base/target args.
+-- Open a review of "current branch + dirty". An explicit `opts.base` overrides
+-- the resolved fork-point/upstream base; the target is always the work tree.
 function M.open_dirty(opts)
   opts = opts or {}
   local repo_root = opts.repo_root
@@ -2029,7 +2059,7 @@ function M.open_dirty(opts)
   local git = git_mod.new({ repo_root = repo_root, run = opts.run })
   local base, target = M.resolve_dirty(git)
   return M.open(vim.tbl_extend("force", opts, {
-    repo_root = repo_root, base = base, target = target,
+    repo_root = repo_root, base = opts.base or base, target = target,
   }))
 end
 -- A foreground-only spec carrying just the visible attributes of `src` (its
@@ -2070,22 +2100,17 @@ function M.setup(opts)
     callback = setup_highlights,
   })
   api.nvim_create_user_command("Glean", function(o)
-    if o.bang then
-      M.open_dirty()
-      return
-    end
     local args = o.fargs
     if #args == 0 then
       M.open_dirty()
       return
     end
-    local base = args[1] or M.config.default_base
-    local target = args[2] or "HEAD"
-    M.open({ base = base, target = target })
-  end, { nargs = "*", bang = true })
-  api.nvim_create_user_command("GleanDirty", function()
-    M.open_dirty()
-  end, {})
+    if #args == 1 then
+      M.open_dirty({ base = args[1] })
+      return
+    end
+    M.open({ base = args[1], target = args[2] })
+  end, { nargs = "*" })
 end
 
 -- Internal helpers exposed for unit tests only.
