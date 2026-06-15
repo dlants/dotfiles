@@ -548,6 +548,65 @@ do
     #s4.store:seen_ranges(csha, "m.txt"), 1)
 end
 
+-- Stage 3 — identity-only action layer: marking a hunk addresses only its
+-- changed (add/del) lines, never the surrounding context (no "filling"); and
+-- mark/unmark and undo/redo round-trip the seen set byte-identically.
+do
+  local irepo = testutil.make_repo({
+    { msg = "base", files = { ["i.txt"] = "a\nb\nc\n" } },
+    { msg = "c1: insert INS", files = { ["i.txt"] = "a\nb\nINS\nc\n" } },
+  })
+  local irun = function(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = irepo.root, env = irepo.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local ish = irepo.shas[2]
+  local function iopen(dir)
+    return glean.open({
+      base = irepo.shas[1], target = ish, repo_root = irepo.root,
+      run = irun, open_window = false, state_dir = dir, scope = "commits",
+    })
+  end
+  local function encode_shard(s)
+    return vim.json.encode(s.store.data[ish] or { files = {} })
+  end
+
+  -- Marking the hunk covers only the add line (new_lnum 3), never the context
+  -- lines (1, 2, 4): context carries no identity, so it is never filled.
+  local s = iopen(vim.fn.tempname())
+  local insrow = find_row(s, function(_, line, t)
+    return t and t.commit and t.line and t.sec == "unseen" and line == "+INS"
+  end)
+  local empty = encode_shard(s)
+  s:toggle_seen(insrow)
+  local seen = s.store:seen_ranges(ish, "i.txt")
+  h.assert_true("stage3 ctx: add line 3 seen", state.covers(seen, 3))
+  h.assert_true("stage3 ctx: context 2 not filled", not state.covers(seen, 2))
+  h.assert_true("stage3 ctx: context 4 not filled", not state.covers(seen, 4))
+
+  -- Mark then unmark the same hunk restores the shard byte-identically.
+  s:toggle_seen(find_row(s, function(_, _, t)
+    return t and t.commit and t.file and not t.hunk and not t.line
+  end))
+  h.assert_eq("stage3 roundtrip: shard byte-identical after mark+unmark",
+    encode_shard(s), empty)
+
+  -- Undo/redo restore the exact seen-identity set.
+  local s2 = iopen(vim.fn.tempname())
+  local before = encode_shard(s2)
+  s2:toggle_seen(find_row(s2, function(_, line, t)
+    return t and t.commit and t.line and t.sec == "unseen" and line == "+INS"
+  end))
+  local marked = encode_shard(s2)
+  h.assert_true("stage3 undo: mark changed the shard", marked ~= before)
+  s2:undo()
+  h.assert_eq("stage3 undo: restores prior set", encode_shard(s2), before)
+  s2:redo()
+  h.assert_eq("stage3 redo: re-applies the mark", encode_shard(s2), marked)
+end
+
 -- Unseen section: changed hunks render under a default-expanded
 -- "● unseen (N hunks)" header. Collapsing any row in the section (here a diff
 -- line) hides the section body but leaves the file header in place.

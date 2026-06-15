@@ -154,60 +154,6 @@ end
 local CHEVRON_OPEN = "▾"
 local CHEVRON_CLOSED = "▸"
 
--- The new-file line range a hunk introduces. For a pure-deletion hunk
--- (new_count == 0) this is the synthetic anchor `max(new_start, 1)` -- the
--- new-file line just after the removed region -- so the deletion is markable
--- via the normal range/tuple paths. nil only when the hunk has no new_start.
-local function hunk_new_range(hunk)
-  if hunk.new_count and hunk.new_count > 0 then
-    return { hunk.new_start, hunk.new_start + hunk.new_count - 1 }
-  end
-  if hunk.new_start then
-    local a = math.max(hunk.new_start, 1)
-    return { a, a }
-  end
-  return nil
-end
-
--- The anchor new-file lines of a hunk: the new_lnum of each ADD line (the lines
--- this hunk actually introduces). Context lines are excluded because under the
--- combined per-line ownership model they may be owned by commits outside the
--- displayed base..target range (whose seen-state is neither tracked nor
--- persisted), which would make a hunk impossible to mark fully seen. For a hunk
--- with no add lines (a deletion that carries only context + deletions) we fall
--- back to its context new_lnums so the deletion follows its surrounding lines;
--- and for a pure-deletion hunk (no new lines at all) a single synthetic anchor
--- `max(new_start, 1)` -- the new-file line just after the removed region.
-local function hunk_anchor_lnums(hunk)
-  local out = {}
-  for _, dl in ipairs(hunk.lines) do
-    if dl.kind == "add" and dl.new_lnum then out[#out + 1] = dl.new_lnum end
-  end
-  if #out == 0 then
-    for _, dl in ipairs(hunk.lines) do
-      if dl.new_lnum then out[#out + 1] = dl.new_lnum end
-    end
-  end
-  if #out == 0 and hunk.new_start then
-    out[1] = math.max(hunk.new_start, 1)
-  end
-  return out
-end
-
--- A hunk is "seen" iff it has at least one anchor line and every anchor resolves
--- to an adapter that reports it seen. `resolve(new_lnum) -> (adapter, key_lnum)`
--- returns nil for a line with no owner (which makes the hunk unseen).
-local function hunk_is_seen(hunk, resolve)
-  local anchors = hunk_anchor_lnums(hunk)
-  if #anchors == 0 then return false end
-  for _, ln in ipairs(anchors) do
-    local ad, kl = resolve(ln)
-    if not ad or not ad.is_seen(kl) then return false end
-  end
-
-  return true
-end
-
 -- The marker runs of a hunk: each maximal run of consecutive diff lines that
 -- have a `new_lnum` and that `resolve` reports seen. A line with no `new_lnum`
 -- (a deletion) or an unseen line breaks the run. Returns a list of descriptors
@@ -242,15 +188,6 @@ local function hunk_marker_runs(hunk, resolve)
   end
   close()
   return runs
-end
--- All new-file ranges a file changes within one commit's diff.
-local function file_new_ranges(file)
-  local ranges = {}
-  for _, hunk in ipairs(file.hunks) do
-    local r = hunk_new_range(hunk)
-    if r then ranges[#ranges + 1] = r end
-  end
-  return ranges
 end
 
 -- The addressing adapter for a (commit, path): real commits use the line-range
@@ -400,32 +337,6 @@ function Session:compute_combined()
     local cov = self.collapse[cfile_key(raw.path)]
     if cov ~= nil then raw.collapsed = cov end
     out[#out + 1] = { path = raw.path, kind = raw.kind, hunks = raw.hunks, raw = raw }
-  end
-  return out
-end
-
--- The (sha, path, range) tuples a combined target addresses, grouped by owning
--- commit via provenance. A file header enumerates the whole raw file's new
--- lines; a hunk enumerates that display hunk's new lines.
-function Session:combined_tuples(target)
-  local cf = self.combined_files[target.cfile]
-  local prov = self:provenance(cf.path)
-  local lnums = {}
-  if target.hunk then
-    for _, dl in ipairs(cf.hunks[target.hunk].lines) do
-      if dl.new_lnum then lnums[#lnums + 1] = dl.new_lnum end
-    end
-  else
-    for _, hunk in ipairs(cf.raw.hunks) do
-      for _, dl in ipairs(hunk.lines) do
-        if dl.new_lnum then lnums[#lnums + 1] = dl.new_lnum end
-      end
-    end
-  end
-  local out = {}
-  for _, ln in ipairs(lnums) do
-    local p = prov[ln]
-    if p then out[#out + 1] = { sha = p.sha, path = cf.path, range = { p.orig_lnum, p.orig_lnum } } end
   end
   return out
 end
@@ -904,23 +815,15 @@ end
 --   collapse: { kind="collapse", key, value, prev, obj?, field? }
 -- ---------------------------------------------------------------------------
 
--- Mark/unmark exactly the lines an action names; persist the touched shards.
--- An action carries either a flat list of seen-`ids` (the identity path, used by
--- commit-scope toggles) or legacy `groups` of (sha, path, new_lnums) resolved
--- through combined_adapter (combined-scope marks + visual/marker runs).
+-- Mark/unmark exactly the line-identities an action names; persist the touched
+-- shards. Every seen action (commit/combined toggle, visual span, marker run)
+-- now carries a flat list of seen-`ids`, so this is a single fold over the
+-- unified identity store with no scope- or owner-specific branching.
 function Session:apply_seen(a, op)
+  if op == "mark" then self.store:mark(a.ids) else self.store:unmark(a.ids) end
   local touched = {}
-  if a.ids then
-    if op == "mark" then self.store:mark(a.ids) else self.store:unmark(a.ids) end
-    for _, id in ipairs(a.ids) do
-      touched[id.kind == "wt" and state_mod.COMMENTS_ID or id.sha] = true
-    end
-  else
-    for _, g in ipairs(a.groups) do
-      local ad = self:combined_adapter(g.sha, g.path)
-      if op == "mark" then ad.mark(g.lnums) else ad.unmark(g.lnums) end
-      touched[g.sha] = true
-    end
+  for _, id in ipairs(a.ids) do
+    touched[id.kind == "wt" and state_mod.COMMENTS_ID or id.sha] = true
   end
   for sha in pairs(touched) do self.store:save_commit(sha) end
 end
@@ -1194,60 +1097,6 @@ end
 -- Seen marks (commit scope) — authored against (commit_sha, path, new range).
 -- ---------------------------------------------------------------------------
 
--- The (commit_sha, path, range) tuples a target row addresses. A commit header
--- yields every file's changed ranges; a file header yields that file's ranges;
--- a hunk/line yields that hunk's range.
-function Session:target_ranges(target)
-  local commit = self.commits[target.commit]
-  local out = {}
-  if target.file then
-    local file = commit.files[target.file]
-    if target.hunk then
-      local r = hunk_new_range(file.hunks[target.hunk])
-      if r then out[#out + 1] = { sha = commit.sha, path = file.path, range = r } end
-    else
-      for _, r in ipairs(file_new_ranges(file)) do
-        out[#out + 1] = { sha = commit.sha, path = file.path, range = r }
-      end
-    end
-  else
-    for _, file in ipairs(commit.files) do
-      for _, r in ipairs(file_new_ranges(file)) do
-        out[#out + 1] = { sha = commit.sha, path = file.path, range = r }
-      end
-    end
-  end
-  return out
-end
-
--- The (commit, path, new_lnum list) groups a target row addresses, mirroring
--- target_ranges but carrying the owning commit object (so the right addressing
--- adapter is chosen) and explicit new-file line numbers. A commit header yields
--- every file's lines; a file header that file's lines; a hunk that hunk's lines.
-function Session:target_groups(target)
-  local commit = self.commits[target.commit]
-  local groups = {}
-  local function add_file(file, ranges)
-    local lnums = {}
-    for _, r in ipairs(ranges) do
-      for l = r[1], r[2] do lnums[#lnums + 1] = l end
-    end
-    if #lnums > 0 then groups[#groups + 1] = { commit = commit, file = file, lnums = lnums } end
-  end
-  if target.file then
-    local file = commit.files[target.file]
-    if target.hunk then
-      local r = hunk_new_range(file.hunks[target.hunk])
-      add_file(file, r and { r } or {})
-    else
-      add_file(file, file_new_ranges(file))
-    end
-  else
-    for _, file in ipairs(commit.files) do add_file(file, file_new_ranges(file)) end
-  end
-  return groups
-end
-
 -- Stable identity of a hunk target, surviving its relocation into the seen
 -- section (the hunk index into file.hunks does not change when marked seen).
 local function hunk_key(t)
@@ -1257,57 +1106,70 @@ local function hunk_key(t)
   return nil
 end
 
--- Toggle seen on the cursor's target: if every addressed line is already seen,
--- unmark them; otherwise mark them all. Commit scope routes through the per-
--- commit addressing adapter (range for real commits, content-hash for the
--- floating commit); combined scope keeps the provenance range path. Persists
--- the affected commit shards.
--- Whether `target` is already rendered in the seen section, using the renderer's
--- add-line-anchor predicate (hunk_is_seen) rather than the full addressed range.
--- A hunk header/line target checks that hunk; a file or commit target checks all
--- of its hunks. Per-file resolve mirrors emit_file_body's.
-function Session:target_seen(target)
-  if self.scope == "commits" then
-    local commit = self.commits[target.commit]
-    if not commit then return false end
-    local owner = self:commit_owner(commit)
-    local files = target.file and { commit.files[target.file] } or commit.files
-    for _, file in ipairs(files) do
-      local hunks = target.hunk and { file.hunks[target.hunk] } or file.hunks
-      for _, h in ipairs(hunks) do
-        if not self:hunk_seen(h, file.path, owner) then return false end
-      end
-    end
-    return true
-  end
-  local cf = self.combined_files and self.combined_files[target.cfile]
-  if not cf then return false end
-  local owner = self:combined_owner(cf.path)
-  local hunks = target.hunk and { cf.hunks[target.hunk] } or cf.hunks
-  for _, h in ipairs(hunks) do
-    if not self:hunk_seen(h, cf.path, owner) then return false end
-  end
-  return true
-end
-
--- The seen-identities a commit-scope target addresses: every changed line of
--- the commit (commit header), the file (file header), or the hunk.
+-- The seen-identities a target row addresses: every changed (add/del) line of
+-- the commit (commit header), file (file header), or hunk it covers. Context
+-- and unowned lines carry no identity and are excluded, so marking a unit is
+-- defined purely as add/remove over these identities.
 function Session:target_identities(target)
-  local commit = self.commits[target.commit]
-  local owner = self:commit_owner(commit)
   local out = {}
-  local files = target.file and { commit.files[target.file] } or commit.files
-  for _, file in ipairs(files) do
-    local hunks = target.hunk and { file.hunks[target.hunk] } or file.hunks
+  local function gather(hunks, path, owner)
     for _, h in ipairs(hunks) do
-      for _, id in ipairs(self:changed_lines(h, file.path, owner)) do
+      for _, id in ipairs(self:changed_lines(h, path, owner)) do
         out[#out + 1] = id
       end
     end
   end
+  if self.scope == "commits" then
+    local commit = self.commits[target.commit]
+    if not commit then return out end
+    local owner = self:commit_owner(commit)
+    local files = target.file and { commit.files[target.file] } or commit.files
+    for _, file in ipairs(files) do
+      gather(target.hunk and { file.hunks[target.hunk] } or file.hunks, file.path, owner)
+    end
+  else
+    local cf = self.combined_files and self.combined_files[target.cfile]
+    if not cf then return out end
+    local owner = self:combined_owner(cf.path)
+    gather(target.hunk and { cf.hunks[target.hunk] } or cf.hunks, cf.path, owner)
+  end
   return out
 end
 
+-- The seen collapse-section key an identity lands in: per (commit, path) in
+-- commit scope, per path in combined scope -- matching emit_file_body's seen
+-- section keys so marking re-collapses exactly that destination section.
+function Session:seen_collapse_key(id)
+  if self.scope == "commits" then
+    return seen_key(id.kind == "wt" and M.WORKTREE or id.sha, id.path)
+  end
+  return cseen_key(id.path)
+end
+
+-- The single identity of one literal diff-line row, or nil for a non-line row or
+-- a context/unowned line. Used by the visual-range and marker actions, which act
+-- on individual rows rather than whole hunks.
+function Session:row_identity(target)
+  if self.scope == "commits" then
+    if not (target.commit and target.file and target.hunk and target.line) then return nil end
+    local commit = self.commits[target.commit]
+    local file = commit.files[target.file]
+    return self:line_identity(file.hunks[target.hunk].lines[target.line], file.path,
+      self:commit_owner(commit))
+  end
+  if not (target.cfile and target.hunk and target.line) then return nil end
+  local cf = self.combined_files[target.cfile]
+  return self:line_identity(cf.hunks[target.hunk].lines[target.line], cf.path,
+    self:combined_owner(cf.path))
+end
+
+-- Toggle seen on the cursor's target. The action is decided by which section the
+-- target renders in, never a symmetric toggle: `m` on a seen-section row can
+-- only unmark, on an unseen-section row can only mark. A hunk row carries that
+-- section in `target.sec`; a file/commit/cfile header (no section) falls back to
+-- whether every addressed identity is already seen. Mark/unmark is defined
+-- solely as add/remove over the target's changed-line identities; both scopes go
+-- through the unified identity store, so placement and the action agree.
 function Session:toggle_seen(row)
   if row == nil then row = self:cursor_row() end
   local target = self.row_map[row]
@@ -1320,62 +1182,24 @@ function Session:toggle_seen(row)
   else
     if not target.cfile then return end
   end
-  -- The action is decided by which section the target is rendered in, never a
-  -- symmetric toggle: `m` on a seen-section row can only unmark, `m` on an
-  -- unseen-section row can only mark. A hunk row carries that section in
-  -- `target.sec`; a file/commit header (no section) falls back to the renderer's
-  -- seen predicate so a fully-seen file/commit unmarks and otherwise marks.
+  local ids = self:target_identities(target)
   local op
   if target.sec == "seen" then
     op = "unmark"
   elseif target.sec == "unseen" then
     op = "mark"
   else
-    op = self:target_seen(target) and "unmark" or "mark"
+    op = self.store:all_seen(ids) and "unmark" or "mark"
   end
-  -- The action payload: commit scope folds the target to its changed-line
-  -- identities (adds + dels, content-hashed for the floating commit); combined
-  -- scope keeps the provenance new_lnum range groups (del identity is Stage 4).
-  local action
-  local seen_keys = {}
-  if self.scope == "commits" then
-    local changed = {}
-    for _, id in ipairs(self:target_identities(target)) do
-      if (op == "mark") ~= self.store:is_seen(id) then
-        changed[#changed + 1] = id
-        seen_keys[seen_key(id.kind == "wt" and M.WORKTREE or id.sha, id.path)] = true
-      end
+  local changed, seen_keys = {}, {}
+  for _, id in ipairs(ids) do
+    if (op == "mark") ~= self.store:is_seen(id) then
+      changed[#changed + 1] = id
+      seen_keys[self:seen_collapse_key(id)] = true
     end
-    if #changed == 0 then return end
-    action = { kind = "seen", op = op, ids = changed }
-  else
-    local by_key = {}
-    local groups = {}
-    for _, t in ipairs(self:combined_tuples(target)) do
-      local k = t.sha .. "\0" .. t.path
-      local g = by_key[k]
-      if not g then
-        g = { sha = t.sha, path = t.path, lnums = {} }
-        by_key[k] = g
-        groups[#groups + 1] = g
-      end
-      g.lnums[#g.lnums + 1] = t.range[1]
-    end
-    local changed = {}
-    for _, g in ipairs(groups) do
-      local ad = self:combined_adapter(g.sha, g.path)
-      local lnums = {}
-      for _, l in ipairs(g.lnums) do
-        if (op == "mark") ~= ad.is_seen(l) then lnums[#lnums + 1] = l end
-      end
-      if #lnums > 0 then
-        changed[#changed + 1] = { sha = g.sha, path = g.path, lnums = lnums }
-        seen_keys[cseen_key(g.path)] = true
-      end
-    end
-    if #changed == 0 then return end
-    action = { kind = "seen", op = op, groups = changed }
   end
+  if #changed == 0 then return end
+  local action = { kind = "seen", op = op, ids = changed }
   -- Marking always re-collapses the destination seen section, even if it had been
   -- explicitly expanded: clearing the override restores the collapsed default.
   if op == "mark" then
@@ -1500,102 +1324,43 @@ function Session:prev_hunk() self:nav_to(is_hunk_row, false) end
 function Session:next_file() self:nav_to(is_file_row, true) end
 function Session:prev_file() self:nav_to(is_file_row, false) end
 
--- Mark a visual span of diff rows seen: translate each row's diff line to its
--- new_lnum, group by (commit, path), and store exactly those ranges (sub-hunk).
--- Deletion-only rows contribute no new-file line and are skipped.
+-- Mark a visual span of diff rows seen: fold each selected literal diff-line row
+-- to its seen-identity (add/del; context and unowned rows carry none) and mark
+-- those not already seen, so the action reverses exactly.
 function Session:mark_visual_range(srow, erow)
   if srow > erow then srow, erow = erow, srow end
-  -- Collect normalized {sha, path, lnums} groups for the selected rows; the
-  -- floating commit's content hashing is handled by combined_adapter.
-  local groups, by_key = {}, {}
-  local function add(sha, path, lnum)
-    local k = sha .. "\0" .. path
-    local g = by_key[k]
-    if not g then
-      g = { sha = sha, path = path, lnums = {} }
-      by_key[k] = g
-      groups[#groups + 1] = g
-    end
-    g.lnums[#g.lnums + 1] = lnum
-  end
+  local ids = {}
   for row = srow, erow do
-    local target = self.row_map[row]
-    if self.scope == "commits" then
-      if target and target.commit and target.file and target.line then
-        local commit = self.commits[target.commit]
-        local file = commit.files[target.file]
-        local dl = file.hunks[target.hunk].lines[target.line]
-        if dl.new_lnum then add(commit.sha, file.path, dl.new_lnum) end
-      end
-    else
-      if target and target.cfile and target.hunk and target.line then
-        local cf = self.combined_files[target.cfile]
-        local dl = cf.hunks[target.hunk].lines[target.line]
-        local p = dl.new_lnum and self:provenance(cf.path)[dl.new_lnum]
-        if p then add(p.sha, cf.path, p.orig_lnum) end
-      end
-    end
+    local id = self:row_identity(self.row_map[row])
+    if id and not self.store:is_seen(id) then ids[#ids + 1] = id end
   end
-  -- Mark only lines not already seen, so the action reverses exactly.
-  local changed = {}
-  for _, g in ipairs(groups) do
-    local ad = self:combined_adapter(g.sha, g.path)
-    local lnums = {}
-    for _, l in ipairs(g.lnums) do
-      if not ad.is_seen(l) then lnums[#lnums + 1] = l end
-    end
-    if #lnums > 0 then changed[#changed + 1] = { sha = g.sha, path = g.path, lnums = lnums } end
-  end
-  if #changed == 0 then return end
-  self:perform({ kind = "seen", op = "mark", groups = changed })
+  if #ids == 0 then return end
+  self:perform({ kind = "seen", op = "mark", ids = ids })
   self:render()
 end
 
 -- Unmark a marker run seen: a marker target carries {lo, hi_line} indices into
--- its hunk's lines; translate each line to its new_lnum (provenance owner in
--- combined scope), group by (sha, path), and unmark exactly those lines. The
--- derived marker disappears once its lines are no longer seen.
+-- its hunk's lines; fold each to its seen-identity and unmark those currently
+-- seen. The derived marker disappears once its lines are no longer seen.
 function Session:unmark_marker(target)
   local mk = target.marker
   if not mk then return end
-  local groups, by_key = {}, {}
-  local function add(sha, path, lnum)
-    local k = sha .. "\0" .. path
-    local g = by_key[k]
-    if not g then
-      g = { sha = sha, path = path, lnums = {} }
-      by_key[k] = g
-      groups[#groups + 1] = g
-    end
-    g.lnums[#g.lnums + 1] = lnum
-  end
+  local hunk, path, owner
   if self.scope == "commits" then
     local commit = self.commits[target.commit]
     local file = commit.files[target.file]
-    for li = mk.lo, mk.hi_line do
-      local dl = file.hunks[target.hunk].lines[li]
-      if dl.new_lnum then add(commit.sha, file.path, dl.new_lnum) end
-    end
+    hunk, path, owner = file.hunks[target.hunk], file.path, self:commit_owner(commit)
   else
     local cf = self.combined_files[target.cfile]
-    for li = mk.lo, mk.hi_line do
-      local dl = cf.hunks[target.hunk].lines[li]
-      local p = dl.new_lnum and self:provenance(cf.path)[dl.new_lnum]
-      if p then add(p.sha, cf.path, p.orig_lnum) end
-    end
+    hunk, path, owner = cf.hunks[target.hunk], cf.path, self:combined_owner(cf.path)
   end
-  -- Unmark only lines currently seen, so the action reverses exactly.
-  local changed = {}
-  for _, g in ipairs(groups) do
-    local ad = self:combined_adapter(g.sha, g.path)
-    local lnums = {}
-    for _, l in ipairs(g.lnums) do
-      if ad.is_seen(l) then lnums[#lnums + 1] = l end
-    end
-    if #lnums > 0 then changed[#changed + 1] = { sha = g.sha, path = g.path, lnums = lnums } end
+  local ids = {}
+  for li = mk.lo, mk.hi_line do
+    local id = self:line_identity(hunk.lines[li], path, owner)
+    if id and self.store:is_seen(id) then ids[#ids + 1] = id end
   end
-  if #changed == 0 then return end
-  self:perform({ kind = "seen", op = "unmark", groups = changed })
+  if #ids == 0 then return end
+  self:perform({ kind = "seen", op = "unmark", ids = ids })
   self:render()
 end
 -- ---------------------------------------------------------------------------

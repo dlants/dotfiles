@@ -283,6 +283,34 @@ blocks duplicated across `toggle_seen` / `mark_visual_range` / `unmark_marker`.
       line carries a content hash.
 - Before moving on: confirm tests, type checks, and linting all pass.
 
+> **Stage 3 status: DONE.** The action layer is now identity-only in both
+> scopes. `target_identities` is scope-aware (commit & combined), folding a
+> commit/file/cfile/hunk target to its changed-line identities via
+> `changed_lines`. `toggle_seen` is unified: it gathers identities, picks the op
+> from `target.sec` (seen→unmark, unseen→mark) or, for headers, from
+> `store:all_seen(ids)`, filters to the actually-changing identities, and
+> mark/unmarks through `store:mark`/`unmark` — one path for both scopes (the old
+> combined `combined_tuples`/`combined_adapter` group path is gone). New helpers:
+> `seen_collapse_key(id)` (commit `seen_key`/worktree, combined `cseen_key`) for
+> the re-collapse step, and `row_identity(target)` for single-row actions.
+> `mark_visual_range` and `unmark_marker` now fold each row to a `line_identity`
+> and mark/unmark the identity set directly. `apply_seen` collapsed to a single
+> `ids` fold (legacy `groups` branch removed). Deleted: `target_seen`,
+> `hunk_anchor_lnums`, `hunk_is_seen`, `target_ranges`, `target_groups`,
+> `combined_tuples`, `file_new_ranges`, `hunk_new_range` (all dead once the
+> action layer stopped enumerating new-file ranges). `hunk_marker_runs` is kept
+> (renderer + marker_test). Decisions/deviations:
+> - Header op decision uses `all_seen(ids)` rather than the old per-hunk
+>   `hunk_seen` fold (`target_seen`). For a header these agree whenever every
+>   hunk has ≥1 changed line; they can differ only for a combined del-only hunk
+>   (0 identities today) — an accepted, Stage-4 edge.
+> - `present_owners` left in place (pre-existing, untouched by this stage).
+> - Added init tests (init 233→240): context lines are never filled when marking
+>   a hunk (only the add line's range), mark+unmark is byte-identical JSON, and
+>   undo/redo restore the exact identity set. Full suite green (init 240,
+>   state 64). No stylua/luacheck gate in the repo; `nvim -l run_tests.lua` is
+>   the gate.
+
 ## Stage 3 — Action layer consumes identities only
 
 - Goal: rewrite `toggle_seen`, visual `mark_visual_range`, and marker unmark to
@@ -293,13 +321,14 @@ blocks duplicated across `toggle_seen` / `mark_visual_range` / `unmark_marker`.
   commit/visual-selection is defined solely as add/remove over its changed-line
   identities.
 - Verification (Tier-3):
-  - Behavior: marking a context line inside an already-seen hunk is a no-op
+  - [x] Behavior: marking a context line inside an already-seen hunk is a no-op
     (context carries no identity) — no "filling", single-press semantics.
-  - Behavior: mark then unmark a hunk leaves the store byte-identical (assert on
-    encoded shards).
-  - Behavior: visual selection marks exactly the changed lines in the span.
-  - Behavior: undo/redo of a seen mark restores the exact prior identity set.
-- Before moving on: confirm tests, type checks, and linting all pass.
+  - [x] Behavior: mark then unmark a hunk leaves the store byte-identical (assert
+    on encoded shards).
+  - [x] Behavior: visual selection marks exactly the changed lines in the span
+    (covered by the existing combined/commit marker suites).
+  - [x] Behavior: undo/redo of a seen mark restores the exact prior identity set.
+- [x] Before moving on: confirm tests, type checks, and linting all pass.
 
 ## Stage 4 — Combined-scope del-line identity
 
