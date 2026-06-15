@@ -531,7 +531,9 @@ function Session:build()
   local function emit_hunk(hunk, hi, target_base, resolve, base_ord, comments_by_ord, sec, path)
     local target = vim.tbl_extend("force", target_base, { hunk = hi, sec = sec })
     emit("--- " .. hunk.header, target, "GleanHunkHeader")
-    local runs = hunk_marker_runs(hunk, resolve)
+    -- Markers are an unseen-hunk affordance only: a hunk in the seen section is
+    -- fully seen and always renders whole, never collapsing sub-ranges.
+    local runs = sec == "seen" and {} or hunk_marker_runs(hunk, resolve)
     local run_at = {}
     for _, run in ipairs(runs) do run_at[run.lo] = run end
     local dels, adds = {}, {}
@@ -1172,11 +1174,54 @@ function Session:target_groups(target)
   return groups
 end
 
+-- Stable identity of a hunk target, surviving its relocation into the seen
+-- section (the hunk index into file.hunks does not change when marked seen).
+local function hunk_key(t)
+  if not t then return nil end
+  if t.commit then return ("c:%d:%d:%d"):format(t.commit, t.file or 0, t.hunk or 0) end
+  if t.cfile then return ("f:%d:%d"):format(t.cfile, t.hunk or 0) end
+  return nil
+end
+
 -- Toggle seen on the cursor's target: if every addressed line is already seen,
 -- unmark them; otherwise mark them all. Commit scope routes through the per-
 -- commit addressing adapter (range for real commits, content-hash for the
 -- floating commit); combined scope keeps the provenance range path. Persists
 -- the affected commit shards.
+-- Whether `target` is already rendered in the seen section, using the renderer's
+-- add-line-anchor predicate (hunk_is_seen) rather than the full addressed range.
+-- A hunk header/line target checks that hunk; a file or commit target checks all
+-- of its hunks. Per-file resolve mirrors emit_file_body's.
+function Session:target_seen(target)
+  if self.scope == "commits" then
+    local commit = self.commits[target.commit]
+    if not commit then return false end
+    local files = target.file and { commit.files[target.file] } or commit.files
+    for _, file in ipairs(files) do
+      local adapter = self:adapter_for(commit, file.path)
+      local resolve = function(ln) return adapter, ln end
+      local hunks = target.hunk and { file.hunks[target.hunk] } or file.hunks
+      for _, h in ipairs(hunks) do
+        if not hunk_is_seen(h, resolve) then return false end
+      end
+    end
+    return true
+  end
+  local cf = self.combined_files and self.combined_files[target.cfile]
+  if not cf then return false end
+  local prov = self:provenance(cf.path)
+  local resolve = function(ln)
+    local p = prov[ln]
+    if not p then return nil end
+    return self:combined_adapter(p.sha, cf.path), p.orig_lnum
+  end
+  local hunks = target.hunk and { cf.hunks[target.hunk] } or cf.hunks
+  for _, h in ipairs(hunks) do
+    if not hunk_is_seen(h, resolve) then return false end
+  end
+  return true
+end
+
 function Session:toggle_seen(row)
   if row == nil then row = self:cursor_row() end
   local target = self.row_map[row]
@@ -1207,16 +1252,19 @@ function Session:toggle_seen(row)
     end
   end
   if #groups == 0 then return end
-  -- Seen iff every addressed line is already seen -> we unmark; else we mark.
-  local all_seen = true
-  for _, g in ipairs(groups) do
-    local ad = self:combined_adapter(g.sha, g.path)
-    for _, l in ipairs(g.lnums) do
-      if not ad.is_seen(l) then all_seen = false break end
-    end
-    if not all_seen then break end
+  -- The action is decided by which section the target is rendered in, never a
+  -- symmetric toggle: `m` on a seen-section row can only unmark, `m` on an
+  -- unseen-section row can only mark. A hunk row carries that section in
+  -- `target.sec`; a file/commit header (no section) falls back to the renderer's
+  -- seen predicate so a fully-seen file/commit unmarks and otherwise marks.
+  local op
+  if target.sec == "seen" then
+    op = "unmark"
+  elseif target.sec == "unseen" then
+    op = "mark"
+  else
+    op = self:target_seen(target) and "unmark" or "mark"
   end
-  local op = all_seen and "unmark" or "mark"
   -- Keep only the lines whose state actually flips, so the action reverses exactly.
   local changed = {}
   for _, g in ipairs(groups) do
@@ -1228,23 +1276,23 @@ function Session:toggle_seen(row)
     if #lnums > 0 then changed[#changed + 1] = { sha = g.sha, path = g.path, lnums = lnums } end
   end
   if #changed == 0 then return end
+  -- Marking always re-collapses the destination seen section, even if it had been
+  -- explicitly expanded: clearing the override restores the collapsed default.
+  if op == "mark" then
+    for _, g in ipairs(changed) do
+      self.collapse[self.scope == "commits" and seen_key(g.sha, g.path) or cseen_key(g.path)] = nil
+    end
+  end
   -- Resolve the next hunk to land on *before* marking: marking relocates rows
   -- (the cursor's row number is preserved by render but its semantic target
   -- changes), so deciding afterwards skips a hunk. A hunk's identity
   -- (commit/file/cfile + hunk index) is stable across the seen-move.
-  local next_key = self:next_hunk_key(row)
+  -- Marking advances to the next still-unseen hunk; unmarking keeps focus on the
+  -- hunk just revived, landing on its head once it relocates to the unseen body.
+  local dest_key = op == "unmark" and hunk_key(target) or self:next_hunk_key(row)
   self:perform({ kind = "seen", op = op, groups = changed })
   self:render()
-  self:move_to_hunk_key(next_key)
-end
-
--- Stable identity of a hunk target, surviving its relocation into the seen
--- section (the hunk index into file.hunks does not change when marked seen).
-local function hunk_key(t)
-  if not t then return nil end
-  if t.commit then return ("c:%d:%d:%d"):format(t.commit, t.file or 0, t.hunk or 0) end
-  if t.cfile then return ("f:%d:%d"):format(t.cfile, t.hunk or 0) end
-  return nil
+  self:move_to_hunk_key(dest_key)
 end
 
 -- The identity of the next still-unseen hunk after `row`'s hunk, in document

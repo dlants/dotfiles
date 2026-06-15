@@ -25,6 +25,11 @@ export type ImplementPlanParams = {
   repo: string;
   /** Branch to create for the implementation (defaults to a generated name). */
   branch?: string;
+  /**
+   * Create a new branch/worktree for the implementation. By default the script
+   * develops in-place against the current branch in `repo`.
+   */
+  newBranch?: boolean;
 };
 
 export type Stage = {
@@ -55,6 +60,11 @@ export const IMPLEMENT_PLAN_PARAM_SCHEMA = {
       type: "string",
       description:
         "Branch to create for the implementation. Defaults to a generated name.",
+    },
+    newBranch: {
+      type: "boolean",
+      description:
+        "Create a new branch/worktree for the implementation. Defaults to developing in-place against the current branch.",
     },
   },
   required: ["plan", "repo"],
@@ -150,13 +160,20 @@ export async function prepareImplementation({
   repo,
   planAbs,
   branch,
+  newBranch,
   log,
 }: {
   repo: string;
   planAbs: string;
   branch: string;
+  newBranch?: boolean;
   log: LogFn;
 }): Promise<{ repo: string; planAbs: string }> {
+  if (!newBranch) {
+    log(`Developing in-place against the current branch in ${repo}`);
+    return { repo, planAbs };
+  }
+
   const worktreeRoot = await detectWorktreeRoot(repo);
   if (!worktreeRoot) {
     await git(repo, "checkout", "-b", branch);
@@ -328,18 +345,21 @@ export async function runImplementPlan({
   thread: ThreadFn;
   log: LogFn;
 }): Promise<{ branch: string; stages: Stage[] }> {
-  const planParamAbs = path.isAbsolute(params.plan)
-    ? params.plan
-    : path.join(params.repo, params.plan);
-  if (!existsSync(planParamAbs)) {
-    throw new Error(`Plan file not found: ${planParamAbs}`);
+  const planCandidates = path.isAbsolute(params.plan)
+    ? [params.plan, path.join(params.repo, params.plan.replace(/^\/+/, ""))]
+    : [path.join(params.repo, params.plan), params.plan];
+  const planParamAbs = planCandidates.find((p) => existsSync(p));
+  if (!planParamAbs) {
+    throw new Error(
+      `Plan file not found. Tried: ${planCandidates.join(", ")}`,
+    );
   }
-
   const branch = params.branch ?? defaultBranchName(params.plan);
   const { repo, planAbs } = await prepareImplementation({
     repo: params.repo,
     planAbs: planParamAbs,
     branch,
+    newBranch: params.newBranch,
     log,
   });
   const planBody = readFileSync(planAbs, "utf8");

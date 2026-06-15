@@ -92,55 +92,14 @@ end
 
 -- ── Content-hash addressing (the floating "worktree" commit) ────────────────
 -- Uncommitted changes live on a synthetic commit with no stable line numbers,
--- so its reviewed unit is the **content** of a block of new-file lines rather
--- than a line range. A block is stored as { head, hash, n }: `hash` is
--- sha256 of the joined line texts, `n` the line count, and `head` the exact
--- text of the first line (a cheap anchor used to skip non-matching positions).
+-- so each reviewed line is addressed by the **content hash** of its text. The
+-- worktree shard stores a flat set of seen line hashes (per file); a line is
+-- seen iff its current text hashes into that set. Per-line addressing makes
+-- mark/unmark a pure set add/remove with no block-coalescing pass.
 
--- Build the stored descriptor for a run of new-file line texts.
-function M.block_of(lines)
-  return {
-    head = lines[1],
-    hash = vim.fn.sha256(table.concat(lines, "\n")),
-    n = #lines,
-  }
-end
-
--- Content key for a single comment-anchored line.
+-- Content key for a single new-file line of text.
 function M.line_hash(text)
   return vim.fn.sha256(text)
-end
-
--- Given stored blocks and the current ordered new-file line texts, return the
--- set { [index] = true } of line indices that are "seen". For each block we
--- only consider start positions whose first line equals `head`, then hash the
--- n-line window there — so we hash at most once per occurrence of the head line
--- rather than once per file position.
-function M.compute_seen_lines(blocks, line_texts)
-  local positions = {}
-  for i, t in ipairs(line_texts) do
-    positions[t] = positions[t] or {}
-    positions[t][#positions[t] + 1] = i
-  end
-  local n_lines = #line_texts
-  local seen = {}
-  for _, b in ipairs(blocks) do
-    for _, i in ipairs(positions[b.head] or {}) do
-      local last = i + b.n - 1
-      if last <= n_lines then
-        local window = {}
-        for j = i, last do
-          window[#window + 1] = line_texts[j]
-        end
-        if vim.fn.sha256(table.concat(window, "\n")) == b.hash then
-          for j = i, last do
-            seen[j] = true
-          end
-        end
-      end
-    end
-  end
-  return seen
 end
 
 -- Pure re-anchoring helper. Given a comment's captured `content` block (a list
@@ -280,6 +239,27 @@ function Store:seen_ranges(sha, path)
   return (f and f.seen) or {}
 end
 
+-- Mark a pre-image (old-file) line range as a seen deletion for (commit, path).
+-- Del identities live in `seen_del`, parallel to the add-line `seen` ranges, in
+-- the commit's immutable parent coordinates.
+function Store:mark_seen_del(sha, path, range)
+  local f = self:file(sha, path)
+  f.seen_del = M.add(f.seen_del or {}, range)
+end
+
+-- Unmark (remove) a pre-image line range from (commit, path)'s seen deletions.
+function Store:unmark_seen_del(sha, path, range)
+  local f = self:file(sha, path)
+  f.seen_del = M.remove(f.seen_del or {}, range)
+end
+
+-- Seen deletion ranges (pre-image coords) for (commit, path) (possibly empty).
+function Store:seen_del_ranges(sha, path)
+  local c = self.data[sha]
+  local f = c and c.files and c.files[path]
+  return (f and f.seen_del) or {}
+end
+
 -- Append a comment to (commit, path) at a new-file line number. Comments are
 -- stored keyed by the **string** form of new_lnum so they round-trip through
 -- JSON (object keys are always strings); each line holds a list of texts.
@@ -322,7 +302,9 @@ end
 
 -- ── Worktree (content-addressed) store methods ──────────────────────────────
 -- The floating commit's slice carries `worktree = true` and a per-file record
--- of { seen = { {head,hash,n}, ... }, comments = { [line_hash] = {{text}} } }.
+-- of { seen = { [line_hash] = true }, comments = { [line_hash] = {{text}} } }.
+-- `seen` is a flat set of content hashes: a line is seen iff its text's hash is
+-- a key. Per-line addressing means mark/unmark is pure set add/remove.
 
 function Store:wt_commit(id)
   local c = self.data[id]
@@ -344,39 +326,39 @@ function Store:wt_file(id, path)
   return f
 end
 
--- Mark a run of new-file line texts seen (deduped by content hash).
-function Store:mark_seen_block(id, path, lines)
-  if #lines == 0 then
+-- Mark each given new-file line text seen (by content hash). Duplicate or
+-- repeated calls are idempotent.
+function Store:mark_seen_hashes(id, path, texts)
+  if #texts == 0 then
     return
   end
   local f = self:wt_file(id, path)
-  local block = M.block_of(lines)
-  for _, b in ipairs(f.seen) do
-    if b.hash == block.hash then
-      return
-    end
+  for _, t in ipairs(texts) do
+    f.seen[M.line_hash(t)] = true
   end
-  f.seen[#f.seen + 1] = block
 end
 
--- Remove the block whose content matches the given run of line texts.
-function Store:unmark_seen_block(id, path, lines)
-  if #lines == 0 then
+-- Unmark each given new-file line text (by content hash).
+function Store:unmark_seen_hashes(id, path, texts)
+  local c = self.data[id]
+  local f = c and c.files and c.files[path]
+  if not f then
     return
   end
-  local f = self:wt_file(id, path)
-  local block = M.block_of(lines)
-  local out = {}
-  for _, b in ipairs(f.seen) do
-    if b.hash ~= block.hash then
-      out[#out + 1] = b
-    end
+  for _, t in ipairs(texts) do
+    f.seen[M.line_hash(t)] = nil
   end
-  f.seen = out
 end
 
--- Stored seen blocks for (worktree, path).
-function Store:seen_blocks(id, path)
+-- Is a new-file line text's content hash in the seen set for (worktree, path)?
+function Store:is_seen_hash(id, path, text)
+  local c = self.data[id]
+  local f = c and c.files and c.files[path]
+  return (f and f.seen and f.seen[M.line_hash(text)]) == true
+end
+
+-- The seen content-hash set for (worktree, path) (possibly empty).
+function Store:seen_hashes(id, path)
   local c = self.data[id]
   local f = c and c.files and c.files[path]
   return (f and f.seen) or {}
@@ -509,35 +491,27 @@ function M.range_adapter(store, sha, path)
 end
 
 function M.hash_adapter(store, id, path, lines)
-  local function seen_set()
-    return M.compute_seen_lines(store:seen_blocks(id, path), lines)
-  end
-  local function texts_of(run)
-    local t = {}
-    for _, l in ipairs(run) do
-      t[#t + 1] = lines[l]
+  local function texts_of(lnums)
+    local out = {}
+    for _, l in ipairs(lnums) do
+      out[#out + 1] = lines[l]
     end
-    return t
+    return out
   end
   return {
     worktree = true,
     is_seen = function(lnum)
-      return seen_set()[lnum] == true
+      return store:is_seen_hash(id, path, lines[lnum])
     end,
     mark = function(lnums)
-      for _, run in ipairs(contiguous_runs(lnums)) do
-        store:mark_seen_block(id, path, texts_of(run))
-      end
+      store:mark_seen_hashes(id, path, texts_of(lnums))
     end,
     unmark = function(lnums)
-      for _, run in ipairs(contiguous_runs(lnums)) do
-        store:unmark_seen_block(id, path, texts_of(run))
-      end
+      store:unmark_seen_hashes(id, path, texts_of(lnums))
     end,
     range_covered = function(s, e)
-      local seen = seen_set()
       for l = s, e do
-        if not seen[l] then
+        if not store:is_seen_hash(id, path, lines[l]) then
           return false
         end
       end
@@ -553,6 +527,96 @@ function M.hash_adapter(store, id, path, lines)
       return store:wt_comments_for(id, path, lines[lnum])
     end,
   }
+end
+
+-- ── Unified seen-identity API ───────────────────────────────────────────────
+-- A line identity is a stable, serializable key for one changed diff line. It
+-- is the single representation the higher layers fold over to derive seen-ness
+-- of any display unit. Three kinds:
+--   add: { kind = "add", sha, path, lnum }  -- committed add, post-image lnum
+--   del: { kind = "del", sha, path, lnum }  -- committed del, pre-image lnum
+--   wt:  { kind = "wt",  path, text }        -- uncommitted line, content-hashed
+-- `sha == WORKTREE` add/del lines are represented as wt identities.
+
+function M.add_identity(sha, path, lnum)
+  return { kind = "add", sha = sha, path = path, lnum = lnum }
+end
+
+function M.del_identity(sha, path, lnum)
+  return { kind = "del", sha = sha, path = path, lnum = lnum }
+end
+
+function M.wt_identity(path, text)
+  return { kind = "wt", path = path, text = text }
+end
+
+-- Is a single line identity in the seen set?
+function Store:is_seen(id)
+  if id.kind == "add" then
+    return M.covers(self:seen_ranges(id.sha, id.path), id.lnum)
+  elseif id.kind == "del" then
+    return M.covers(self:seen_del_ranges(id.sha, id.path), id.lnum)
+  elseif id.kind == "wt" then
+    return self:is_seen_hash(M.COMMENTS_ID, id.path, id.text)
+  end
+  return false
+end
+
+-- Are all of the given identities seen? (a hunk/file/commit fold)
+function Store:all_seen(ids)
+  for _, id in ipairs(ids) do
+    if not self:is_seen(id) then
+      return false
+    end
+  end
+  return true
+end
+
+-- Mark every given identity seen. Identities are grouped by owning shard so each
+-- shard's seen set is updated once.
+function Store:mark(ids)
+  for _, id in ipairs(ids) do
+    if id.kind == "add" then
+      self:mark_seen(id.sha, id.path, { id.lnum, id.lnum })
+    elseif id.kind == "del" then
+      self:mark_seen_del(id.sha, id.path, { id.lnum, id.lnum })
+    elseif id.kind == "wt" then
+      self:mark_seen_hashes(M.COMMENTS_ID, id.path, { id.text })
+    end
+  end
+end
+
+-- Drop a (commit, path) file record when it carries no seen state and no
+-- comments, so that marking then unmarking the same lines restores the shard to
+-- byte-identical JSON (the mark/unmark identity invariant).
+local function prune_file(store, sha, path)
+  local c = store.data[sha]
+  local f = c and c.files and c.files[path]
+  if not f then
+    return
+  end
+  local seen_empty = not f.seen or next(f.seen) == nil
+  local del_empty = not f.seen_del or next(f.seen_del) == nil
+  local comments_empty = not f.comments or next(f.comments) == nil
+  if seen_empty and del_empty and comments_empty then
+    c.files[path] = nil
+  end
+end
+
+-- Unmark every given identity, pruning emptied file records.
+function Store:unmark(ids)
+  for _, id in ipairs(ids) do
+    if id.kind == "add" then
+      self:unmark_seen(id.sha, id.path, { id.lnum, id.lnum })
+      prune_file(self, id.sha, id.path)
+    elseif id.kind == "del" then
+      self:unmark_seen_del(id.sha, id.path, { id.lnum, id.lnum })
+      prune_file(self, id.sha, id.path)
+    elseif id.kind == "wt" then
+      self:unmark_seen_hashes(M.COMMENTS_ID, id.path, { id.text })
+      prune_file(self, M.COMMENTS_ID, id.path)
+    end
+  end
 end
 
 return M

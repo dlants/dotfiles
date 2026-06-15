@@ -71,28 +71,62 @@ do
   h.assert_eq("roundtrip: unmatched lnum empty", #s2:comments_at("shaA", "f.txt", 999), 0)
 end
 
--- Content-hash: block math + the head anchor.
+-- Content-hash: per-line set is order/duplicate independent, and a line is seen
+-- iff its current text's hash is in the set (content-addressed, not positional).
 do
-  local lines = { "alpha", "beta", "gamma", "delta", "alpha", "beta" }
-  local blocks = { state.block_of({ "beta", "gamma" }) }
-  local seen = state.compute_seen_lines(blocks, lines)
-  h.assert_true("hash: window seen", seen[2] and seen[3])
-  h.assert_true("hash: head-only not seen", not seen[5] and not seen[6])
+  local dir = vim.fn.tempname()
+  local s = state.new({ dir = dir })
+  s:mark_seen_hashes("WORKTREE", "f.txt", { "beta", "gamma" })
+  h.assert_true("hash: beta seen", s:is_seen_hash("WORKTREE", "f.txt", "beta"))
+  h.assert_true("hash: gamma seen", s:is_seen_hash("WORKTREE", "f.txt", "gamma"))
+  h.assert_true("hash: alpha unseen", not s:is_seen_hash("WORKTREE", "f.txt", "alpha"))
 
-  -- moved block (same text, different position) stays seen.
-  local moved = { "x", "beta", "gamma", "y" }
-  local seen2 = state.compute_seen_lines(blocks, moved)
-  h.assert_true("hash: moved block seen", seen2[2] and seen2[3])
+  -- a repeated line text is seen wherever it appears (per-line addressing).
+  s:mark_seen_hashes("WORKTREE", "f.txt", { "dup", "dup" })
+  h.assert_true("hash: duplicate text seen", s:is_seen_hash("WORKTREE", "f.txt", "dup"))
 
-  -- edited content reverts to unseen.
-  local edited = { "alpha", "beta", "GAMMA", "delta" }
-  local seen3 = state.compute_seen_lines(blocks, edited)
-  h.assert_true("hash: edited block unseen", not seen3[2])
+  -- unmark removes by content; the line is unseen regardless of position.
+  s:unmark_seen_hashes("WORKTREE", "f.txt", { "beta" })
+  h.assert_true("hash: unmarked text unseen", not s:is_seen_hash("WORKTREE", "f.txt", "beta"))
+  h.assert_true("hash: gamma still seen", s:is_seen_hash("WORKTREE", "f.txt", "gamma"))
+end
 
-  -- block running past EOF is skipped.
-  local short = { "zzz", "beta" }
-  local seen4 = state.compute_seen_lines(blocks, short)
-  h.assert_true("hash: past-eof skipped", not seen4[2])
+-- Committed deletion ranges round-trip through save/load, parallel to add ranges.
+do
+  local dir = vim.fn.tempname()
+  local s = state.new({ dir = dir })
+  s:load({ "shaA" })
+  s:mark_seen("shaA", "f.txt", { 2, 4 })
+  s:mark_seen_del("shaA", "f.txt", { 7, 9 })
+  s:save_commit("shaA")
+
+  local s2 = state.new({ dir = dir })
+  s2:load({ "shaA" })
+  h.assert_eq("del roundtrip: add ranges", range_str(s2:seen_ranges("shaA", "f.txt")), "2-4")
+  h.assert_eq("del roundtrip: del ranges", range_str(s2:seen_del_ranges("shaA", "f.txt")), "7-9")
+end
+
+-- Unified identity API: mark then unmark returns the shard to identical JSON.
+do
+  local dir = vim.fn.tempname()
+  local s = state.new({ dir = dir })
+  local empty = vim.json.encode(s:commit("shaA"))
+  local ids = {
+    state.add_identity("shaA", "f.txt", 2),
+    state.add_identity("shaA", "f.txt", 3),
+    state.del_identity("shaA", "f.txt", 9),
+  }
+  s:mark(ids)
+  h.assert_true("identity: all seen after mark", s:all_seen(ids))
+  s:unmark(ids)
+  h.assert_true("identity: none seen after unmark", not s:is_seen(ids[1]))
+  h.assert_eq("identity: mark+unmark restores JSON", vim.json.encode(s:commit("shaA")), empty)
+
+  -- worktree identities resolve to the content-hash set.
+  local wid = state.wt_identity("f.txt", "hello")
+  h.assert_true("identity: wt unseen initially", not s:is_seen(wid))
+  s:mark({ wid })
+  h.assert_true("identity: wt seen after mark", s:is_seen(wid))
 end
 
 -- Hash adapter over a literal new_lnum -> text map.
@@ -116,22 +150,36 @@ do
   h.assert_eq("adapter: comment follows content", moved.comments_at(2)[1].text, "note")
 end
 
+-- Worktree per-line marks: marking a sub-run then the whole region leaves every
+-- line seen, and unmarking the whole clears the set (no leftover hashes).
+do
+  local dir = vim.fn.tempname()
+  local s = state.new({ dir = dir })
+  local lines = { "one", "two", "three", "four" }
+  local a = state.hash_adapter(s, "WORKTREE", "f.txt", lines)
+  a.mark({ 2 })
+  a.mark({ 1, 2, 3, 4 })
+  h.assert_true("wt set: all seen", a.is_seen(1) and a.is_seen(4))
+  a.unmark({ 1, 2, 3, 4 })
+  h.assert_true("wt set: cleared", next(s:seen_hashes("WORKTREE", "f.txt")) == nil)
+  h.assert_true("wt set: none seen", not a.is_seen(2))
+end
+
 -- Worktree shard round-trips with worktree=true.
 do
   local dir = vim.fn.tempname()
   local s = state.new({ dir = dir })
   s:load({ "WORKTREE" })
-  s:mark_seen_block("WORKTREE", "f.txt", { "two", "three" })
+  s:mark_seen_hashes("WORKTREE", "f.txt", { "two", "three" })
   s:wt_add_comment("WORKTREE", "f.txt", "four", "hi")
   s:save_commit("WORKTREE")
 
   local s2 = state.new({ dir = dir })
   s2:load({ "WORKTREE" })
   h.assert_true("wt roundtrip: worktree flag", s2.data["WORKTREE"].worktree == true)
-  local blocks = s2:seen_blocks("WORKTREE", "f.txt")
-  h.assert_eq("wt roundtrip: block count", #blocks, 1)
-  local seen = state.compute_seen_lines(blocks, { "one", "two", "three" })
-  h.assert_true("wt roundtrip: block matches", seen[2] and seen[3])
+  h.assert_true("wt roundtrip: two seen", s2:is_seen_hash("WORKTREE", "f.txt", "two"))
+  h.assert_true("wt roundtrip: three seen", s2:is_seen_hash("WORKTREE", "f.txt", "three"))
+  h.assert_true("wt roundtrip: one unseen", not s2:is_seen_hash("WORKTREE", "f.txt", "one"))
   h.assert_eq("wt roundtrip: comment", s2:wt_comments_for("WORKTREE", "f.txt", "four")[1].text, "hi")
 end
 
