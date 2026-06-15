@@ -321,6 +321,27 @@ function M.build_pairs(dels, adds)
   return work
 end
 
+-- refine couples a block's deleted/added line *texts* into intra-line emphasis
+-- segments, independent of buffer rows. It runs the expensive work -- the
+-- order-preserving similarity pairing (M.pair_lines) plus a per-pair token
+-- alignment (M.align) -- and returns a list of
+-- { di, ai, a_segs, b_segs } (1-based indices into del_texts/add_texts, plus the
+-- changed-token byte segments on each side). Being row-free, the result is
+-- content-addressable and so cacheable across re-renders; the caller maps di/ai
+-- back to the current buffer rows. Pairs whose alignment early-terminates are
+-- dropped.
+function M.refine(del_texts, add_texts)
+  local paired = M.pair_lines(del_texts, add_texts)
+  local out = {}
+  for _, p in ipairs(paired.pairs) do
+    local res = M.align(del_texts[p[1]], add_texts[p[2]])
+    if res then
+      out[#out + 1] = { di = p[1], ai = p[2], a_segs = res.a_segs, b_segs = res.b_segs }
+    end
+  end
+  return out
+end
+
 -- is_current decides whether an in-flight async refinement chunk may still run:
 -- the buffer must remain valid and the generation captured when the chunk was
 -- scheduled must still match the session's current generation. A re-render or

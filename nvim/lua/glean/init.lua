@@ -241,16 +241,28 @@ end
 -- returned map `old_lnum -> { sha, lnum }`. Lines that survive to the target, or
 -- whose deleter is the floating work tree, are omitted -> content-hashed under
 -- WORKTREE. Cached per path.
+-- The parent->child map over the ordered commit stack (base first), used to name
+-- the deleter of a line from the revision that last contained it. Depends only
+-- on `self.base` and `self.commits`, so it is computed once per commit-set
+-- generation (reset in `reload` only when the commit set changes), hoisting the
+-- `rev_parse(base)` subprocess and stack walk out of the per-path loop.
+function Session:del_child()
+  if not self._del_child then
+    local child, prev = {}, self.git:rev_parse(self.base) or self.base
+    for _, c in ipairs(self.commits) do
+      if c.sha ~= M.WORKTREE then child[prev] = c.sha; prev = c.sha end
+    end
+    self._del_child = child
+  end
+  return self._del_child
+end
+
 function Session:del_attribution(path)
   self._del_attr = self._del_attr or {}
   if self._del_attr[path] == nil then
     local map = {}
     local end_rev = self.target ~= M.WORKTREE and self.target or "HEAD"
-    -- child[sha] = the commit whose deletion removed a line last present in <sha>.
-    local child, prev = {}, self.git:rev_parse(self.base) or self.base
-    for _, c in ipairs(self.commits) do
-      if c.sha ~= M.WORKTREE then child[prev] = c.sha; prev = c.sha end
-    end
+    local child = self:del_child()
     local out = self.git:reverse_blame(self.base, end_rev, path)
     for final, p in pairs((out and provenance.parse_blame(out)) or {}) do
       local deleter = child[p.sha]
@@ -350,23 +362,6 @@ function Session:compute_combined()
     out[#out + 1] = { path = raw.path, kind = raw.kind, hunks = raw.hunks, raw = raw }
   end
   return out
-end
-
--- The set of "sha\0orig_lnum" owners present in the target, derived from blame
--- provenance. A line authored on (commit, lnum) survives into the current
--- target iff blame still attributes some target line to that exact owner; if a
--- later commit overwrote it, blame names the later commit and the original is
--- "outdated". Cached per path.
-function Session:present_owners(path)
-  self._present = self._present or {}
-  if self._present[path] == nil then
-    local set = {}
-    for _, p in pairs(self:provenance(path)) do
-      set[p.sha .. "\0" .. p.orig_lnum] = true
-    end
-    self._present[path] = set
-  end
-  return self._present[path]
 end
 
 -- Flatten a file's hunks to its ordered diff-line list. This is the resolution
@@ -495,7 +490,7 @@ function Session:build()
   local lines = {}
   local row_map = {}
   local highlights = {}
-  local intra_work = {}
+  local intra_blocks = {}
   local function emit(text, target, hl)
     lines[#lines + 1] = text
     local row = #lines - 1
@@ -577,8 +572,11 @@ function Session:build()
         li = li + 1
       end
     end
-    for _, w in ipairs(intraline.build_pairs(dels, adds)) do
-      intra_work[#intra_work + 1] = w
+    -- Defer the expensive intra-line pairing/alignment to the async phase: emit
+    -- only the raw del/add rows+texts per hunk. Phase 1's whole-line highlight
+    -- stands until the refinement upgrades it.
+    if #dels > 0 and #adds > 0 then
+      intra_blocks[#intra_blocks + 1] = { dels = dels, adds = adds }
     end
   end
 
@@ -671,7 +669,7 @@ function Session:build()
     end
   end
 
-  return lines, row_map, highlights, intra_work
+  return lines, row_map, highlights, intra_blocks
 end
 
 function Session:render()
@@ -710,25 +708,30 @@ function Session:render()
   self:highlight_cursor_hunk()
 end
 
--- Phase 2 of rendering: intra-line emphasis, computed asynchronously. For each
--- paired del/add line whose token alignment finds them similar enough, paint
--- just the changed token spans in NS_INTRA (above the phase-1 full-line
--- highlight). Dissimilar pairs (align returns nil) keep only their dim full-line
--- background. The marker prefix shifts every span by one byte.
+-- Phase 2 of rendering: intra-line (word-level) emphasis, computed off the
+-- synchronous render path. `build()` emits only raw del/add blocks; the
+-- expensive pairing + token alignment (intraline.refine) runs here, chunked via
+-- vim.schedule, so the buffer first shows whole-line add/del highlighting and
+-- upgrades to changed-span emphasis as each block is refined.
 --
--- The work-list is processed in chunks via vim.schedule so a large diff stays
--- snappy. Each render bumps `self._intra_gen` and clears NS_INTRA synchronously;
--- every chunk re-checks (via intraline.is_current) that its captured generation
--- still matches and the buffer is still valid, so a re-render/reload mid-flight
--- abandons stale work instead of writing onto a freshly rendered buffer.
-local INTRA_CHUNK = 24
-function Session:apply_intraline(intra_work)
+-- Refinement is content-addressable (independent of buffer rows), so results are
+-- cached by the block's del/add text in `self._intra_cache` and reused across
+-- re-renders (mark/collapse) and reloads (save) -- an unchanged hunk is refined
+-- exactly once. The caller maps the cached di/ai indices back to current rows.
+--
+-- Each render bumps `self._intra_gen` and clears NS_INTRA synchronously; every
+-- chunk re-checks (via intraline.is_current) that its captured generation still
+-- matches and the buffer is still valid, so a re-render/reload mid-flight
+-- abandons stale work. INTRA_BUDGET bounds the del+add lines refined per tick.
+local INTRA_BUDGET = 40
+function Session:apply_intraline(blocks)
   self._intra_gen = (self._intra_gen or 0) + 1
   local gen = self._intra_gen
   api.nvim_buf_clear_namespace(self.buf, NS_INTRA, 0, -1)
-  if #intra_work == 0 then
+  if #blocks == 0 then
     return
   end
+  self._intra_cache = self._intra_cache or {}
   -- Downgrade an aligned line's full-line background (placed in phase 1) to a
   -- foreground-only color, by re-setting its extmark in place. The changed spans
   -- then carry the diff background, so emphasis reads as "background = changed".
@@ -756,31 +759,42 @@ function Session:apply_intraline(intra_work)
       })
     end
   end
-  local idx = 1
+  local bi = 1
   local function step()
     if not intraline.is_current(gen, self._intra_gen, api.nvim_buf_is_valid(self.buf)) then
       return
     end
-    local stop = math.min(idx + INTRA_CHUNK - 1, #intra_work)
-    for k = idx, stop do
-      local w = intra_work[k]
-      local res = intraline.align(w.del_text, w.add_text)
-      if res then
-        -- Only drop a side's full-line background when it actually has changed
-        -- spans to paint; an empty seg list means that line is unchanged, so it
-        -- keeps the default full-line highlight.
-        if #res.a_segs > 0 then
-          downgrade(w.del_row)
-          paint(w.del_row, res.a_segs, "GleanDelEmph")
+    local budget = 0
+    while bi <= #blocks and budget < INTRA_BUDGET do
+      local block = blocks[bi]
+      bi = bi + 1
+      budget = budget + #block.dels + #block.adds
+      local del_texts, add_texts = {}, {}
+      for _, d in ipairs(block.dels) do del_texts[#del_texts + 1] = d.text end
+      for _, a in ipairs(block.adds) do add_texts[#add_texts + 1] = a.text end
+      -- Content-addressed cache key: the del/add line texts fully determine the
+      -- refinement, so an unchanged hunk hits the cache across re-renders/reloads.
+      local key = table.concat(del_texts, "\n") .. "\0\0" .. table.concat(add_texts, "\n")
+      local refined = self._intra_cache[key]
+      if not refined then
+        refined = intraline.refine(del_texts, add_texts)
+        self._intra_cache[key] = refined
+      end
+      -- Map the cached di/ai indices back to this render's rows. Only drop a
+      -- side's full-line background when it has changed spans to paint; an empty
+      -- seg list means that line is unchanged and keeps its full-line highlight.
+      for _, r in ipairs(refined) do
+        if #r.a_segs > 0 then
+          downgrade(block.dels[r.di].row)
+          paint(block.dels[r.di].row, r.a_segs, "GleanDelEmph")
         end
-        if #res.b_segs > 0 then
-          downgrade(w.add_row)
-          paint(w.add_row, res.b_segs, "GleanAddEmph")
+        if #r.b_segs > 0 then
+          downgrade(block.adds[r.ai].row)
+          paint(block.adds[r.ai].row, r.b_segs, "GleanAddEmph")
         end
       end
     end
-    idx = stop + 1
-    if idx <= #intra_work then
+    if bi <= #blocks then
       vim.schedule(step)
     end
   end
@@ -1753,7 +1767,16 @@ function Session:reload()
   self.store = store
   self._wt_lines = nil
   self._prov = nil
-  self._del_attr = nil
+  -- Del attribution (reverse blame base..HEAD) and its parent->child stack
+  -- depend only on the commit set, not on worktree content, so a content-only
+  -- reload (the common live-update case) keeps them; they are dropped only when
+  -- the commit set actually changes (new commit / amend / rebase).
+  local gen = table.concat(shas or {}, ",")
+  if gen ~= self._del_gen then
+    self._del_attr = nil
+    self._del_child = nil
+    self._del_gen = gen
+  end
   self.combined_files = nil
   self:apply_collapse()
   self:render()
