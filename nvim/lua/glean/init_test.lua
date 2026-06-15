@@ -1377,4 +1377,110 @@ do
   h.assert_eq("identity: committed B owned by c1", bid.sha, wm.shas[2])
   h.assert_true("identity: dirty D is content-addressed", did ~= nil and did.kind == "wt")
 end
+-- Stage 4 — cross-scope del-line identity: a deletion marked seen in commit
+-- scope shows as seen in combined scope, because both resolve to the immutable
+-- (remover_sha, old_lnum).
+do
+  local dr = testutil.make_repo({
+    { msg = "base", files = { ["d.txt"] = "a\nb\nc\n" } },
+    { msg = "c1: delete b", files = { ["d.txt"] = "a\nc\n" } },
+  })
+  local function rund(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = dr.root, env = dr.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local sdir = vim.fn.tempname()
+  local sc = glean.open({
+    base = dr.shas[1], target = dr.shas[2], repo_root = dr.root, run = rund,
+    open_window = false, state_dir = sdir, scope = "commits",
+  })
+  local frow = find_row(sc, function(_, line, t)
+    return t and t.commit == 1 and t.file and not t.hunk and line:find("d.txt", 1, true)
+  end)
+  sc:toggle_seen(frow)
+  local s = glean.open({
+    base = dr.shas[1], target = dr.shas[2], repo_root = dr.root, run = rund,
+    open_window = false, state_dir = sdir, -- combined scope
+  })
+  local cf = s.combined_files[1]
+  local owner = s:combined_owner(cf.path)
+  local found, seen
+  for _, hunk in ipairs(cf.hunks) do
+    for _, dl in ipairs(hunk.lines) do
+      if dl.kind == "del" and dl.text == "b" then
+        found = true
+        local id = s:line_identity(dl, cf.path, owner)
+        seen = id ~= nil and id.kind == "del" and id.sha == dr.shas[2] and s:line_seen(id)
+      end
+    end
+  end
+  h.assert_true("xscope del: found del line in combined", found)
+  h.assert_true("xscope del: combined del resolves to remover sha & is seen", seen)
+end
+
+-- Stage 4 — a worktree-only deletion has no committed remover, so it is
+-- content-addressed (kind "wt") and markable/persistent under WORKTREE.
+do
+  local wr = testutil.make_repo({
+    { msg = "base", files = { ["w.txt"] = "x\ny\nz\n" } },
+  })
+  local f = assert(io.open(wr.root .. "/w.txt", "w"))
+  f:write("x\nz\n") -- uncommitted deletion of y
+  f:close()
+  local function runwr(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = wr.root, env = wr.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local s = glean.open({
+    base = wr.shas[1], target = glean.WORKTREE, repo_root = wr.root, run = runwr,
+    open_window = false, state_dir = vim.fn.tempname(), -- combined scope
+  })
+  local cf
+  for _, c in ipairs(s.combined_files) do
+    if c.path == "w.txt" then cf = c end
+  end
+  h.assert_true("wt del: found w.txt", cf ~= nil)
+  local owner = s:combined_owner(cf.path)
+  local did
+  for _, hunk in ipairs(cf.hunks) do
+    for _, dl in ipairs(hunk.lines) do
+      if dl.kind == "del" and dl.text == "y" then
+        did = s:line_identity(dl, cf.path, owner)
+      end
+    end
+  end
+  h.assert_true("wt del: y is content-addressed", did ~= nil and did.kind == "wt")
+  h.assert_true("wt del: starts unseen", not s:line_seen(did))
+  s.store:mark({ did })
+  h.assert_true("wt del: markable & persists", s:line_seen(did))
+end
+
+-- Stage 4 — deterministic first-remover: a line text removed by several commits
+-- resolves to the first remover in stack (chronological) order.
+do
+  local mr = testutil.make_repo({
+    { msg = "base", files = { ["t.txt"] = "x\nkeep\n" } },
+    { msg = "c1: delete x", files = { ["t.txt"] = "keep\n" } },
+    { msg = "c2: re-add x", files = { ["t.txt"] = "x\nkeep\n" } },
+    { msg = "c3: delete x again", files = { ["t.txt"] = "keep\n" } },
+  })
+  local function runmr(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = mr.root, env = mr.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local s = glean.open({
+    base = mr.shas[1], target = mr.shas[4], repo_root = mr.root, run = runmr,
+    open_window = false, state_dir = vim.fn.tempname(), -- combined scope
+  })
+  local r = s:del_remover("t.txt", "x")
+  h.assert_true("del dup: resolves", r ~= nil)
+  h.assert_eq("del dup: first remover in stack order is c1", r.sha, mr.shas[2])
+end
+
 h.finish()

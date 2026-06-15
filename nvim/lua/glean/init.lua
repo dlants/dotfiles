@@ -238,16 +238,55 @@ function Session:commit_owner(commit)
 end
 
 -- The per-line owner closure for a combined-scope file: an add/context line's
--- owner is its blame provenance (sha + orig_lnum); a deletion has no new_lnum so
--- it is unowned for now (combined-scope del identity arrives in Stage 4).
+-- owner is its blame provenance (sha + orig_lnum). A deletion is owned by the
+-- commit that first removed it (resolved via `del_remover`, in that commit's
+-- immutable pre-image coords), or WORKTREE when the removal is uncommitted.
 function Session:combined_owner(path)
   local prov = self:provenance(path)
   return function(dl)
+    if dl.kind == "del" then
+      local r = self:del_remover(path, dl.text)
+      if r then return r.sha, r.lnum end
+      return M.WORKTREE
+    end
     if not dl.new_lnum then return nil end
     local p = prov[dl.new_lnum]
     if not p then return nil end
     return p.sha, p.orig_lnum
   end
+end
+
+-- Resolve a combined-scope deletion (path + text) to the immutable identity of
+-- the commit that first removed it: scan the ordered commit stack's commit_diff
+-- for the first del line with the same path+text, adopting that commit's
+-- pre-image `old_lnum`. Identical to the commit-scope `(sha, old_lnum)`, so a
+-- mark made in one view is seen in the other. A deletion present only in the
+-- work tree (no committed remover) returns nil → content-hashed under WORKTREE.
+-- Cached per path as text -> { sha, lnum }; the first remover in stack order
+-- wins deterministically when the same text is deleted by several commits.
+function Session:del_remover(path, text)
+  self._del_remover = self._del_remover or {}
+  local by_text = self._del_remover[path]
+  if by_text == nil then
+    by_text = {}
+    for _, c in ipairs(self.commits) do
+      if c.sha ~= M.WORKTREE then
+        for _, f in ipairs(c.files) do
+          if f.path == path then
+            for _, h in ipairs(f.hunks) do
+              for _, dl in ipairs(h.lines) do
+                if dl.kind == "del" and by_text[dl.text] == nil then
+                  by_text[dl.text] = { sha = c.sha, lnum = dl.old_lnum }
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+    self._del_remover[path] = by_text
+  end
+  return by_text[text]
 end
 
 -- The stable seen-identity of one changed diff line, or nil for a context line
@@ -1744,6 +1783,7 @@ function Session:reload()
   self.store = store
   self._wt_lines = nil
   self._prov = nil
+  self._del_remover = nil
   self.combined_files = nil
   self:apply_collapse()
   self:render()

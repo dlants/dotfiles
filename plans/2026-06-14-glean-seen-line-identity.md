@@ -330,6 +330,32 @@ blocks duplicated across `toggle_seen` / `mark_visual_range` / `unmark_marker`.
   - [x] Behavior: undo/redo of a seen mark restores the exact prior identity set.
 - [x] Before moving on: confirm tests, type checks, and linting all pass.
 
+> **Stage 4 status: DONE.** `combined_owner` now resolves del lines: a deletion
+> is owned by the commit that first removed it, via the new
+> `Session:del_remover(path, text)` — it scans the ordered commit stack's
+> `commit_diff` (oldest-first) for the first del line with the same path+text and
+> adopts that commit's pre-image `old_lnum`, yielding `(remover_sha, old_lnum)`
+> byte-identical to the commit-scope identity (cross-scope stability). A deletion
+> with no committed remover returns nil → `line_identity` content-hashes it under
+> WORKTREE. Result is cached per path as `text -> {sha,lnum}` (cleared in
+> `reload`). Combined-scope del lines now participate in `hunk_seen`/mark/unmark
+> identically to commit scope, with no change needed in `line_identity`/
+> `changed_lines`/the action layer (they already branched on the owner's
+> kind/sha). Decisions/deviations:
+> - Uncommitted deletions use the existing `wt_identity(path, text)` content hash
+>   (stored in the WORKTREE shard). The plan's "pinned to the branch name" is
+>   subsumed by the per-commit WORKTREE shard sharding already in place; no
+>   branch field is added to the identity (kept minimal).
+> - `del_remover` scans only real commits (skips the floating WORKTREE commit);
+>   the worktree fallback is the nil → WORKTREE path, so a committed remover
+>   always wins over a worktree match. First match in chronological stack order
+>   wins deterministically for duplicate deleted text.
+> - Added init tests (init 240→248): cross-scope del seen (mark in commit scope,
+>   seen in combined), worktree-only deletion is content-addressed & markable,
+>   and deterministic first-remover when the same text is deleted by two commits.
+>   Full suite green (init 248, state 64). No stylua/luacheck gate in the repo;
+>   `nvim -l run_tests.lua` is the gate.
+
 ## Stage 4 — Combined-scope del-line identity
 
 - Goal: resolve combined-scope del lines to `(remover_sha, old_lnum)` by
