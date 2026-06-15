@@ -235,4 +235,33 @@ do
   -- empty content is nil.
   h.assert_eq("resolve: empty content nil", state.resolve({}, 1, diff), nil)
 end
+-- Stage 5 migration: a legacy worktree shard whose per-file `seen` is the old
+-- block list (array of {head,hash,n}) is discarded on load, while a current
+-- per-line hash set survives and `is_seen_hash` works against it.
+do
+  local dir = vim.fn.tempname()
+  vim.fn.mkdir(dir, "p")
+  local legacy = {
+    worktree = true,
+    files = {
+      ["old.txt"] = { seen = { { head = "a", hash = "h", n = 2 } }, comments = {} },
+      ["new.txt"] = { seen = { [state.line_hash("kept")] = true }, comments = {} },
+    },
+  }
+  vim.fn.writefile({ vim.json.encode(legacy) }, dir .. "/" .. state.COMMENTS_ID .. ".json")
+  local s = state.new({ dir = dir })
+  s:load({ state.COMMENTS_ID })
+  h.assert_eq("migrate: legacy block seen discarded",
+    next(s:seen_hashes(state.COMMENTS_ID, "old.txt")), nil)
+  h.assert_true("migrate: current hash set survives",
+    s:is_seen_hash(state.COMMENTS_ID, "new.txt", "kept"))
+  -- A line marked through the migrated shard round-trips on reload.
+  s:mark_seen_hashes(state.COMMENTS_ID, "old.txt", { "fresh" })
+  s:save_commit(state.COMMENTS_ID)
+  local s2 = state.new({ dir = dir })
+  s2:load({ state.COMMENTS_ID })
+  h.assert_true("migrate: post-migration mark persists",
+    s2:is_seen_hash(state.COMMENTS_ID, "old.txt", "fresh"))
+end
+
 h.finish()

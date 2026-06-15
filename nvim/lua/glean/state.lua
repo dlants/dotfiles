@@ -2,12 +2,23 @@
 -- the user has reviewed. It is keyed by **commit sha** (not branch), so a mark
 -- left on a commit reappears in any branch/clone that contains that commit. On
 -- disk it is sharded one JSON file per commit (`<dir>/<sha>.json`); in memory
--- it is the merged map { [sha] = { files = { [path] = { seen, comments } } } }.
+-- it is the merged map { [sha] = { files = { [path] = { seen, seen_del, comments } } } }.
 --
--- The atomic addressable unit is a **new-file line range within a commit**
--- (`{start, end}`, in that commit's immutable post-image), so the range-math
--- helpers below (pure functions over literal range tables) are the heart of the
--- module and are exercised directly by the Tier-1 tests.
+-- The single representation is a flat set of **seen line-identities**: every
+-- changed diff line maps to one stable, serializable key, and seen-ness of any
+-- display unit (hunk/file/commit/selection) is a fold over those identities.
+-- There are three identity kinds (see `add_identity`/`del_identity`/
+-- `wt_identity` below):
+--   * committed add line → `(sha, post-image lnum)`, stored as the `seen` ranges
+--     in the commit's immutable post-image coords;
+--   * committed del line → `(remover_sha, pre-image lnum)`, stored as the
+--     `seen_del` ranges in the commit's immutable parent coords;
+--   * uncommitted (worktree) add/del line → the content hash of the line text,
+--     stored as a flat set in the always-loaded `WORKTREE` shard.
+-- `Store:is_seen`/`all_seen`/`mark`/`unmark` answer/mutate seen-ness uniformly
+-- over identities; the range-math helpers below back the committed kinds and are
+-- exercised directly by the Tier-1 tests. Per-line content addressing means
+-- worktree mark/unmark is a pure set add/remove (no block coalescing).
 local M = {}
 
 -- The synthetic shard id under which all content-addressed comments live. It is
@@ -180,7 +191,26 @@ function Store:read_shard(sha)
   local ok, decoded = pcall(vim.json.decode, content)
   if ok and type(decoded) == "table" then
     decoded.files = decoded.files or {}
+    M.migrate_shard(decoded)
     self.data[sha] = decoded
+  end
+end
+
+-- Discard any pre-`seen-line-identity` worktree data. The legacy worktree shard
+-- stored each file's `seen` as a *list of content blocks* (`{head, hash, n}`);
+-- the current model stores a flat set of per-line content hashes
+-- (`{ [hash] = true }`). The two are incompatible, and worktree marks are cheap
+-- to recreate, so a legacy `seen` list is dropped rather than migrated in place.
+function M.migrate_shard(decoded)
+  if not decoded.worktree or type(decoded.files) ~= "table" then
+    return
+  end
+  for _, f in pairs(decoded.files) do
+    -- Legacy block lists are array-like (`seen[1]` is a block table); the
+    -- current per-line hash set is keyed by sha256 hex strings.
+    if type(f.seen) == "table" and f.seen[1] ~= nil then
+      f.seen = {}
+    end
   end
 end
 

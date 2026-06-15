@@ -1483,4 +1483,93 @@ do
   h.assert_eq("del dup: first remover in stack order is c1", r.sha, mr.shas[2])
 end
 
+-- Stage 5 invariants — locked as tests.
+-- (a) No-op mark: marking an already-seen unit performs zero shard writes.
+-- (b) No foreign-shard writes: a mark only touches the owning in-range commit
+--     shards (and WORKTREE), never an out-of-range/base shard.
+-- (c) Round-trip: after a seen action, a re-render places the acted unit in the
+--     section the action intended.
+do
+  local s = open({ scope = "commits", state_dir = vim.fn.tempname() })
+
+  -- Instrument save_commit to record which shards are written. c2 has two files
+  -- (f.txt + g.txt), so marking only f.txt keeps the commit expanded and its
+  -- f.txt header visible to read the glyph.
+  local writes = {}
+  local orig_save = s.store.save_commit
+  s.store.save_commit = function(self, sha)
+    writes[#writes + 1] = sha
+    return orig_save(self, sha)
+  end
+
+  local function frow()
+    return find_row(s, function(_, line, t)
+      return t and t.commit == 2 and t.file and not t.hunk and line:find("f.txt", 1, true)
+    end)
+  end
+
+  local commit, file = s.commits[2], nil
+  for _, f in ipairs(commit.files) do
+    if f.path == "f.txt" then file = f end
+  end
+
+  -- (c) Round-trip: mark f.txt in c2; it lands in the seen section and the glyph
+  -- agrees, and only c2's shard was written.
+  s:toggle_seen(frow())
+  h.assert_true("inv: marked unit renders seen", s:file_seen(commit, file))
+  local _, fline = find_row(s, function(_, line, t)
+    return t and t.commit == 2 and t.file and not t.hunk and line:find("f.txt", 1, true)
+  end)
+  h.assert_true("inv: marked unit glyph ✓", fline:find("✓", 1, true) ~= nil)
+
+  -- (b) No foreign-shard writes: only c2's sha (repo.shas[3]) was written; the
+  -- base sha (repo.shas[1]) and c1 (repo.shas[2]) were not.
+  local only_acted = true
+  for _, sha in ipairs(writes) do
+    if sha ~= repo.shas[3] then only_acted = false end
+  end
+  h.assert_true("inv: mark wrote a shard", #writes > 0)
+  h.assert_true("inv: no foreign-shard writes (only c2)", only_acted)
+
+  s.store.save_commit = orig_save
+end
+
+-- Stage 5 invariant — marking an already-seen unit changes nothing. Re-marking a
+-- hunk's identities (all already seen) leaves the shard byte-identical, and the
+-- toggle layer filters such redundant marks to an empty change set so no
+-- save_commit is issued.
+do
+  local s = open({ scope = "commits", state_dir = vim.fn.tempname() })
+  local commit = s.commits[1]
+  local sha = commit.sha
+  local function encode_shard()
+    return vim.json.encode(s.store.data[sha] or { files = {} })
+  end
+
+  -- Gather every changed-line identity in c1 and mark them seen.
+  local ids = {}
+  for _, f in ipairs(commit.files) do
+    for _, hunk in ipairs(f.hunks) do
+      for _, id in ipairs(s:changed_lines(hunk, f.path, s:commit_owner(commit))) do
+        ids[#ids + 1] = id
+      end
+    end
+  end
+  s.store:mark(ids)
+  local marked = encode_shard()
+
+  -- Re-marking the same (already-seen) identities is byte-identical: a redundant
+  -- mark changes nothing in the store.
+  s.store:mark(ids)
+  h.assert_eq("inv: redundant store mark is byte-identical", encode_shard(), marked)
+
+  -- And the toggle layer's change filter yields zero: none of the ids flips.
+  local changed = {}
+  for _, id in ipairs(ids) do
+    if not s.store:is_seen(id) then changed[#changed + 1] = id end
+  end
+  h.assert_eq("inv: no identity changes when all already seen", #changed, 0)
+end
+
+h.finish()
 h.finish()

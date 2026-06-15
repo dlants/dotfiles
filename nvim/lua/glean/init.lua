@@ -6,9 +6,17 @@
 -- to its commit/file/hunk/line so actions can act on the semantic target.
 --
 -- Two scopes share one review store:
---   - "combined": the net diff base...target (Stage 2; seen overlay is Stage 4).
+--   - "combined": the net diff base...target.
 --   - "commits": every commit laid out flat, the natural place seen marks and
 --     comments are *authored* against a stable (commit_sha, path, new_lnum).
+--
+-- Seen-ness has a single representation: a flat set of stable line-identities in
+-- glean.state (committed add `(sha,lnum)`, committed del `(remover_sha,lnum)`,
+-- and content-hashed worktree lines). The renderer's section placement, the
+-- file/commit header glyphs, and the action layer all derive from the same
+-- `Session:changed_lines`/`line_identity`/`line_seen`/`hunk_seen` resolver, so
+-- "renders in the seen section" and "the action layer thinks it is seen" are
+-- one computation by construction. Hunks are a pure display concern.
 --
 -- Collapse is ephemeral session view-state: it is initialized from seen status
 -- when a scope is (re)built, then evolves independently and is never persisted.
