@@ -868,6 +868,11 @@ end
 function Session:select_hunk_textobj()
   local lo, hi = self:hunk_range(self:cursor_row())
   if not (lo and self.win and api.nvim_win_is_valid(self.win)) then return end
+  -- Drop any in-progress visual selection first; otherwise `normal! V` keeps the
+  -- original anchor and the range only extends one way from the cursor.
+  if api.nvim_get_mode().mode:match("[vV\22]") then
+    api.nvim_feedkeys(api.nvim_replace_termcodes("<Esc>", true, false, true), "nx", false)
+  end
   api.nvim_win_set_cursor(self.win, { lo + 1, 0 })
   vim.cmd("normal! V")
   api.nvim_win_set_cursor(self.win, { hi + 1, 0 })
