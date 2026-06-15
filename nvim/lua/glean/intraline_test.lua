@@ -95,6 +95,30 @@ do
   h.assert_eq("align: identical b_segs", segs_to_str(r.b_segs), "")
 end
 
+-- Mirror Session:apply_intraline's decision for one side of a hunk. Three
+-- outcomes per line:
+--   * unpaired (no entry in `seg_by_index`)  -> "full"  (full-line background)
+--   * paired, changed spans                  -> "emph <segs>" (only those bytes)
+--   * paired, no spans (the unchanged side)  -> "text"  (downgraded, no emphasis)
+-- The key point is that *any* pairing downgrades the full-line background, so the
+-- unchanged side of an in-line insertion reads as plain text rather than a solid
+-- "we gave up" block. `seg_by_index` maps a 1-based line index to its changed
+-- segments (an empty table for a paired-but-unchanged line, nil if unpaired).
+local function render_decisions(count, seg_by_index)
+  local out = {}
+  for i = 1, count do
+    local segs = seg_by_index[i]
+    if segs == nil then
+      out[#out + 1] = ("%d: full"):format(i)
+    elseif #segs > 0 then
+      out[#out + 1] = ("%d: emph %s"):format(i, segs_to_str(segs))
+    else
+      out[#out + 1] = ("%d: text"):format(i)
+    end
+  end
+  return table.concat(out, "\n")
+end
+
 -- Render a pair list to a compact comparison string.
 local function pairs_to_str(pairs_out)
   local parts = {}
@@ -212,6 +236,76 @@ do
   h.assert_true("hunk: align non-nil", r ~= nil)
   h.assert_eq("hunk: del emphasis empty", segs_to_str(r.a_segs), "")
   h.assert_eq("hunk: add emphasis is the insertion", segs_to_str(r.b_segs), "5:17")
+end
+
+-- Regression: the real "planCandidates" refactor hunk. Five deleted lines are
+-- replaced by nine added lines (a multi-line throw, a new branch param, etc.).
+-- refine must couple only the genuinely-similar lines -- the renamed
+-- `planParamAbs`->`planCandidates` decl, the `path.join(...)` line, and the
+-- `if (!...)` guard -- emphasizing just the changed tokens, while the brand-new
+-- inserted lines stay unpaired.
+do
+  local dels = {
+    "  const planParamAbs = path.isAbsolute(params.plan)",
+    "    ? params.plan",
+    "    : path.join(params.repo, params.plan);",
+    "  if (!existsSync(planParamAbs)) {",
+    "    throw new Error(`Plan file not found: ${planParamAbs}`);",
+  }
+  local adds = {
+    "  const planCandidates = path.isAbsolute(params.plan)",
+    "    ? [params.plan, path.join(params.repo, params.plan.replace(/^\\/+/, \"\"))]",
+    "    : [path.join(params.repo, params.plan), params.plan];",
+    "  const planParamAbs = planCandidates.find((p) => existsSync(p));",
+    "  if (!planParamAbs) {",
+    "    throw new Error(",
+    "      `Plan file not found. Tried: ${planCandidates.join(\", \")}`,",
+    "    );",
+    "  }",
+  }
+
+  local refined = intraline.refine(dels, adds)
+  local got = {}
+  for _, r in ipairs(refined) do
+    got[#got + 1] = ("%d-%d"):format(r.di, r.ai)
+  end
+  h.assert_eq("refactor hunk: pairs", table.concat(got, "|"), "1-1|3-3|4-5")
+
+  -- The rendered outcome: map each pair's changed spans back to its line, then
+  -- decide full-line vs in-detail highlight exactly as the renderer does.
+  local del_segs, add_segs = {}, {}
+  for _, r in ipairs(refined) do
+    del_segs[r.di] = r.a_segs
+    add_segs[r.ai] = r.b_segs
+  end
+
+  -- Deleted side: the rename (1) and the guard (4) are detailed. The `path.join`
+  -- line (3) pairs but is byte-identical on the del side, so it downgrades to
+  -- plain "text" (no longer a solid block) rather than being emphasized. The
+  -- unpaired `? params.plan` (2) and `throw` (5) keep their full-line highlight.
+  h.assert_eq("refactor hunk: del rendering", render_decisions(#dels, del_segs), table.concat({
+    "1: emph 8:20",
+    "2: full",
+    "3: text",
+    "4: emph 7:18|30:31",
+    "5: full",
+  }, "\n"))
+
+  -- Added side: the rename (1) and the rewritten `path.join` line (3) are
+  -- detailed. The guard's add (5) is fully contained in the del, so it has no
+  -- new spans and downgrades to plain "text"; the four brand-new inserted lines
+  -- are unpaired and keep their full-line highlight.
+  h.assert_eq("refactor hunk: add rendering", render_decisions(#adds, add_segs), table.concat({
+    "1: emph 8:22",
+    "2: full",
+    "3: emph 6:7|42:56",
+    "4: full",
+    "5: text",
+    "6: full",
+    "7: full",
+    "8: full",
+    "9: full",
+  }, "\n"))
 end
 
 h.finish()

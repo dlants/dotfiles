@@ -121,7 +121,23 @@ end
 -- `commits` (each with its own `commit_diff` files), and the `shas` to load from
 -- the store. For a work-tree target the diff runs base->work tree and the
 -- floating commit (tracked dirty edits + untracked files) is appended last.
-local function build_model(git, base, target)
+-- Commit diffs are immutable per sha and only consulted in the commits scope, so
+-- each commit's `files` is computed lazily on first access and memoized in a
+-- session-lived, sha-keyed `cache`. A combined-scope review (the default) and
+-- every live work-tree poll thus skip the per-commit `commit_diff` subprocess
+-- entirely, and a scope toggle pays for it exactly once per sha.
+local function lazy_commit_files(git, commit, cache)
+  setmetatable(commit, { __index = function(t, k)
+    if k ~= "files" then return nil end
+    local f = cache[t.sha]
+    if not f then f = git:commit_diff(t.sha) or {}; cache[t.sha] = f end
+    rawset(t, "files", f)
+    return f
+  end })
+end
+
+local function build_model(git, base, target, commit_files)
+  commit_files = commit_files or {}
   local worktree = target == M.WORKTREE
   local files, err
   if worktree then
@@ -137,7 +153,7 @@ local function build_model(git, base, target)
   if not commits then return nil, cerr end
   local shas = {}
   for _, c in ipairs(commits) do
-    c.files = git:commit_diff(c.sha) or {}
+    lazy_commit_files(git, c, commit_files)
     shas[#shas + 1] = c.sha
   end
 
@@ -783,15 +799,16 @@ function Session:apply_intraline(blocks)
       -- Map the cached di/ai indices back to this render's rows. Only drop a
       -- side's full-line background when it has changed spans to paint; an empty
       -- seg list means that line is unchanged and keeps its full-line highlight.
+      -- A pair means we resolved what changed, so both lines drop their
+      -- full-line background and read as text; the changed spans (which may be
+      -- on only one side, e.g. a pure in-line insertion) then carry the diff
+      -- background. Downgrading unconditionally keeps the unchanged side from
+      -- staying solid -- the "we gave up" look -- when only its mate changed.
       for _, r in ipairs(refined) do
-        if #r.a_segs > 0 then
-          downgrade(block.dels[r.di].row)
-          paint(block.dels[r.di].row, r.a_segs, "GleanDelEmph")
-        end
-        if #r.b_segs > 0 then
-          downgrade(block.adds[r.ai].row)
-          paint(block.adds[r.ai].row, r.b_segs, "GleanAddEmph")
-        end
+        downgrade(block.dels[r.di].row)
+        downgrade(block.adds[r.ai].row)
+        paint(block.dels[r.di].row, r.a_segs, "GleanDelEmph")
+        paint(block.adds[r.ai].row, r.b_segs, "GleanAddEmph")
       end
     end
     if bi <= #blocks then
@@ -1758,7 +1775,8 @@ end
 -- per-target memoized caches so the projection reflects the latest content.
 function Session:reload()
   if not api.nvim_buf_is_valid(self.buf) then return end
-  local files, commits, shas = build_model(self.git, self.base, self.target)
+  self._commit_files = self._commit_files or {}
+  local files, commits, shas = build_model(self.git, self.base, self.target, self._commit_files)
   if not files then return end
   local store = state_mod.new({ dir = self.state_dir })
   store:load(shas)
@@ -1886,7 +1904,8 @@ function M.open(opts)
   local git = git_mod.new({ repo_root = repo_root, run = opts.run })
 
   local worktree = opts.target == M.WORKTREE
-  local files, commit_list, shas = build_model(git, opts.base, opts.target)
+  local commit_files = {}
+  local files, commit_list, shas = build_model(git, opts.base, opts.target, commit_files)
   if not files then error("glean: build_model failed: " .. tostring(commit_list)) end
 
   local store = state_mod.new({ dir = opts.state_dir })
@@ -1939,6 +1958,7 @@ function M.open(opts)
     state_dir = opts.state_dir,
     files = files,
     commits = commit_list,
+    _commit_files = commit_files,
     scope = opts.scope or "combined",
     buf = buf,
     win = nil,
