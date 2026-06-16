@@ -635,6 +635,12 @@ local function discover_search_dir(opts_cwd, buf_name)
   else
     buf_dir = vim.fs.dirname(buf_name)
   end
+  -- The buffer may point at a dead/nonexistent path (e.g. a deleted file), in
+  -- which case buf_dir is empty or missing on disk; fall back to cwd so we
+  -- never hand vim.system an invalid working directory.
+  if not buf_dir or buf_dir == "" or vim.fn.isdirectory(buf_dir) == 0 then
+    return current_cwd
+  end
   if buf_dir == current_cwd or buf_dir:sub(1, #current_cwd + 1) == current_cwd .. "/" then
     return current_cwd
   end

@@ -476,11 +476,6 @@ function showGhosttyChooser()
   ghosttyChooser:show()
 end
 
--- Bind hotkey for chooser-based tab switcher
-hs.hotkey.bind({ "cmd" }, "p", function()
-  showGhosttyChooser()
-end)
-
 -- Select a specific Ghostty tab
 function selectGhosttyTab(windowId, tabIndex)
   local ghostty = hs.application.find("Ghostty")
