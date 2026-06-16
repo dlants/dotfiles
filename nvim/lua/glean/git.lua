@@ -73,6 +73,18 @@ function Git:upstream(ref)
   return out
 end
 
+-- The repository's default branch (trunk), detected from the remote HEAD
+-- symbolic ref (e.g. `origin/dev` for aurelia, `origin/main` for infra).
+-- Returns the short ref like `origin/dev`, or nil when it can't be resolved
+-- (e.g. `origin/HEAD` not set). Used so reviews don't assume a `main` trunk.
+function Git:default_trunk()
+  local out = self:run({ "symbolic-ref", "--short", "refs/remotes/origin/HEAD" })
+  if not out then return nil end
+  out = out:gsub("%s+$", "")
+  if out == "" then return nil end
+  return out
+end
+
 -- List commits on `base..target` in chronological order (oldest first).
 -- Returns a list of { sha, summary }.
 function Git:commits(base, target)

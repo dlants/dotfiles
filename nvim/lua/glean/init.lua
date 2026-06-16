@@ -2078,13 +2078,17 @@ end
 -- meaningful fork point, so the base is the upstream tracking ref (e.g.
 -- origin/main), yielding unpushed commits plus uncommitted edits.
 function M.resolve_dirty(git)
+  -- Detect the repo's trunk from origin/HEAD (e.g. origin/dev, origin/main) so
+  -- we don't assume a "main" branch; fall back to the configured default_base.
+  local trunk = git:default_trunk() or M.config.default_base
+  local trunk_branch = trunk:gsub("^[^/]+/", "")
   local base
-  if git:current_branch() == M.config.default_base then
+  if git:current_branch() == trunk_branch then
     base = git:upstream()
   else
-    base = git:merge_base(M.config.default_base, "HEAD")
+    base = git:merge_base(trunk, "HEAD")
   end
-  return base or M.config.default_base, M.WORKTREE
+  return base or trunk, M.WORKTREE
 end
 
 -- Open a review of "current branch + dirty". An explicit `opts.base` overrides
