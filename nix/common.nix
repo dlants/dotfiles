@@ -137,12 +137,21 @@
     config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-scripts";
 
   # Each script package imports the SDK via a `magenta-sdk` symlink that magenta
-  # does not manage for us, so point it at the local magenta.nvim checkout.
+  # does not manage for us. magenta lives either in the local checkout (macOS) or
+  # in the neovim pack dir (Linux), so point the symlink at whichever exists.
   home.activation.linkMagentaSdk = lib.hm.dag.entryAfter ["cloneMagenta"] ''
-    for pkg in "${dotfilesDir}/magenta-scripts"/*/; do
-      [ -f "$pkg/index.ts" ] || continue
-      ln -sfn "$HOME/src/magenta.nvim/sdk" "$pkg/magenta-sdk"
+    sdk=""
+    for candidate in \
+      "$HOME/src/magenta.nvim/sdk" \
+      "$HOME/.local/share/nvim/site/pack/core/opt/magenta/sdk"; do
+      if [ -d "$candidate" ]; then sdk="$candidate"; break; fi
     done
+    if [ -n "$sdk" ]; then
+      for pkg in "${dotfilesDir}/magenta-scripts"/*/; do
+        [ -f "$pkg/index.ts" ] || continue
+        ln -sfn "$sdk" "$pkg/magenta-sdk"
+      done
+    fi
   '';
 
   # Install each script package's runtime deps (e.g. zx). node_modules is
