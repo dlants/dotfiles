@@ -53,15 +53,22 @@ local function scroll_down_visual()
 end
 
 -- Open a file in another window if available, otherwise create a vsplit
-local function open_file_in_other_window(abs_path)
+local function open_file_in_other_window(abs_path, line)
   local cur_win = vim.api.nvim_get_current_win()
   local cur_is_magenta = pcall(vim.api.nvim_win_get_var, cur_win, "magenta")
 
   local buf = vim.fn.bufadd(abs_path)
   vim.fn.bufload(buf)
 
+  local function set_cursor()
+    if line then
+      pcall(vim.api.nvim_win_set_cursor, 0, { line, 0 })
+    end
+  end
+
   if not cur_is_magenta then
     vim.api.nvim_win_set_buf(cur_win, buf)
+    set_cursor()
     return
   end
 
@@ -72,6 +79,7 @@ local function open_file_in_other_window(abs_path)
     if not is_magenta then
       vim.api.nvim_win_set_buf(win, buf)
       vim.api.nvim_set_current_win(win)
+      set_cursor()
       return
     end
   end
@@ -115,16 +123,26 @@ vim.api.nvim_create_autocmd("FileType", {
       local target = word:match("%]%((.+)%)")
           or word:match("https?://[%w%-._~:/?#%[%]@!$&'()*+,;%%=]+")
 
+      -- Split a trailing :<line> postfix off a file path
+      local function split_line(path)
+        local p, l = path:match("^(.-):(%d+)$")
+        if p then
+          return p, tonumber(l)
+        end
+        return path, nil
+      end
+
       if not target then
-        -- Try plain file path under cursor
-        target = vim.fn.expand("<cfile>")
-        if target == "" or target:match("^https?://") then
+        -- Try plain file path (with optional :line postfix) under cursor
+        local word_path = word:match("[%w%-._~/]+:%d+") or vim.fn.expand("<cfile>")
+        if word_path == "" or word_path:match("^https?://") then
           return
         end
+        local path, line = split_line(word_path)
         local md_dir = vim.fn.expand("%:p:h")
-        local abs_path = vim.fn.fnamemodify(md_dir .. "/" .. target, ":p")
+        local abs_path = vim.fn.fnamemodify(md_dir .. "/" .. path, ":p")
         if vim.fn.filereadable(abs_path) == 1 then
-          open_file_in_other_window(abs_path)
+          open_file_in_other_window(abs_path, line)
         end
         return
       end
@@ -132,10 +150,11 @@ vim.api.nvim_create_autocmd("FileType", {
       if target:match("^https?://") then
         vim.fn.system({ "open", target })
       else
+        local path, line = split_line(target)
         local md_dir = vim.fn.expand("%:p:h")
-        local abs_path = md_dir .. "/" .. target
+        local abs_path = md_dir .. "/" .. path
         if vim.fn.filereadable(abs_path) == 1 then
-          open_file_in_other_window(abs_path)
+          open_file_in_other_window(abs_path, line)
         end
       end
     end, { buffer = 0, noremap = true, silent = true })
