@@ -2360,6 +2360,42 @@ function M.open_pr(opts)
   }))
 end
 
+-- Resolve the base/target refs for reviewing a branch against its trunk: the
+-- base is the fork point (merge-base of the repo's trunk and the branch) and the
+-- target is the branch tip, so the review shows exactly what the branch adds.
+-- Returns base, target.
+function M.resolve_branch(git, branch)
+  local trunk = git:default_trunk() or M.config.default_base
+  -- Refresh the branch and trunk from origin (best-effort: a local-only branch
+  -- or offline remote shouldn't fail the review) so the fork point and tip are
+  -- current. Nothing local is moved; only the object store is updated.
+  git:fetch("origin", branch)
+  git:fetch("origin", (trunk:gsub("^[^/]+/", "")))
+  -- Prefer the remote tracking ref so the review reflects what's on origin;
+  -- fall back to the local branch when there is no remote copy.
+  local target = branch
+  if git:rev_parse("origin/" .. branch) then
+    target = "origin/" .. branch
+  end
+  local base = git:merge_base(trunk, target)
+  return base or trunk, target
+end
+
+-- Open a glean review of a branch against its trunk fork-point. `opts.branch` is
+-- the branch name (or any ref). The checkout and working tree are untouched.
+function M.open_branch(opts)
+  opts = opts or {}
+  assert(opts.branch and opts.branch ~= "", "glean: open_branch requires a branch")
+  local repo_root = opts.repo_root
+    or resolve_repo_root(api.nvim_buf_get_name(0))
+  assert(repo_root, "glean: could not find a git repo root")
+  local git = git_mod.new({ repo_root = repo_root, run = opts.run })
+  local base, target = M.resolve_branch(git, opts.branch)
+  return M.open(vim.tbl_extend("force", opts, {
+    repo_root = repo_root, base = base, target = target,
+  }))
+end
+
 -- A foreground-only spec carrying just the visible attributes of `src` (its
 -- foreground color + emphasis), dropping its background. Used for aligned diff
 -- lines, whose background moves to the changed spans only.
@@ -2403,6 +2439,10 @@ function M.setup(opts)
     local args = o.fargs
     if args[1] == "pr" then
       M.open_pr({ pr = args[2] })
+      return
+    end
+    if args[1] == "branch" then
+      M.open_branch({ branch = args[2] })
       return
     end
     if #args == 0 then

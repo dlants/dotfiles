@@ -1842,4 +1842,85 @@ do
   h.assert_eq("intra: block 2 single del", #blocks[2].dels, 1)
   h.assert_eq("intra: block 2 single add", #blocks[2].adds, 1)
 end
+-- resolve_branch: the base is the merge-base of the repo trunk and the named
+-- branch, and the target is the branch tip, so a review shows exactly what the
+-- branch adds. With no origin remote the fetch is best-effort (must not fail)
+-- and resolution falls back to the local branch; the checkout is left untouched.
+do
+  local brepo = testutil.make_repo({
+    { msg = "base", files = { ["b.txt"] = "one\ntwo\n" } },
+    { msg = "trunk moves on", files = { ["b.txt"] = "one\ntwo\nthree\n" } },
+  })
+  -- A feature branch forked from the base commit with its own commit.
+  brepo.run({ "branch", "feature", brepo.shas[1] })
+  brepo.run({ "checkout", "-q", "feature" })
+  local f = assert(io.open(brepo.root .. "/b.txt", "w"))
+  f:write("one\ntwo\nFEATURE\n"); f:close()
+  brepo.run({ "add", "--", "b.txt" })
+  brepo.run({ "commit", "-q", "-m", "feature edit" })
+  local feature_tip = brepo.run({ "rev-parse", "HEAD" })
+  brepo.run({ "checkout", "-q", "main" })
+
+  local bgit = require("glean.git").new({
+    repo_root = brepo.root,
+    run = function(args)
+      local cmd = { "git" }
+      for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+      local res = vim.system(cmd, { cwd = brepo.root, env = brepo.env, text = true }):wait()
+      return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+    end,
+  })
+  local base, target = glean.resolve_branch(bgit, "feature")
+  h.assert_eq("resolve_branch: base is fork point", base, brepo.shas[1])
+  h.assert_eq("resolve_branch: target is branch", target, "feature")
+  h.assert_eq("resolve_branch: checkout untouched",
+    brepo.run({ "rev-parse", "--abbrev-ref", "HEAD" }), "main")
+  h.assert_eq("resolve_branch: feature tip distinct", bgit:rev_parse("feature"), feature_tip)
+end
+
+-- resolve_branch prefers the remote tracking ref: with an origin remote that has
+-- the branch, the target is origin/<branch> (and the base is its fork point from
+-- the remote trunk), so the review reflects what's on origin, not local state.
+do
+  local origin = vim.fn.tempname()
+  vim.fn.mkdir(origin, "p")
+  local rrepo = testutil.make_repo({
+    { msg = "base", files = { ["b.txt"] = "one\ntwo\n" } },
+    { msg = "trunk moves on", files = { ["b.txt"] = "one\ntwo\nthree\n" } },
+  })
+  local function rrun(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = rrepo.root, env = rrepo.env, text = true }):wait()
+    return res
+  end
+  -- A feature branch with its own commit, pushed to a bare origin along with main.
+  rrun({ "branch", "feature", rrepo.shas[1] })
+  rrun({ "checkout", "-q", "feature" })
+  local f = assert(io.open(rrepo.root .. "/b.txt", "w"))
+  f:write("one\ntwo\nFEATURE\n"); f:close()
+  rrun({ "add", "--", "b.txt" })
+  rrun({ "commit", "-q", "-m", "feature edit" })
+  local remote_tip = (rrun({ "rev-parse", "HEAD" }).stdout or ""):gsub("%s+$", "")
+  rrun({ "checkout", "-q", "main" })
+  local bare = vim.system({ "git", "init", "-q", "--bare", origin },
+    { env = rrepo.env, text = true }):wait()
+  assert(bare.code == 0)
+  rrun({ "remote", "add", "origin", origin })
+  rrun({ "push", "-q", "origin", "main", "feature" })
+  -- Point origin/HEAD at main so default_trunk resolves to origin/main.
+  rrun({ "remote", "set-head", "origin", "main" })
+
+  local rgit = require("glean.git").new({
+    repo_root = rrepo.root,
+    run = function(args)
+      local res = rrun(args)
+      return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+    end,
+  })
+  local base, target = glean.resolve_branch(rgit, "feature")
+  h.assert_eq("resolve_branch: prefers remote ref", target, "origin/feature")
+  h.assert_eq("resolve_branch: remote target tip", rgit:rev_parse(target), remote_tip)
+  h.assert_eq("resolve_branch: remote base is fork point", base, rrepo.shas[1])
+end
 h.finish()
