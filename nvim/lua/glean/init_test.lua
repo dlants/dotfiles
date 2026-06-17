@@ -1708,5 +1708,103 @@ do
     vim.inspect(glean.compute_pinned(canc, 4)), vim.inspect({ 1, 2, 3 }))
 end
 
+-- Stage 3 — sticky header float: scrolling past a tall hunk's headers pins the
+-- enclosing commit/file/section/hunk rows in a top-anchored float; the float is
+-- reused, tracks the topline, collapses to nothing at the top, and tears down
+-- when the chain empties or the window closes.
+do
+  local function lines_n(overrides, n)
+    local t = {}
+    for i = 1, n do t[i] = overrides[i] or ("line" .. i) end
+    return table.concat(t, "\n") .. "\n"
+  end
+  local tgt = {}
+  for i = 10, 70 do tgt[i] = "line" .. i .. "_Z" end
+  local srepo = testutil.make_repo({
+    { msg = "base", files = { ["s.txt"] = lines_n({}, 80) } },
+    { msg = "edit a tall block", files = { ["s.txt"] = lines_n(tgt, 80) } },
+  })
+  local function srun(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = srepo.root, env = srepo.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local s = glean.open({
+    base = srepo.shas[1], target = srepo.shas[2], repo_root = srepo.root, run = srun,
+    open_window = true, state_dir = vim.fn.tempname(), scope = "commits",
+  })
+  api.nvim_set_option_value("scrolloff", 0, { win = s.win })
+  api.nvim_win_set_height(s.win, 8)
+
+  -- locate the hunk header row and a body line ~30 rows below it.
+  local hunk_row
+  local n = api.nvim_buf_line_count(s.buf)
+  for row = 0, n - 1 do
+    local t = s.row_map[row]
+    if t and t.hunk and not t.line and not t.marker and t.sec ~= "seen" then
+      hunk_row = row
+      break
+    end
+  end
+  h.assert_true("sticky: found a hunk header", hunk_row ~= nil)
+  local body_row = hunk_row + 30
+
+  -- top of buffer: empty chain, no float.
+  api.nvim_win_set_cursor(s.win, { 1, 0 })
+  api.nvim_win_call(s.win, function() vim.fn.winrestview({ topline = 1, lnum = 1 }) end)
+  s:update_sticky()
+  h.assert_true("sticky: no float at top of buffer",
+    not (s._sticky_win and api.nvim_win_is_valid(s._sticky_win)))
+
+  -- scroll so the hunk's headers leave the viewport.
+  api.nvim_win_set_cursor(s.win, { body_row + 1, 0 })
+  api.nvim_win_call(s.win, function()
+    vim.fn.winrestview({ topline = body_row + 1, lnum = body_row + 1 })
+  end)
+  s:update_sticky()
+  h.assert_true("sticky: float shown mid-hunk",
+    s._sticky_win and api.nvim_win_is_valid(s._sticky_win))
+  local pinned = glean.compute_pinned(s.ancestry, body_row)
+  h.assert_true("sticky: full chain pinned (commit/file/sec/hunk)", #pinned == 4)
+  local fl = api.nvim_buf_get_lines(s._sticky_buf, 0, -1, false)
+  h.assert_eq("sticky: one float line per pinned header", #fl, #pinned)
+  for i, row in ipairs(pinned) do
+    local src = api.nvim_buf_get_lines(s.buf, row, row + 1, false)[1]
+    h.assert_eq("sticky: float line " .. i .. " is its header (space-prefixed)",
+      fl[i], " " .. src)
+  end
+
+  -- reused: scrolling again keeps the same float window id.
+  local win0 = s._sticky_win
+  api.nvim_win_set_cursor(s.win, { body_row, 0 })
+  api.nvim_win_call(s.win, function()
+    vim.fn.winrestview({ topline = body_row, lnum = body_row })
+  end)
+  s:update_sticky()
+  h.assert_eq("sticky: float window reused across updates", s._sticky_win, win0)
+
+  -- back to the top: chain empties, float closes.
+  api.nvim_win_set_cursor(s.win, { 1, 0 })
+  api.nvim_win_call(s.win, function() vim.fn.winrestview({ topline = 1, lnum = 1 }) end)
+  s:update_sticky()
+  h.assert_true("sticky: float closed back at top",
+    not (s._sticky_win and api.nvim_win_is_valid(s._sticky_win)))
+
+  -- closing the glean window tears the float down.
+  api.nvim_win_set_cursor(s.win, { body_row + 1, 0 })
+  api.nvim_win_call(s.win, function()
+    vim.fn.winrestview({ topline = body_row + 1, lnum = body_row + 1 })
+  end)
+  s:update_sticky()
+  h.assert_true("sticky: float reopened before close",
+    s._sticky_win and api.nvim_win_is_valid(s._sticky_win))
+  -- a second real window so closing the glean window isn't closing the last one.
+  vim.cmd("botright new")
+  api.nvim_win_close(s.win, true)
+  h.assert_true("sticky: float gone after window close",
+    not (s._sticky_win and api.nvim_win_is_valid(s._sticky_win)))
+end
+
 h.finish()
 h.finish()

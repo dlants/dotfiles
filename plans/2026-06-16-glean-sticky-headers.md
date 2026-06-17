@@ -207,6 +207,27 @@ past-EOF); full suite green (280 init tests).
   - Expected: pinned lists match by row index and order; empty where expected.
 - Before moving on: confirm tests, type checks, and linting pass.
 
+**Status: DONE.** Sticky-header float implemented in `nvim/lua/glean/init.lua`:
+`NS_STICKY` namespace; `Session:update_sticky`, `Session:close_sticky`, and
+`Session:_close_sticky_win` (just above `Session:hunk_range`). The float reuses
+one scratch buffer (`self._sticky_buf`) and window (`self._sticky_win`),
+repositioning via `nvim_win_set_config` on later updates. `render()` bumps
+`self._render_gen` and calls `update_sticky` at the end; the guard caches
+`(w0, width, gen)` and skips no-op updates. Wired in `setup_keymaps`'s
+`glean_cursor_<buf>` augroup: `WinScrolled` + `CursorMoved` update, `WinResized`/
+`VimResized` reposition (state reset then update), `WinLeave`/`BufLeave`/
+`WinClosed` close. BufWipeout/BufDelete cleanup also calls `close_sticky`.
+Integration test added in `init_test.lua` (tall single-hunk fixture, real
+window): no float at top, full chain pinned mid-hunk with space-prefixed header
+text + matching count, window reuse across updates, close back at top, teardown
+on window close. Full suite green (293 init tests; all suites pass).
+
+Decision: driver is topline (`line('w0')`), per the plan's stated semantics, so
+the context tracks `<C-e>/<C-y>`. Note: stylua's defaults (tabs) conflict with
+the repo's 2-space style across the whole pre-existing file and there is no
+`.stylua.toml`, so stylua is not the project's formatter; edits follow the
+existing 2-space convention. scrolloff polish is deferred to Stage 4.
+
 ## Stage 3 — Float window + events
 
 - Goal: scrolling a real glean buffer shows the pinned headers in a top-anchored

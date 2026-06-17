@@ -42,6 +42,7 @@ M.WORKTREE = "WORKTREE"
 local NS = api.nvim_create_namespace("glean_hl")
 local NS_INTRA = api.nvim_create_namespace("glean_intra_hl")
 local NS_CURSOR = api.nvim_create_namespace("glean_cursor_hl")
+local NS_STICKY = api.nvim_create_namespace("glean_sticky_hl")
 
 M.config = {
   default_base = "main",
@@ -757,6 +758,9 @@ function Session:render()
   local lines, row_map, highlights, intra_work = self:build()
   self.row_map = row_map
   self.ancestry = M.compute_ancestry(row_map, #lines)
+  -- Each render rebuilds ancestry/row_hl in lockstep with row_map; bumping the
+  -- generation invalidates the sticky-float guard so it re-evaluates below.
+  self._render_gen = (self._render_gen or 0) + 1
   self.row_hl = {}
   for _, hl in ipairs(highlights) do
     self.row_hl[hl.row] = hl.hl
@@ -792,6 +796,7 @@ function Session:render()
     pcall(api.nvim_win_set_cursor, win, cur)
   end
   self:highlight_cursor_hunk()
+  self:update_sticky()
 end
 
 -- Phase 2 of rendering: intra-line (word-level) emphasis, computed off the
@@ -910,6 +915,91 @@ function Session:highlight_cursor_hunk()
         priority = 100,
       })
     end
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- Sticky headers: pin the enclosing commit/file/section/hunk headers in a
+-- top-anchored, non-focusable float over the glean window, the same affordance
+-- treesitter-context gives for code. Driven by topline (the first visible row),
+-- so it tracks <C-e>/<C-y> even with a stationary cursor. The float reuses one
+-- scratch buffer and one window; later updates reposition via set_config rather
+-- than recreating. Float lines are the exact header rows (prefixed with a space
+-- to mirror the body's signcolumn gutter), each carrying its whole-line glean
+-- highlight group.
+
+function Session:_close_sticky_win()
+  if self._sticky_win and api.nvim_win_is_valid(self._sticky_win) then
+    pcall(api.nvim_win_close, self._sticky_win, true)
+  end
+  self._sticky_win = nil
+end
+
+function Session:close_sticky()
+  self:_close_sticky_win()
+  self._sticky_state = nil
+end
+
+function Session:update_sticky()
+  local win = self.win
+  if not (win and api.nvim_win_is_valid(win)) then
+    return self:close_sticky()
+  end
+  local gen = self._render_gen or 0
+  local w0 = vim.fn.line("w0", win) - 1
+  local width = api.nvim_win_get_width(win)
+  local st = self._sticky_state
+  if st and st.w0 == w0 and st.width == width and st.gen == gen then
+    return
+  end
+  self._sticky_state = { w0 = w0, width = width, gen = gen }
+
+  local pinned = M.compute_pinned(self.ancestry or {}, w0)
+  if #pinned == 0 then
+    return self:_close_sticky_win()
+  end
+
+  local sbuf = self._sticky_buf
+  if not (sbuf and api.nvim_buf_is_valid(sbuf)) then
+    sbuf = api.nvim_create_buf(false, true)
+    self._sticky_buf = sbuf
+  end
+  local texts = {}
+  for _, row in ipairs(pinned) do
+    texts[#texts + 1] = " " .. (api.nvim_buf_get_lines(self.buf, row, row + 1, false)[1] or "")
+  end
+  api.nvim_buf_set_lines(sbuf, 0, -1, false, texts)
+  api.nvim_buf_clear_namespace(sbuf, NS_STICKY, 0, -1)
+  for i, row in ipairs(pinned) do
+    local hl = self.row_hl and self.row_hl[row]
+    if hl then
+      api.nvim_buf_set_extmark(sbuf, NS_STICKY, i - 1, 0, {
+        end_row = i,
+        end_col = 0,
+        hl_group = hl,
+        hl_eol = true,
+      })
+    end
+  end
+
+  local cfg = {
+    relative = "win",
+    win = win,
+    anchor = "NW",
+    row = 0,
+    col = 0,
+    width = width,
+    height = #pinned,
+    focusable = false,
+    style = "minimal",
+    zindex = 50,
+  }
+  if self._sticky_win and api.nvim_win_is_valid(self._sticky_win) then
+    api.nvim_win_set_config(self._sticky_win, cfg)
+  else
+    cfg.noautocmd = true
+    self._sticky_win = api.nvim_open_win(sbuf, false, cfg)
+    api.nvim_set_option_value("wrap", false, { win = self._sticky_win })
   end
 end
 
@@ -1976,7 +2066,35 @@ local function setup_keymaps(buf, session)
   api.nvim_create_autocmd("CursorMoved", {
     group = group,
     buffer = buf,
-    callback = function() session:highlight_cursor_hunk() end,
+    callback = function()
+      session:highlight_cursor_hunk()
+      session:update_sticky()
+    end,
+  })
+  -- Sticky headers pin to the topline, so scrolling (even with a stationary
+  -- cursor) drives the update; resize repositions; leaving/closing tears down.
+  api.nvim_create_autocmd("WinScrolled", {
+    group = group,
+    buffer = buf,
+    callback = function() session:update_sticky() end,
+  })
+  api.nvim_create_autocmd({ "WinResized", "VimResized" }, {
+    group = group,
+    callback = function()
+      session._sticky_state = nil
+      session:update_sticky()
+    end,
+  })
+  api.nvim_create_autocmd({ "WinLeave", "BufLeave" }, {
+    group = group,
+    buffer = buf,
+    callback = function() session:close_sticky() end,
+  })
+  api.nvim_create_autocmd("WinClosed", {
+    group = group,
+    callback = function(ev)
+      if tonumber(ev.match) == session.win then session:close_sticky() end
+    end,
   })
   map("n", "=", function() session:toggle_collapse() end)
   map("n", "m", function() session:toggle_seen() end)
@@ -2070,7 +2188,10 @@ function M.open(opts)
         buffers[key] = nil
         views[key] = nil
         local s = sessions[key]
-        if s then s:stop_live() end
+        if s then
+          s:stop_live()
+          s:close_sticky()
+        end
         sessions[key] = nil
       end,
     })
