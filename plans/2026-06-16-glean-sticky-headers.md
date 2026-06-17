@@ -186,6 +186,16 @@ branch because section headers also carry `file`/`cfile`.
 
 ## Stage 2 — Pinned-set selection (pure)
 
+**Status: DONE.** `M.compute_pinned(ancestry, w0)` added in
+`nvim/lua/glean/init.lua` (just below `compute_ancestry`): returns the ordered
+`[commit, file, sec, hunk]` rows from `ancestry[w0]`, filtered to `row < w0`;
+empty list (no float) when `ancestry[w0]` is nil or all headers are at/below w0.
+Note: the iteration coalesces each missing level to `false` (not nil) so a
+missing commit level in combined scope doesn't truncate the `ipairs` walk. Unit
+tests added in `init_test.lua` (commits + combined fixtures, covering top-of-
+buffer, on-header self-exclusion, marker-row, post-section-change, and
+past-EOF); full suite green (280 init tests).
+
 - Goal: a pure function maps `(ancestry, w0)` → ordered pinned row list, applying
   the `row < w0` filter and `[commit, file, sec, hunk]` ordering.
 - Verification (unit):

@@ -1665,5 +1665,48 @@ do
     vim.inspect({ file_row = 1, sec_row = 2, hunk_row = 3 }))
 end
 
+-- compute_pinned (pure): from an ancestry table and the top visible row w0,
+-- the ordered pinned list [commit, file, sec, hunk] filtered to rows < w0.
+do
+  local rm = {
+    [0] = {},
+    [1] = { commit = 1 },
+    [2] = { commit = 1, file = 1 },
+    [3] = { commit = 1, file = 1, seen = true },
+    [4] = { commit = 1, file = 1, hunk = 1, sec = "seen" },
+    [5] = { commit = 1, file = 1, hunk = 1, sec = "seen", line = 1 },
+    [6] = { commit = 1, file = 1, hunk = 1, sec = "seen", marker = {} },
+    [7] = { commit = 1, file = 1, unseen = true },
+    [8] = { commit = 1, file = 1, hunk = 2, sec = "unseen" },
+    [9] = { commit = 1, file = 1, hunk = 2, sec = "unseen", line = 1 },
+  }
+  local anc = glean.compute_ancestry(rm, 10)
+  local function chk(name, w0, exp)
+    h.assert_eq(name, vim.inspect(glean.compute_pinned(anc, w0)),
+      vim.inspect(exp))
+  end
+  chk("pin: top-of-buffer mode header has no float", 0, {})
+  chk("pin: on commit header, nothing above it", 1, {})
+  chk("pin: on file header, commit pins above", 2, { 1 })
+  chk("pin: just below hunk header pins full chain", 5, { 1, 2, 3, 4 })
+  chk("pin: on a header row excludes itself (still visible)", 4, { 1, 2, 3 })
+  chk("pin: marker row pins through its hunk", 6, { 1, 2, 3, 4 })
+  chk("pin: line under second hunk after section change", 9,
+    { 1, 2, 7, 8 })
+  chk("pin: w0 past end of buffer has no float", 99, {})
+
+  -- combined scope: at most 3 pinned rows (no commit header).
+  local cm = {
+    [0] = {},
+    [1] = { cfile = 1 },
+    [2] = { cfile = 1, unseen = true },
+    [3] = { cfile = 1, hunk = 1, sec = "unseen" },
+    [4] = { cfile = 1, hunk = 1, sec = "unseen", line = 1 },
+  }
+  local canc = glean.compute_ancestry(cm, 5)
+  h.assert_eq("pin/combined: line under hunk pins file+sec+hunk, no commit",
+    vim.inspect(glean.compute_pinned(canc, 4)), vim.inspect({ 1, 2, 3 }))
+end
+
 h.finish()
 h.finish()

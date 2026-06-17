@@ -543,6 +543,26 @@ function M.compute_ancestry(row_map, n)
   end
   return ancestry
 end
+
+-- Pinned-set selection (pure): given an ancestry table and the top visible row
+-- w0, return the ordered list of header rows to pin, [commit, file, sec, hunk],
+-- filtered to rows strictly above w0 (a still-visible header isn't duplicated).
+-- An empty list means no float should be shown.
+function M.compute_pinned(ancestry, w0)
+  local pinned = {}
+  local a = ancestry[w0]
+  if not a then
+    return pinned
+  end
+  for _, row in ipairs({ a.commit_row or false, a.file_row or false,
+    a.sec_row or false, a.hunk_row or false }) do
+    if row and row < w0 then
+      pinned[#pinned + 1] = row
+    end
+  end
+  return pinned
+end
+
 -- ---------------------------------------------------------------------------
 -- Build (pure projection): returns lines, row_map, highlights, comments.
 -- ---------------------------------------------------------------------------
