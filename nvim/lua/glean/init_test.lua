@@ -931,7 +931,18 @@ do
   h.assert_eq("jump: scratch not modifiable",
     api.nvim_get_option_value("modifiable", { buf = buf }), false)
   local content = table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n")
-  h.assert_true("jump: scratch has base content", content:find("two", 1, true) ~= nil)
+  -- The scratch holds exactly the file at the base commit (non-empty, verbatim).
+  local want = repo.run({ "show", base .. ":f.txt" })
+  h.assert_true("jump: scratch non-empty", #content > 0)
+  h.assert_eq("jump: scratch is base file content", content, want)
+  -- Named fugitive-style with the full resolved sha (not a truncated ref) and
+  -- no buffer number, so reopening the same line reuses the buffer.
+  local sha = s.git:rev_parse(base)
+  local name = api.nvim_buf_get_name(buf)
+  h.assert_eq("jump: scratch name is sha-keyed",
+    name, "glean://" .. repo.root .. "/.git//" .. sha .. "/f.txt")
+  local buf2 = s:jump(r)
+  h.assert_eq("jump: reopening reuses the buffer", buf2, buf)
 end
 
 -- Commit scope: an add line in a non-HEAD commit (c1) opens a `git show`

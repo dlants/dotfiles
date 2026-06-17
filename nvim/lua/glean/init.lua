@@ -1874,17 +1874,26 @@ function Session:jump(row)
     pcall(api.nvim_win_set_cursor, 0, { jt.lnum, 0 })
     return abs
   end
-  local content = self.git:show(jt.ref, jt.path) or ""
-  local buf = api.nvim_create_buf(false, true)
-  local lines = vim.split(content, "\n", { plain = true })
-  if lines[#lines] == "" then lines[#lines] = nil end
-  api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  api.nvim_set_option_value("modifiable", false, { buf = buf })
-  api.nvim_set_option_value("buftype", "nofile", { buf = buf })
-  api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
-  local ft = vim.filetype.match({ filename = jt.path, contents = lines })
-  if ft then api.nvim_set_option_value("filetype", ft, { buf = buf }) end
-  pcall(api.nvim_buf_set_name, buf, "glean-show://" .. buf .. ":" .. jt.ref:sub(1, 8) .. ":" .. jt.path)
+  -- Read-only view of the file at a specific commit, named fugitive-style with
+  -- the full resolved sha so the originating commit is visible. The content is
+  -- immutable, so an existing buffer with this name is reused rather than
+  -- duplicated (no buffer number in the name).
+  local sha = self.git:rev_parse(jt.ref) or jt.ref
+  local name = "glean://" .. self.git.repo_root .. "/.git//" .. sha .. "/" .. jt.path
+  local buf = vim.fn.bufnr(name)
+  if buf == -1 then
+    local content = self.git:show(jt.ref, jt.path) or ""
+    buf = api.nvim_create_buf(false, true)
+    local lines = vim.split(content, "\n", { plain = true })
+    if lines[#lines] == "" then lines[#lines] = nil end
+    api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    api.nvim_set_option_value("modifiable", false, { buf = buf })
+    api.nvim_set_option_value("buftype", "nofile", { buf = buf })
+    api.nvim_set_option_value("bufhidden", "hide", { buf = buf })
+    local ft = vim.filetype.match({ filename = jt.path, contents = lines })
+    if ft then api.nvim_set_option_value("filetype", ft, { buf = buf }) end
+    pcall(api.nvim_buf_set_name, buf, name)
+  end
   if win and api.nvim_win_is_valid(win) then
     api.nvim_set_current_win(win)
     api.nvim_win_set_buf(win, buf)

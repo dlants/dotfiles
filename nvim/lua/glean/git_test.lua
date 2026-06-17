@@ -174,4 +174,19 @@ do
   h.assert_true("untracked: all adds", lines[1].kind == "add" and lines[2].kind == "add")
 end
 
+-- Diff paths are stripped to bare repo-relative paths even when the user's git
+-- config enables mnemonic prefixes (`w/`, `i/`, ...). The real default runner
+-- (run=nil) must pin the prefix config off so the parser's `a/`/`b/` stripping
+-- holds; here the repo locally enables mnemonicPrefix to prove the override.
+do
+  repo.run({ "config", "diff.mnemonicPrefix", "true" })
+  local plain_git = git_mod.new({ repo_root = repo.root })
+  local files = plain_git:combined_diff(base, target)
+  local paths = {}
+  for _, f in ipairs(files) do paths[f.path] = true end
+  h.assert_true("mnemonicPrefix: f.txt unprefixed", paths["f.txt"])
+  h.assert_true("mnemonicPrefix: g.txt unprefixed", paths["g.txt"])
+  h.assert_true("mnemonicPrefix: no w/ prefix leaked",
+    not paths["w/f.txt"] and not paths["i/f.txt"])
+end
 h.finish()

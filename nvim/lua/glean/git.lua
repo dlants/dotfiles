@@ -41,7 +41,10 @@ function Git:run(args)
     if res.code ~= 0 then return nil, res.stderr or "" end
     return res.stdout or ""
   end
-  local cmd = { "git" }
+  -- Pin diff path-prefix config so paths are always `a/`/`b/` regardless of the
+  -- user's git config (e.g. `diff.mnemonicPrefix`/`diff.noprefix`), which the
+  -- diff parser's prefix stripping assumes.
+  local cmd = { "git", "-c", "diff.mnemonicPrefix=false", "-c", "diff.noprefix=false" }
   for _, a in ipairs(args) do cmd[#cmd + 1] = a end
   local res = vim.system(cmd, { cwd = self.repo_root, text = true }):wait()
   if res.code ~= 0 then return nil, res.stderr or "" end
