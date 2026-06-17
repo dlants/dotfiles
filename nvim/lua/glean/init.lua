@@ -184,8 +184,8 @@ local function build_model(git, base, target, commit_files)
   return files, commits, shas
 end
 
-local CHEVRON_OPEN = "v"
-local CHEVRON_CLOSED = ">"
+local CHEVRON_OPEN = "▼"
+local CHEVRON_CLOSED = "▶"
 
 -- The marker runs of a hunk: each maximal run of consecutive *changed* (add or
 -- del) diff lines that `is_seen(dl)` reports seen. A context line or an unseen
