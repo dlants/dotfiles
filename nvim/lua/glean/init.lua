@@ -167,6 +167,14 @@ local function build_model(git, base, target, commit_files)
       f.collapsed = false
       ffiles[#ffiles + 1] = f
     end
+    -- `git diff <base>` (the combined net diff) omits untracked files, so attach
+    -- them to the combined file list too -- otherwise a brand-new file is visible
+    -- (and markable) only in commit scope. Fresh entries keep the two scopes'
+    -- ephemeral collapse state independent.
+    for _, f in ipairs(git:untracked() or {}) do
+      f.collapsed = false
+      files[#files + 1] = f
+    end
     commits[#commits + 1] = {
       sha = M.WORKTREE, summary = "uncommitted changes", files = ffiles, collapsed = false,
     }
@@ -241,7 +249,10 @@ function Session:combined_owner(path)
     end
     if not dl.new_lnum then return nil end
     local p = prov[dl.new_lnum]
-    if not p then return nil end
+    -- An add line blame can't attribute (an untracked file has no blame at all,
+    -- so its provenance map is empty) is uncommitted content in a work-tree
+    -- review: route it to the content-addressed WORKTREE owner so it is markable.
+    if not p then return self.worktree and M.WORKTREE or nil end
     return p.sha, p.orig_lnum
   end
 end
