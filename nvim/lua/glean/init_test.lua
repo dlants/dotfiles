@@ -1802,5 +1802,33 @@ do
     not (s._sticky_win and api.nvim_win_is_valid(s._sticky_win)))
 end
 
-h.finish()
+-- Intra-line grouping: a hunk with two replace groups separated by an unchanged
+-- context line must yield two intra blocks (a del run pairs only with the add
+-- run immediately following it), never one block spanning the whole hunk.
+do
+  local repo2 = testutil.make_repo({
+    { msg = "base", files = { ["m.txt"] = "l1\nl2\nl3\nl4\nl5\n" } },
+    { msg = "edit l2 and l4", files = { ["m.txt"] = "l1\nL2\nl3\nL4\nl5\n" } },
+  })
+  local function run2(args)
+    local cmd = { "git" }
+    for _, a in ipairs(args) do cmd[#cmd + 1] = a end
+    local res = vim.system(cmd, { cwd = repo2.root, env = repo2.env, text = true }):wait()
+    return { code = res.code, stdout = res.stdout, stderr = res.stderr }
+  end
+  local s = glean.open({
+    base = repo2.shas[1],
+    target = repo2.shas[2],
+    repo_root = repo2.root,
+    run = run2,
+    open_window = false,
+    state_dir = vim.fn.tempname(),
+  })
+  local _, _, _, blocks = s:build()
+  h.assert_eq("intra: two groups -> two blocks", #blocks, 2)
+  h.assert_eq("intra: block 1 single del", #blocks[1].dels, 1)
+  h.assert_eq("intra: block 1 single add", #blocks[1].adds, 1)
+  h.assert_eq("intra: block 2 single del", #blocks[2].dels, 1)
+  h.assert_eq("intra: block 2 single add", #blocks[2].adds, 1)
+end
 h.finish()

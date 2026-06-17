@@ -603,7 +603,18 @@ function Session:build()
     local runs = sec == "seen" and {} or hunk_marker_runs(hunk, seen_line)
     local run_at = {}
     for _, run in ipairs(runs) do run_at[run.lo] = run end
+    -- Intra-line emphasis pairs deleted lines against added lines by textual
+    -- similarity, so it must only ever see one replace group at a time: a del
+    -- run paired with the add run immediately following it. flush accumulates
+    -- the current del/add run as a block and resets. The group breaks on a
+    -- context line, a marker run, or a del that starts a fresh group after adds.
     local dels, adds = {}, {}
+    local function flush()
+      if #dels > 0 and #adds > 0 then
+        intra_blocks[#intra_blocks + 1] = { dels = dels, adds = adds }
+      end
+      dels, adds = {}, {}
+    end
     local li = 1
     while li <= #hunk.lines do
       local run = run_at[li]
@@ -632,6 +643,7 @@ function Session:build()
             end
           end
         end
+        flush()
         li = run.hi_line + 1
       else
         local dl = hunk.lines[li]
@@ -642,9 +654,12 @@ function Session:build()
         local row = emit(m .. dl.text,
           vim.tbl_extend("force", target, { line = li }), hl)
         if dl.kind == "del" then
+          if #adds > 0 then flush() end
           dels[#dels + 1] = { row = row, text = dl.text }
         elseif dl.kind == "add" then
           adds[#adds + 1] = { row = row, text = dl.text }
+        else
+          flush()
         end
         for _, c in ipairs(comments_by_ord[base_ord + li] or {}) do
           emit_comment(c)
@@ -655,9 +670,7 @@ function Session:build()
     -- Defer the expensive intra-line pairing/alignment to the async phase: emit
     -- only the raw del/add rows+texts per hunk. Phase 1's whole-line highlight
     -- stands until the refinement upgrades it.
-    if #dels > 0 and #adds > 0 then
-      intra_blocks[#intra_blocks + 1] = { dels = dels, adds = adds }
-    end
+    flush()
   end
 
   local function emit_file_body(file, target_base, owner, seen_ck, comments_by_ord)
