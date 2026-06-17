@@ -18,7 +18,7 @@ Configures the plugins added in `pack.lua`:
 
 - **LSP Configuration**: Complete LSP setup for multiple languages (TypeScript, Rust, Lua, etc.)
 - **File Navigation**: snacks.nvim and oil.nvim for files and navigation
-- **Git Integration**: Gitsigns, fugitive, jj.nvim, and related tools
+- **Git Integration**: Gitsigns, fugitive, and related tools
 - **Completion**: nvim-cmp with LSP integration
 - **Themes**: alabaster.nvim and other colorscheme options
 - **Treesitter**: Syntax highlighting and text objects
@@ -75,7 +75,7 @@ via a flake (`flake.nix`). Two configurations are defined:
 - `nix/common.nix` — shared config: packages, git, fish, starship, neovim, and
   config symlinks. Configs are live-linked with `mkOutOfStoreSymlink` (edits in
   the repo take effect immediately, no rebuild needed for plain config changes).
-- `nix/darwin.nix` — macOS extras (Homebrew casks, hammerspoon, uv, zig)
+- `nix/darwin.nix` — macOS extras (Homebrew casks, hammerspoon, zig)
 - `nix/linux.nix` — devcontainer extras (pkgx, work-skills clone, fish login shell)
 - `nix/magenta-skills.nix` — generates magenta skill symlinks into `~/.claude/skills`
 
@@ -83,8 +83,7 @@ via a flake (`flake.nix`). Two configurations are defined:
 
 - A nixpkgs overlay in `common.nix` overrides `tree-sitter` to v0.26.8 (nvim-treesitter
   main branch needs >= 0.26.1; nixpkgs ships 0.25.x).
-- Activation scripts clone `magenta.nvim` into `~/src`, set up magenta skills, and
-  install `ty` via `uv` when available.
+- Activation scripts clone `magenta.nvim` into `~/src` and set up magenta skills.
 - Flakes are enabled via `~/.config/nix/nix.conf`.
 
 ### Installation / Apply Commands

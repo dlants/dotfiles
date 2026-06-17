@@ -35,7 +35,6 @@ vim.pack.add({
   "https://github.com/nvim-lua/plenary.nvim",
   "https://github.com/lewis6991/gitsigns.nvim",
   "https://github.com/tpope/vim-fugitive",
-  "https://github.com/NicolasGB/jj.nvim",
   "https://github.com/numtostr/comment.nvim",
   "https://github.com/kylechui/nvim-surround",
   { src = "https://github.com/catgoose/nvim-colorizer.lua",       name = "catgoose-nvim-colorizer" },

@@ -181,13 +181,4 @@
       ${pkgs.git}/bin/git clone https://github.com/dlants/magenta.nvim.git "$HOME/src/magenta.nvim"
     fi
   '';
-
-  # Install ty via uv if not already available (uv may be system-provided on Linux)
-  home.activation.installTy = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    if ! command -v ty &> /dev/null; then
-      if command -v uv &> /dev/null; then
-        uv tool install ty 2>/dev/null || true
-      fi
-    fi
-  '';
 }

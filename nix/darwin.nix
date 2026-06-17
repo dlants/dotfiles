@@ -4,7 +4,7 @@
 {
   home.packages = with pkgs; [
     # macOS-specific tools (GUI apps installed via brew below)
-    uv  # For installing ty (Python type checker not yet in nixpkgs)
+
     nodejs  # includes npm
     tmux
     zig
