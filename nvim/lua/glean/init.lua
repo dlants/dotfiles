@@ -670,24 +670,31 @@ function Session:build()
       if self:hunk_seen(hunk, file.path, owner) then seen_idx[#seen_idx + 1] = hi
       else unseen_idx[#unseen_idx + 1] = hi end
     end
-    -- Unseen hunks render bare directly under the file header -- there is no
-    -- "unseen" section to collapse; they fold away with the file itself.
-    for _, hi in ipairs(unseen_idx) do
-      emit_hunk(file.hunks[hi], hi, target_base, owner, base_ord[hi], comments_by_ord, "unseen", file.path)
-    end
-    -- The seen section is the only collapsible region: a "seen (N hunks)" toggle
-    -- (default collapsed) that, when expanded, opens under a "--- seen ---"
-    -- divider marking the bottom of the unseen work above it.
+    -- The seen section sits on top as the only collapsible region: a
+    -- "seen (N hunks)" toggle, default collapsed. When expanded, the seen hunks
+    -- show and a "--- unseen ---" divider marks where the bare unseen work below
+    -- begins.
+    local seen_expanded = false
     if #seen_idx > 0 then
       local c = self.collapse[seen_ck]; if c == nil then c = true end
-      local label = c and ("%s seen (%d hunks)"):format(CHEVRON_CLOSED, #seen_idx)
-        or "--- seen ---"
-      emit(label, vim.tbl_extend("force", target_base, { seen = true }), "GleanSeen")
+      seen_expanded = not c
+      local chev = c and CHEVRON_CLOSED or CHEVRON_OPEN
+      emit(("%s seen (%d hunks)"):format(chev, #seen_idx),
+        vim.tbl_extend("force", target_base, { seen = true }), "GleanSeen")
       if not c then
         for _, hi in ipairs(seen_idx) do
           emit_hunk(file.hunks[hi], hi, target_base, owner, base_ord[hi], comments_by_ord, "seen", file.path)
         end
       end
+    end
+    -- Unseen hunks render bare below -- there is no "unseen" section to
+    -- collapse; they fold away with the file itself. A divider separates them
+    -- from the expanded seen hunks above.
+    if seen_expanded and #unseen_idx > 0 then
+      emit("--- unseen ---", target_base, "GleanDivider")
+    end
+    for _, hi in ipairs(unseen_idx) do
+      emit_hunk(file.hunks[hi], hi, target_base, owner, base_ord[hi], comments_by_ord, "unseen", file.path)
     end
   end
 
@@ -2316,6 +2323,8 @@ local function setup_highlights()
   api.nvim_set_hl(0, "GleanSeen", { link = "NonText", default = true })
   api.nvim_set_hl(0, "GleanComment", { link = "WarningMsg", default = true })
   api.nvim_set_hl(0, "GleanModeHeader", { link = "Title", default = true })
+  -- The "--- unseen ---" divider is meant to pop, not blend in.
+  api.nvim_set_hl(0, "GleanDivider", { link = "Todo", default = true })
   api.nvim_set_hl(0, "GleanCurrentHunk", { link = "Identifier", default = true })
 end
 
