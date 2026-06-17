@@ -641,11 +641,19 @@ local function discover_search_dir(opts_cwd, buf_name)
   if not buf_dir or buf_dir == "" or vim.fn.isdirectory(buf_dir) == 0 then
     return current_cwd
   end
+  -- Prefer the buffer's git worktree root. `git rev-parse --show-toplevel`
+  -- reports the worktree root, which is what we want even when launched at a
+  -- parent dir holding several worktrees: a plain `.git` upward walk would land
+  -- on a bare repo's directory rather than the worktree.
+  local toplevel = vim.fn.systemlist({ "git", "-C", buf_dir, "rev-parse", "--show-toplevel" })
+  if vim.v.shell_error == 0 and toplevel[1] and toplevel[1] ~= "" then
+    return toplevel[1]
+  end
+  -- Not in a git repo: fall back to cwd when the buffer lives under it, else
+  -- search the buffer's own directory.
   if buf_dir == current_cwd or buf_dir:sub(1, #current_cwd + 1) == current_cwd .. "/" then
     return current_cwd
   end
-  local found = vim.fs.find(".git", { upward = true, path = buf_dir })
-  if found and #found > 0 then return vim.fs.dirname(found[1]) end
   return buf_dir
 end
 
