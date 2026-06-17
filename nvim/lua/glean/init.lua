@@ -105,8 +105,6 @@ local function file_key(sha, path) return "f:" .. sha .. "\0" .. path end
 local function cfile_key(path) return "cf:" .. path end
 local function seen_key(sha, path) return "s:" .. sha .. "\0" .. path end
 local function cseen_key(path) return "cs:" .. path end
-local function unseen_key(sha, path) return "u:" .. sha .. "\0" .. path end
-local function cunseen_key(path) return "cu:" .. path end
 
 -- Content-addressed collapse key for a marker (a contiguous seen run inside an
 -- unseen hunk). Keyed on the run's joined line texts so it stays stable when the
@@ -516,7 +514,7 @@ end
 -- Walks rows top-to-bottom carrying a running ancestry; a shallower header
 -- clears deeper levels. Headers are identified purely from row_map target shape:
 --   commit header  → { commit } (no file/cfile/sec/hunk)
---   section header → { ..., seen|unseen }
+--   seen section   → { ..., seen } (unseen hunks render bare, no section)
 --   file header    → { file|cfile } (no hunk/line)
 --   hunk header    → { ..., hunk } (no line, no marker)
 function M.compute_ancestry(row_map, n)
@@ -527,7 +525,7 @@ function M.compute_ancestry(row_map, n)
     if t then
       if t.commit and not t.file and not t.cfile and not t.sec and not t.hunk then
         commit_row, file_row, sec_row, hunk_row = row, nil, nil, nil
-      elseif t.seen or t.unseen then
+      elseif t.seen then
         sec_row, hunk_row = row, nil
       elseif (t.file or t.cfile) and not t.hunk and not t.line then
         file_row, sec_row, hunk_row = row, nil, nil
@@ -662,7 +660,7 @@ function Session:build()
     end
   end
 
-  local function emit_file_body(file, target_base, owner, seen_ck, comments_by_ord, unseen_ck)
+  local function emit_file_body(file, target_base, owner, seen_ck, comments_by_ord)
     local seen_idx, unseen_idx = {}, {}
     local base_ord = {}
     local acc = 0
@@ -672,25 +670,22 @@ function Session:build()
       if self:hunk_seen(hunk, file.path, owner) then seen_idx[#seen_idx + 1] = hi
       else unseen_idx[#unseen_idx + 1] = hi end
     end
+    -- Unseen hunks render bare directly under the file header -- there is no
+    -- "unseen" section to collapse; they fold away with the file itself.
+    for _, hi in ipairs(unseen_idx) do
+      emit_hunk(file.hunks[hi], hi, target_base, owner, base_ord[hi], comments_by_ord, "unseen", file.path)
+    end
+    -- The seen section is the only collapsible region: a "seen (N hunks)" toggle
+    -- (default collapsed) that, when expanded, opens under a "--- seen ---"
+    -- divider marking the bottom of the unseen work above it.
     if #seen_idx > 0 then
       local c = self.collapse[seen_ck]; if c == nil then c = true end
-      local chev = c and CHEVRON_CLOSED or CHEVRON_OPEN
-      emit(("%s seen (%d hunks)"):format(chev, #seen_idx),
-        vim.tbl_extend("force", target_base, { seen = true }), "GleanSeen")
+      local label = c and ("%s seen (%d hunks)"):format(CHEVRON_CLOSED, #seen_idx)
+        or "--- seen ---"
+      emit(label, vim.tbl_extend("force", target_base, { seen = true }), "GleanSeen")
       if not c then
         for _, hi in ipairs(seen_idx) do
           emit_hunk(file.hunks[hi], hi, target_base, owner, base_ord[hi], comments_by_ord, "seen", file.path)
-        end
-      end
-    end
-    if #unseen_idx > 0 then
-      local c = self.collapse[unseen_ck]; if c == nil then c = false end
-      local chev = c and CHEVRON_CLOSED or CHEVRON_OPEN
-      emit(("%s unseen (%d hunks)"):format(chev, #unseen_idx),
-        vim.tbl_extend("force", target_base, { unseen = true }), "GleanFileHeader")
-      if not c then
-        for _, hi in ipairs(unseen_idx) do
-          emit_hunk(file.hunks[hi], hi, target_base, owner, base_ord[hi], comments_by_ord, "unseen", file.path)
         end
       end
     end
@@ -713,8 +708,7 @@ function Session:build()
         if not file.collapsed then
           emit_file_body(file, { commit = ci, file = fi },
             self:commit_owner(commit),
-            seen_key(commit.sha, file.path), self:resolve_comments(file),
-            unseen_key(commit.sha, file.path))
+            seen_key(commit.sha, file.path), self:resolve_comments(file))
         end
       end
     end
@@ -726,7 +720,7 @@ function Session:build()
       emit(chevron .. " " .. cf.path .. kind, { cfile = fi }, "GleanFileHeader")
       if not cf.raw.collapsed then
         emit_file_body(cf, { cfile = fi }, self:combined_owner(cf.path),
-          cseen_key(cf.path), self:resolve_comments(cf), cunseen_key(cf.path))
+          cseen_key(cf.path), self:resolve_comments(cf))
       end
     end
   end
@@ -1166,11 +1160,12 @@ end
 -- The seen/unseen section a target belongs to, or nil. Section headers carry
 -- `seen`/`unseen`; hunk and diff-line rows carry `sec`. Identity is the owning
 -- file (commit+file in commit scope, cfile in combined scope).
+-- Only the seen section is collapsible now: unseen hunks render bare under the
+-- file and fold with it, so an unseen row carries no section.
 function Session:section_of(target)
   local kind
   if target.seen then kind = "seen"
-  elseif target.unseen then kind = "unseen"
-  elseif target.sec then kind = target.sec
+  elseif target.sec == "seen" then kind = "seen"
   else return nil end
   if target.commit then
     return { commit = target.commit, file = target.file, kind = kind }
@@ -1184,10 +1179,9 @@ function Session:section_key(sec)
   if sec.commit then
     local commit = self.commits[sec.commit]
     local path = commit.files[sec.file].path
-    return sec.kind == "seen" and seen_key(commit.sha, path) or unseen_key(commit.sha, path)
+    return seen_key(commit.sha, path)
   end
-  local path = self.combined_files[sec.cfile].path
-  return sec.kind == "seen" and cseen_key(path) or cunseen_key(path)
+  return cseen_key(self.combined_files[sec.cfile].path)
 end
 
 local function same_section(a, b)
@@ -1198,7 +1192,7 @@ end
 -- The buffer row of a section's header (the seen/unseen summary line), or nil.
 function Session:section_header_row(sec)
   for r, t in pairs(self.row_map) do
-    if (t.seen or t.unseen) and same_section(self:section_of(t), sec) then
+    if (t.seen) and same_section(self:section_of(t), sec) then
       return r
     end
   end
@@ -1577,7 +1571,7 @@ local function is_hunk_row(t)
 end
 
 local function is_file_row(t)
-  return (t.file or t.cfile) and not t.hunk and not t.line and not t.seen and not t.unseen
+  return (t.file or t.cfile) and not t.hunk and not t.line and not t.seen
 end
 
 function Session:next_hunk() self:nav_to(is_hunk_row, true) end
