@@ -184,8 +184,8 @@ local function build_model(git, base, target, commit_files)
   return files, commits, shas
 end
 
-local CHEVRON_OPEN = "▾"
-local CHEVRON_CLOSED = "▸"
+local CHEVRON_OPEN = "v"
+local CHEVRON_CLOSED = ">"
 
 -- The marker runs of a hunk: each maximal run of consecutive *changed* (add or
 -- del) diff lines that `is_seen(dl)` reports seen. A context line or an unseen
@@ -675,7 +675,7 @@ function Session:build()
     if #seen_idx > 0 then
       local c = self.collapse[seen_ck]; if c == nil then c = true end
       local chev = c and CHEVRON_CLOSED or CHEVRON_OPEN
-      emit(("  %s ✓ seen (%d hunks)"):format(chev, #seen_idx),
+      emit(("%s ✓ seen (%d hunks)"):format(chev, #seen_idx),
         vim.tbl_extend("force", target_base, { seen = true }), "GleanSeen")
       if not c then
         for _, hi in ipairs(seen_idx) do
@@ -686,7 +686,7 @@ function Session:build()
     if #unseen_idx > 0 then
       local c = self.collapse[unseen_ck]; if c == nil then c = false end
       local chev = c and CHEVRON_CLOSED or CHEVRON_OPEN
-      emit(("  %s ● unseen (%d hunks)"):format(chev, #unseen_idx),
+      emit(("%s ● unseen (%d hunks)"):format(chev, #unseen_idx),
         vim.tbl_extend("force", target_base, { unseen = true }), "GleanFileHeader")
       if not c then
         for _, hi in ipairs(unseen_idx) do
@@ -700,24 +700,21 @@ function Session:build()
   emit("── " .. mode_label .. " ──", {}, "GleanModeHeader")
   if self.scope == "commits" then
     for ci, commit in ipairs(self.commits) do
-      local chevron = commit.collapsed and CHEVRON_CLOSED or CHEVRON_OPEN
       local mark = self:commit_seen(commit) and "✓" or "●"
       local short = commit.sha:sub(1, 8)
-      emit(("%s %s %s %s"):format(chevron, mark, short, commit.summary),
+      emit(("%s %s %s"):format(mark, short, commit.summary),
         { commit = ci }, "GleanCommitHeader")
-      if not commit.collapsed then
-        for fi, file in ipairs(commit.files) do
-          local fchev = file.collapsed and CHEVRON_CLOSED or CHEVRON_OPEN
-          local fmark = self:file_seen(commit, file) and "✓" or " "
-          local kind = file.kind and (" [" .. file.kind .. "]") or ""
-          emit(("  %s %s %s%s"):format(fchev, fmark, file.path, kind),
-            { commit = ci, file = fi }, "GleanFileHeader")
-          if not file.collapsed then
-            emit_file_body(file, { commit = ci, file = fi },
-              self:commit_owner(commit),
-              seen_key(commit.sha, file.path), self:resolve_comments(file),
-              unseen_key(commit.sha, file.path))
-          end
+      for fi, file in ipairs(commit.files) do
+        local fchev = file.collapsed and CHEVRON_CLOSED or CHEVRON_OPEN
+        local fmark = self:file_seen(commit, file) and "✓" or " "
+        local kind = file.kind and (" [" .. file.kind .. "]") or ""
+        emit(("  %s %s %s%s"):format(fchev, fmark, file.path, kind),
+          { commit = ci, file = fi }, "GleanFileHeader")
+        if not file.collapsed then
+          emit_file_body(file, { commit = ci, file = fi },
+            self:commit_owner(commit),
+            seen_key(commit.sha, file.path), self:resolve_comments(file),
+            unseen_key(commit.sha, file.path))
         end
       end
     end
@@ -1145,8 +1142,7 @@ end
 -- only unseen work is expanded. Overrides persist across reloads/reopens.
 function Session:apply_collapse()
   for _, commit in ipairs(self.commits) do
-    local ov = self.collapse[commit_key(commit.sha)]
-    commit.collapsed = ov ~= nil and ov or self:commit_seen(commit)
+    commit.collapsed = false
     for _, file in ipairs(commit.files) do
       local fov = self.collapse[file_key(commit.sha, file.path)]
       file.collapsed = fov ~= nil and fov or self:file_seen(commit, file)
@@ -1298,8 +1294,6 @@ function Session:collapse_action(target)
     elseif target.file then
       local file = commit.files[target.file]
       key, obj, field = file_key(commit.sha, file.path), file, "collapsed"
-    elseif commit then
-      key, obj, field = commit_key(commit.sha), commit, "collapsed"
     end
   else
     if target.seen then

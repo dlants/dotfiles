@@ -50,8 +50,8 @@ do
   local s = open()
   local lines = api.nvim_buf_get_lines(s.buf, 0, -1, false)
   local joined = table.concat(lines, "\n")
-  h.assert_true("render: f.txt header", joined:find("▾ f.txt", 1, true) ~= nil)
-  h.assert_true("render: g.txt header", joined:find("▾ g.txt", 1, true) ~= nil)
+  h.assert_true("render: f.txt header", joined:find("v f.txt", 1, true) ~= nil)
+  h.assert_true("render: g.txt header", joined:find("v g.txt", 1, true) ~= nil)
   h.assert_true("render: g.txt add kind", joined:find("g.txt %[add%]") ~= nil)
   h.assert_true("render: shows TWO add", joined:find("\n+TWO", 1, true) ~= nil)
   h.assert_true("render: shows hunk header", joined:find("@@", 1, true) ~= nil)
@@ -95,9 +95,9 @@ do
   h.assert_true("collapse: buffer shrank", after < before)
   local lines = api.nvim_buf_get_lines(s.buf, 0, -1, false)
   local joined = table.concat(lines, "\n")
-  h.assert_true("collapse: f.txt now closed chevron", joined:find("▸ f.txt", 1, true) ~= nil)
+  h.assert_true("collapse: f.txt now closed chevron", joined:find("> f.txt", 1, true) ~= nil)
   h.assert_true("collapse: f.txt body hidden", joined:find("\n+TWO", 1, true) == nil)
-  h.assert_true("collapse: g.txt still present", joined:find("▾ g.txt", 1, true) ~= nil)
+  h.assert_true("collapse: g.txt still present", joined:find("v g.txt", 1, true) ~= nil)
   h.assert_true("collapse: g.txt body intact", header_row("g.txt") ~= nil)
   -- expand again restores the body.
   s:toggle_collapse(header_row("f.txt"))
@@ -134,7 +134,7 @@ do
 end
 
 -- toggle_seen on a commit header marks all of its hunks seen, persists, and on
--- reopen the commit shows ✓ and starts collapsed (collapse re-init from seen).
+-- reopen the commit shows ✓ (commits never collapse; their files stay visible).
 do
   local dir = vim.fn.tempname()
   local s = open({ scope = "commits", state_dir = dir })
@@ -153,10 +153,9 @@ do
     return t and t.commit == 1 and not t.file
   end)
   h.assert_true("reopen: c1 header has check", cline2:find("✓", 1, true) ~= nil)
-  h.assert_true("reopen: c1 header collapsed chevron", cline2:find("▸", 1, true) ~= nil)
-  -- collapsed means c1 body rows are gone; c1 file header should not render.
+  -- commits never collapse: the file paths within the commit stay visible.
   local c1file = find_row(s2, function(_, _, t) return t and t.commit == 1 and t.file end)
-  h.assert_true("reopen: c1 body hidden when collapsed", c1file == nil)
+  h.assert_true("reopen: c1 body still visible", c1file ~= nil)
 end
 
 -- Comments: multiple comments on distinct lines and several on one line all
@@ -388,7 +387,7 @@ do
   h.assert_true("seen-section: header present",
     joined:find("✓ seen (1 hunks)", 1, true) ~= nil)
   h.assert_true("seen-section: collapsed chevron",
-    joined:find("▸ ✓ seen", 1, true) ~= nil)
+    joined:find("> ✓ seen", 1, true) ~= nil)
   h.assert_true("seen-section: seen hunk body hidden", joined:find("\n+TWO", 1, true) == nil)
   -- the seen-section row carries a {seen=true} target with no hunk/line.
   local srow = find_row(s, function(_, _, t)
@@ -440,7 +439,7 @@ do
   s.collapse[key] = false
   s:render()
   local joined2 = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
-  h.assert_true("marker: expanded header", joined2:find("▾ ✓ marked 2 lines", 1, true) ~= nil)
+  h.assert_true("marker: expanded header", joined2:find("v ✓ marked 2 lines", 1, true) ~= nil)
   h.assert_true("marker: expanded shows L1", joined2:find("\n+L1", 1, true) ~= nil)
   h.assert_true("marker: expanded shows L2", joined2:find("\n+L2", 1, true) ~= nil)
 end
@@ -531,11 +530,11 @@ do
   local mrow = find_row(s, function(_, _, t) return t and t.marker and not t.line end)
   s:toggle_collapse(mrow)
   joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
-  h.assert_true("stage3 toggle: expanded after =", joined:find("▾ ✓ marked 3 lines", 1, true) ~= nil)
+  h.assert_true("stage3 toggle: expanded after =", joined:find("v ✓ marked 3 lines", 1, true) ~= nil)
   h.assert_true("stage3 toggle: shows L1", joined:find("\n+L1", 1, true) ~= nil)
   s:reload()
   joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
-  h.assert_true("stage3 toggle: expansion survives reload", joined:find("▾ ✓ marked 3 lines", 1, true) ~= nil)
+  h.assert_true("stage3 toggle: expansion survives reload", joined:find("v ✓ marked 3 lines", 1, true) ~= nil)
   local mrow2 = find_row(s, function(_, _, t) return t and t.marker and not t.line end)
   s:toggle_collapse(mrow2)
   joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
@@ -651,16 +650,16 @@ do
   local s = open({ state_dir = vim.fn.tempname() })
   local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
   h.assert_true("unseen-section: header present", joined:find("● unseen (", 1, true) ~= nil)
-  h.assert_true("unseen-section: default expanded chevron", joined:find("▾ ● unseen", 1, true) ~= nil)
+  h.assert_true("unseen-section: default expanded chevron", joined:find("v ● unseen", 1, true) ~= nil)
   h.assert_true("unseen-section: body shown", joined:find("\n+TWO", 1, true) ~= nil)
 
   local lrow = find_row(s, function(_, _, t) return t and t.line and t.sec == "unseen" end)
   h.assert_true("unseen-section: found a line row", lrow ~= nil)
   s:toggle_collapse(lrow)
   local j2 = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
-  h.assert_true("unseen-section: collapsed chevron", j2:find("▸ ● unseen", 1, true) ~= nil)
+  h.assert_true("unseen-section: collapsed chevron", j2:find("> ● unseen", 1, true) ~= nil)
   h.assert_true("unseen-section: body hidden", j2:find("\n+TWO", 1, true) == nil)
-  h.assert_true("unseen-section: file header intact", j2:find("▾ f.txt", 1, true) ~= nil)
+  h.assert_true("unseen-section: file header intact", j2:find("v f.txt", 1, true) ~= nil)
   s:toggle_collapse(find_row(s, function(_, _, t) return t and t.unseen end))
   local j3 = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
   h.assert_true("unseen-section: re-expanded body", j3:find("\n+TWO", 1, true) ~= nil)
@@ -712,15 +711,15 @@ do
     end))
   end
   s:toggle_collapse(frow())
-  h.assert_true("collapse-undo: collapsed", fline():find("▸", 1, true) ~= nil)
+  h.assert_true("collapse-undo: collapsed", fline():find(">", 1, true) ~= nil)
   s:undo()
-  h.assert_true("collapse-undo: re-expanded", fline():find("▾", 1, true) ~= nil)
+  h.assert_true("collapse-undo: re-expanded", fline():find("v", 1, true) ~= nil)
   s:redo()
-  h.assert_true("collapse-undo: re-collapsed", fline():find("▸", 1, true) ~= nil)
+  h.assert_true("collapse-undo: re-collapsed", fline():find(">", 1, true) ~= nil)
   -- restore expanded: collapse overrides are keyed by base/target and shared
   -- across sessions, so leave f.txt expanded for later bare-open tests.
   s:undo()
-  h.assert_true("collapse-undo: left expanded", fline():find("▾", 1, true) ~= nil)
+  h.assert_true("collapse-undo: left expanded", fline():find("v", 1, true) ~= nil)
 end
 
 -- Stage 4 — combined overlay via provenance.
@@ -740,13 +739,13 @@ do
     state.covers(s.store:seen_ranges(repo.shas[3], "f.txt"), 3))
   local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
   h.assert_true("combined: f.txt seen section", joined:find("✓ seen (1 hunks)", 1, true) ~= nil)
-  h.assert_true("combined: f.txt header still shown", joined:find("▾ f.txt", 1, true) ~= nil)
+  h.assert_true("combined: f.txt header still shown", joined:find("v f.txt", 1, true) ~= nil)
   h.assert_true("combined: f.txt body elided", joined:find("\n+TWO", 1, true) == nil)
   -- reopen: persisted seen still collapses f.txt in combined.
   local s2 = open({ state_dir = dir })
   local joined2 = table.concat(api.nvim_buf_get_lines(s2.buf, 0, -1, false), "\n")
   h.assert_true("combined reopen: f.txt still fully seen", joined2:find("✓ seen", 1, true) ~= nil)
-  h.assert_true("combined reopen: g.txt still shown", joined2:find("▾ g.txt", 1, true) ~= nil)
+  h.assert_true("combined reopen: g.txt still shown", joined2:find("v g.txt", 1, true) ~= nil)
 end
 
 -- Stage 4 — combined-scope markers: a partial seen run inside an unseen hunk
@@ -797,7 +796,7 @@ do
   local mrow = find_row(s, function(_, _, t) return t and t.marker and not t.line end)
   s:toggle_collapse(mrow)
   joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
-  h.assert_true("combined marker: expanded after =", joined:find("▾ ✓ marked 2 lines", 1, true) ~= nil)
+  h.assert_true("combined marker: expanded after =", joined:find("v ✓ marked 2 lines", 1, true) ~= nil)
   h.assert_true("combined marker: expanded shows A1", joined:find("\n+A1", 1, true) ~= nil)
 
   -- `m` on the marker unmarks both owners' stores.
@@ -1191,22 +1190,28 @@ do
 end
 
 -- Content-addressed collapse overrides survive both a reopen and a live reload.
+-- (file-level: commits themselves never collapse in commit scope.)
 do
   local dir = vim.fn.tempname()
   local sha = repo.shas[2]
   local s = open({ scope = "commits", state_dir = dir })
-  local hrow = find_row(s, function(_, line, t)
-    return t and t.commit and not t.file and line:find(sha:sub(1, 8), 1, true)
+  local frow = find_row(s, function(_, _, t)
+    return t and t.commit and t.file and not t.line
   end)
-  h.assert_true("collapse: found c1 header", hrow ~= nil)
-  local ci = s.row_map[hrow].commit
-  local before = s.commits[ci].collapsed
-  s:toggle_collapse(hrow)
-  local after = s.commits[ci].collapsed
+  h.assert_true("collapse: found a file header", frow ~= nil)
+  local ci, fi = s.row_map[frow].commit, s.row_map[frow].file
+  local path = s.commits[ci].files[fi].path
+  local before = s.commits[ci].files[fi].collapsed
+  s:toggle_collapse(frow)
+  local after = s.commits[ci].files[fi].collapsed
   h.assert_true("collapse: toggle flips state", before ~= after)
   local function collapsed_of(sess)
     for _, c in ipairs(sess.commits) do
-      if c.sha == sha then return c.collapsed end
+      if c.sha == sha then
+        for _, f in ipairs(c.files) do
+          if f.path == path then return f.collapsed end
+        end
+      end
     end
   end
   local s2 = open({ scope = "commits", state_dir = dir })
