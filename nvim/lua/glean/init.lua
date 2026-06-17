@@ -2063,6 +2063,11 @@ local function setup_keymaps(buf, session)
     vim.keymap.set(mode, lhs, fn, { buffer = buf, nowait = true, silent = true })
   end
   local group = api.nvim_create_augroup("glean_cursor_" .. buf, { clear = true })
+  -- Keep the cursor clear of the sticky-header float (at most 4 pinned rows) so
+  -- it is never occluded after jumps that land near the viewport top.
+  if session.win and api.nvim_win_is_valid(session.win) then
+    api.nvim_set_option_value("scrolloff", 4, { win = session.win })
+  end
   api.nvim_create_autocmd("CursorMoved", {
     group = group,
     buffer = buf,

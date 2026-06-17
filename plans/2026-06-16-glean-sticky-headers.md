@@ -245,6 +245,16 @@ existing 2-space convention. scrolloff polish is deferred to Stage 4.
     buffer wipeout.
 - Before moving on: confirm tests, type checks, and linting pass.
 
+**Status: DONE.** treesitter-context's `setup` in `nvim/lua/config/plugins.lua`
+now passes `on_attach = function(buf) return vim.bo[buf].filetype ~= "glean" end`,
+so it never attaches to glean buffers. In `nvim/lua/glean/init.lua`,
+`setup_keymaps` sets `scrolloff = 4` on the glean window (max pinned headers) so
+the cursor is never occluded under the sticky float after jumps near the top.
+Full suite green (293 init tests; all suites pass); both edited files load
+without syntax errors. Note: no luacheck/selene config exists in the repo and
+(per Stage 3) stylua is not the project's formatter; edits follow the existing
+2-space convention.
+
 ## Stage 4 — treesitter-context opt-out + polish
 
 - Goal: treesitter-context explicitly skips `glean` buffers; glean window sets

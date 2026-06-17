@@ -543,7 +543,12 @@ vim.api.nvim_create_autocmd('FileType', {
 --------------------------------------------------------------------------------
 -- treesitter-context
 --------------------------------------------------------------------------------
-require("treesitter-context").setup({ enable = true })
+require("treesitter-context").setup({
+  enable = true,
+  on_attach = function(buf)
+    return vim.bo[buf].filetype ~= "glean"
+  end,
+})
 
 --------------------------------------------------------------------------------
 -- treesitter-textobjects
