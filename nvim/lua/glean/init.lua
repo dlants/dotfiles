@@ -2309,6 +2309,48 @@ function M.open_dirty(opts)
     repo_root = repo_root, base = opts.base or base, target = target,
   }))
 end
+-- Resolve the base/target refs for a GitHub PR via the `gh` CLI, fetching the
+-- PR's head (and base) commits into the local object store first so the range
+-- can be diffed without changing the checkout. `pr` is the PR number, or nil to
+-- use the PR associated with the current branch. `gh_run` is an injectable
+-- command runner (for tests). Returns base, target as concrete oids, suitable
+-- for the three-dot `base...target` review combined diff.
+function M.resolve_pr(git, pr, gh_run)
+  gh_run = gh_run or function(args)
+    return vim.system(args, { cwd = git.repo_root, text = true }):wait()
+  end
+  local gh_args = { "gh", "pr", "view" }
+  if pr then gh_args[#gh_args + 1] = tostring(pr) end
+  vim.list_extend(gh_args, {
+    "--json", "number,baseRefName,headRefName,headRefOid,baseRefOid",
+  })
+  local res = gh_run(gh_args)
+  if res.code ~= 0 then
+    error("glean: `gh pr view` failed: " .. (res.stderr or ""))
+  end
+  local info = vim.json.decode(res.stdout)
+  -- Pull the PR head (and base) into the object store. Nothing local is moved.
+  local ok, err = git:fetch("origin", "pull/" .. info.number .. "/head")
+  if not ok then error("glean: fetching PR head failed: " .. tostring(err)) end
+  git:fetch("origin", info.baseRefName)
+  return info.baseRefOid or info.headRefOid, info.headRefOid
+end
+
+-- Open a glean review of a GitHub PR. `opts.pr` is the PR number (defaults to
+-- the PR for the current branch). The PR's commits are fetched locally first;
+-- the checkout and working tree are left untouched.
+function M.open_pr(opts)
+  opts = opts or {}
+  local repo_root = opts.repo_root
+    or resolve_repo_root(api.nvim_buf_get_name(0))
+  assert(repo_root, "glean: could not find a git repo root")
+  local git = git_mod.new({ repo_root = repo_root, run = opts.run })
+  local base, target = M.resolve_pr(git, opts.pr, opts.gh_run)
+  return M.open(vim.tbl_extend("force", opts, {
+    repo_root = repo_root, base = base, target = target,
+  }))
+end
+
 -- A foreground-only spec carrying just the visible attributes of `src` (its
 -- foreground color + emphasis), dropping its background. Used for aligned diff
 -- lines, whose background moves to the changed spans only.
@@ -2350,6 +2392,10 @@ function M.setup(opts)
   })
   api.nvim_create_user_command("Glean", function(o)
     local args = o.fargs
+    if args[1] == "pr" then
+      M.open_pr({ pr = args[2] })
+      return
+    end
     if #args == 0 then
       M.open_dirty()
       return

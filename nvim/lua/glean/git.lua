@@ -247,6 +247,16 @@ function Git:dirty_sig()
   return vim.fn.sha256(head .. "\0" .. diff_out .. "\0" .. status)
 end
 
+-- Fetch objects for a refspec from a remote into the object store, without
+-- updating any local branch or touching the working tree / checkout. Used to
+-- make a PR's commits available locally before reviewing them. Returns true on
+-- success, or nil + stderr.
+function Git:fetch(remote, refspec)
+  local out, err = self:run({ "fetch", remote, refspec })
+  if not out then return nil, err end
+  return true
+end
+
 -- Contents of a path at a ref (`git show REF:path`). Used by jump-to-source.
 function Git:show(ref, path)
   return self:run({ "show", ref .. ":" .. path })
