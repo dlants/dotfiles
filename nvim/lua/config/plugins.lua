@@ -70,6 +70,14 @@ end, { desc = "Find files in PKB (needle)", silent = true })
 vim.keymap.set("n", "<leader>g", function() require("shuck").toggle({}) end,
   { desc = "Toggle shuck", noremap = true, silent = true })
 
+vim.keymap.set("x", "<leader>g", function()
+  local sel = vim.fn.getregion(vim.fn.getpos("v"), vim.fn.getpos("."), { type = vim.fn.mode() })
+  local text = (sel[1] or ""):gsub("%s+$", "")
+  vim.cmd("normal! \27") -- leave visual mode
+  local cmd = "rg -H --no-heading --vimgrep -F -- " .. vim.fn.shellescape(text) .. " "
+  require("shuck").open({ cmd = cmd, run = true })
+end, { desc = "Shuck grep visual selection", noremap = true, silent = true })
+
 --------------------------------------------------------------------------------
 -- oil.nvim
 --------------------------------------------------------------------------------

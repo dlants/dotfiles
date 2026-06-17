@@ -482,7 +482,7 @@ local function start_history_picker()
   if not state then return end
   resolve_cwd()
   if #state.history == 0 then return end
-  pcall(vim.cmd, "stopinsert")
+  pcall(vim.cmd, "startinsert!")
   state.picker_mode = true
   state.picker_selected = 1
   set_prompt(state.history[1])
@@ -562,21 +562,13 @@ local function setup_keymaps(prompt_buf)
     if state and state.picker_mode then exit_picker(true)
     else run_command() end
   end)
-  map({"i","n"}, "<C-j>",  function()
+  map("i", "<C-j>",  function()
     if state and state.picker_mode then picker_move(1)
     else move_selection(1) end
   end)
-  map({"i","n"}, "<C-k>",  function()
+  map("i", "<C-k>",  function()
     if state and state.picker_mode then picker_move(-1)
     else move_selection(-1) end
-  end)
-  map({"i","n"}, "<C-d>",  function()
-    if state and state.picker_mode then picker_move(10)
-    else move_selection(10) end
-  end)
-  map({"i","n"}, "<C-u>",  function()
-    if state and state.picker_mode then picker_move(-10)
-    else move_selection(-10) end
   end)
   map({"i","n"}, "<Up>",   function()
     if state and state.picker_mode then picker_move(-1)
@@ -586,13 +578,30 @@ local function setup_keymaps(prompt_buf)
     if state and state.picker_mode then picker_move(1)
     else history_cycle(-1) end
   end)
-  map("n",       "<C-r>",  function() start_history_picker() end)
+  map({"i","n"}, "<C-r>",  function() start_history_picker() end)
   map({"i","n"}, "<C-x>",  function() open_selected("split") end)
   map({"i","n"}, "<C-v>",  function() open_selected("vsplit") end)
   map({"i","n"}, "<C-t>",  function() open_selected("tabedit") end)
   map("n", "q",            function() to_quickfix() end)
-  map("n", "<Esc>",        function() close_picker() end)
   map({"i","n"}, "<C-c>",  function() close_picker() end)
+
+  local function rmap(lhs, fn)
+    api.nvim_buf_set_keymap(state.results_buf, "n", lhs, "", {
+      noremap = true, silent = true, callback = fn,
+    })
+  end
+  rmap("<CR>",  function() open_selected("edit") end)
+  rmap("<C-x>", function() open_selected("split") end)
+  rmap("<C-v>", function() open_selected("vsplit") end)
+  rmap("<C-t>", function() open_selected("tabedit") end)
+  rmap("q",     function() to_quickfix() end)
+  rmap("<C-c>", function() close_picker() end)
+  rmap("i",     function()
+    if state and api.nvim_win_is_valid(state.prompt_win) then
+      api.nvim_set_current_win(state.prompt_win)
+      vim.cmd("startinsert!")
+    end
+  end)
 end
 
 -- ============================================================================
@@ -682,12 +691,46 @@ function M.open(opts)
     callback = function() vim.schedule(close_picker) end,
   })
 
+  api.nvim_create_autocmd({ "BufWipeout", "BufDelete" }, {
+    buffer = prompt_buf,
+    callback = function() vim.schedule(close_picker) end,
+  })
+  api.nvim_create_autocmd({ "BufWipeout", "BufDelete" }, {
+    buffer = results_buf,
+    callback = function() vim.schedule(close_picker) end,
+  })
+
+  api.nvim_create_autocmd("CursorMoved", {
+    buffer = results_buf,
+    callback = function()
+      if not state or state.picker_mode then return end
+      if not api.nvim_win_is_valid(state.results_win) then return end
+      if api.nvim_get_current_win() ~= state.results_win then return end
+      if #state.output_lines == 0 then return end
+      local row = api.nvim_win_get_cursor(state.results_win)[1]
+      if row > state.rendered_count or row == state.selected then return end
+      state.selected = row
+      api.nvim_buf_clear_namespace(state.results_buf, NS_HL, 0, -1)
+      api.nvim_buf_set_extmark(state.results_buf, NS_HL, row - 1, 0, {
+        end_row = row,
+        hl_group = "ShuckSel",
+        hl_eol = true,
+        priority = 200,
+      })
+    end,
+  })
+
   set_title()
   vim.cmd("startinsert!")
 
   -- Defer the search-root resolution so the prompt is interactive immediately.
   vim.schedule(function()
-    if state then resolve_cwd() end
+    if not state then return end
+    resolve_cwd()
+    if opts.run then
+      run_command()
+      pcall(vim.cmd, "stopinsert")
+    end
   end)
 end
 
