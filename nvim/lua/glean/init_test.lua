@@ -1771,8 +1771,8 @@ do
   h.assert_eq("sticky: one float line per pinned header", #fl, #pinned)
   for i, row in ipairs(pinned) do
     local src = api.nvim_buf_get_lines(s.buf, row, row + 1, false)[1]
-    h.assert_eq("sticky: float line " .. i .. " is its header (space-prefixed)",
-      fl[i], " " .. src)
+    h.assert_eq("sticky: float line " .. i .. " is its header",
+      fl[i], src)
   end
 
   -- reused: scrolling again keeps the same float window id.

@@ -966,7 +966,7 @@ function Session:update_sticky()
   end
   local texts = {}
   for _, row in ipairs(pinned) do
-    texts[#texts + 1] = " " .. (api.nvim_buf_get_lines(self.buf, row, row + 1, false)[1] or "")
+    texts[#texts + 1] = api.nvim_buf_get_lines(self.buf, row, row + 1, false)[1] or ""
   end
   api.nvim_buf_set_lines(sbuf, 0, -1, false, texts)
   api.nvim_buf_clear_namespace(sbuf, NS_STICKY, 0, -1)
@@ -982,13 +982,14 @@ function Session:update_sticky()
     end
   end
 
+  local textoff = (vim.fn.getwininfo(win)[1] or {}).textoff or 0
   local cfg = {
     relative = "win",
     win = win,
     anchor = "NW",
     row = 0,
-    col = 0,
-    width = width,
+    col = textoff,
+    width = math.max(1, width - textoff),
     height = #pinned,
     focusable = false,
     style = "minimal",
