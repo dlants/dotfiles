@@ -708,7 +708,7 @@ function Session:build()
         local fchev = file.collapsed and CHEVRON_CLOSED or CHEVRON_OPEN
         local fmark = self:file_seen(commit, file) and "✓" or " "
         local kind = file.kind and (" [" .. file.kind .. "]") or ""
-        emit(("  %s %s %s%s"):format(fchev, fmark, file.path, kind),
+        emit(("%s %s %s%s"):format(fchev, fmark, file.path, kind),
           { commit = ci, file = fi }, "GleanFileHeader")
         if not file.collapsed then
           emit_file_body(file, { commit = ci, file = fi },
