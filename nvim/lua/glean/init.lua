@@ -510,6 +510,40 @@ function Session:collect_comments()
 end
 
 -- ---------------------------------------------------------------------------
+-- Ancestry classification (pure): for each row, the ordered stack of enclosing
+-- header rows (commit, file, section, hunk). Drives the sticky-header float.
+-- Walks rows top-to-bottom carrying a running ancestry; a shallower header
+-- clears deeper levels. Headers are identified purely from row_map target shape:
+--   commit header  → { commit } (no file/cfile/sec/hunk)
+--   section header → { ..., seen|unseen }
+--   file header    → { file|cfile } (no hunk/line)
+--   hunk header    → { ..., hunk } (no line, no marker)
+function M.compute_ancestry(row_map, n)
+  local ancestry = {}
+  local commit_row, file_row, sec_row, hunk_row
+  for row = 0, n - 1 do
+    local t = row_map[row]
+    if t then
+      if t.commit and not t.file and not t.cfile and not t.sec and not t.hunk then
+        commit_row, file_row, sec_row, hunk_row = row, nil, nil, nil
+      elseif t.seen or t.unseen then
+        sec_row, hunk_row = row, nil
+      elseif (t.file or t.cfile) and not t.hunk and not t.line then
+        file_row, sec_row, hunk_row = row, nil, nil
+      elseif t.hunk and t.line == nil and t.marker == nil then
+        hunk_row = row
+      end
+    end
+    ancestry[row] = {
+      commit_row = commit_row,
+      file_row = file_row,
+      sec_row = sec_row,
+      hunk_row = hunk_row,
+    }
+  end
+  return ancestry
+end
+-- ---------------------------------------------------------------------------
 -- Build (pure projection): returns lines, row_map, highlights, comments.
 -- ---------------------------------------------------------------------------
 
@@ -702,6 +736,11 @@ end
 function Session:render()
   local lines, row_map, highlights, intra_work = self:build()
   self.row_map = row_map
+  self.ancestry = M.compute_ancestry(row_map, #lines)
+  self.row_hl = {}
+  for _, hl in ipairs(highlights) do
+    self.row_hl[hl.row] = hl.hl
+  end
   local win = self.win
   local cur
   if win and api.nvim_win_is_valid(win) then

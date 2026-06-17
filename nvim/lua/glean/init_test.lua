@@ -1608,5 +1608,62 @@ do
   h.assert_eq("inv: no identity changes when all already seen", #changed, 0)
 end
 
+-- compute_ancestry (pure): header rows are classified into the correct level,
+-- body rows inherit the running ancestry, and a shallower header clears deeper
+-- levels. Synthetic row_map fixtures cover both scopes.
+do
+  -- commits scope: mode, commit, file, seen-section, hunk, line, marker,
+  -- unseen-section, hunk, line.
+  local rm = {
+    [0] = {},
+    [1] = { commit = 1 },
+    [2] = { commit = 1, file = 1 },
+    [3] = { commit = 1, file = 1, seen = true },
+    [4] = { commit = 1, file = 1, hunk = 1, sec = "seen" },
+    [5] = { commit = 1, file = 1, hunk = 1, sec = "seen", line = 1 },
+    [6] = { commit = 1, file = 1, hunk = 1, sec = "seen", marker = {} },
+    [7] = { commit = 1, file = 1, unseen = true },
+    [8] = { commit = 1, file = 1, hunk = 2, sec = "unseen" },
+    [9] = { commit = 1, file = 1, hunk = 2, sec = "unseen", line = 1 },
+  }
+  local anc = glean.compute_ancestry(rm, 10)
+  local function chk(name, row, exp)
+    h.assert_eq(name, vim.inspect(anc[row]), vim.inspect(exp))
+  end
+  chk("anc: mode header has no ancestry", 0, {})
+  chk("anc: commit header carries only commit", 1, { commit_row = 1 })
+  chk("anc: file header carries commit+file", 2,
+    { commit_row = 1, file_row = 2 })
+  chk("anc: seen section carries commit+file+sec", 3,
+    { commit_row = 1, file_row = 2, sec_row = 3 })
+  chk("anc: hunk header carries full chain", 4,
+    { commit_row = 1, file_row = 2, sec_row = 3, hunk_row = 4 })
+  chk("anc: body line inherits running ancestry", 5,
+    { commit_row = 1, file_row = 2, sec_row = 3, hunk_row = 4 })
+  chk("anc: marker row pins through its hunk (body, not header)", 6,
+    { commit_row = 1, file_row = 2, sec_row = 3, hunk_row = 4 })
+  chk("anc: unseen section clears the prior hunk", 7,
+    { commit_row = 1, file_row = 2, sec_row = 7 })
+  chk("anc: second hunk header under unseen", 8,
+    { commit_row = 1, file_row = 2, sec_row = 7, hunk_row = 8 })
+  chk("anc: line under second hunk", 9,
+    { commit_row = 1, file_row = 2, sec_row = 7, hunk_row = 8 })
+
+  -- combined scope: no commit level; cfile is the file header.
+  local cm = {
+    [0] = {},
+    [1] = { cfile = 1 },
+    [2] = { cfile = 1, unseen = true },
+    [3] = { cfile = 1, hunk = 1, sec = "unseen" },
+    [4] = { cfile = 1, hunk = 1, sec = "unseen", line = 1 },
+  }
+  local canc = glean.compute_ancestry(cm, 5)
+  h.assert_eq("anc/combined: cfile header has no commit level",
+    vim.inspect(canc[1]), vim.inspect({ file_row = 1 }))
+  h.assert_eq("anc/combined: line inherits file+sec+hunk, no commit",
+    vim.inspect(canc[4]),
+    vim.inspect({ file_row = 1, sec_row = 2, hunk_row = 3 }))
+end
+
 h.finish()
 h.finish()
