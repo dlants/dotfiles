@@ -223,7 +223,7 @@ export function defaultBranchName(planPath: string): string {
     .replace(/^-+|-+$/g, "")
     .toLowerCase();
   const stamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
-  return `implement/${base || "plan"}-${stamp}`;
+  return `implement-${base || "plan"}-${stamp}`;
 }
 
 export function buildExtractStagesPrompt(

@@ -55,7 +55,7 @@ function setupWorktreeRoot(withScript: boolean): {
 describe("defaultBranchName", () => {
   it("slugifies the plan basename", () => {
     const name = defaultBranchName("docs/My Plan.md");
-    expect(name).toMatch(/^implement\/my-plan-\d{8,14}$/);
+    expect(name).toMatch(/^implement-my-plan-\d{8,14}$/);
   });
 });
 

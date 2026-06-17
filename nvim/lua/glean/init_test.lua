@@ -375,7 +375,7 @@ do
     joined2:find("💬 context note", 1, true) ~= nil)
 end
 -- Stage 2 — commits-scope seen section: marking an expanded file's only hunk
--- seen tucks it under a default-collapsed "✓ seen (N hunks)" header.
+-- seen tucks it under a default-collapsed " seen (N hunks)" header.
 do
   local s = open({ scope = "commits", state_dir = vim.fn.tempname() })
   local frow = find_row(s, function(_, line, t)
@@ -385,9 +385,9 @@ do
   s:toggle_seen(frow)
   local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
   h.assert_true("seen-section: header present",
-    joined:find("✓ seen (1 hunks)", 1, true) ~= nil)
+    joined:find(" seen (1 hunks)", 1, true) ~= nil)
   h.assert_true("seen-section: collapsed chevron",
-    joined:find("> ✓ seen", 1, true) ~= nil)
+    joined:find("> seen", 1, true) ~= nil)
   h.assert_true("seen-section: seen hunk body hidden", joined:find("\n+TWO", 1, true) == nil)
   -- the seen-section row carries a {seen=true} target with no hunk/line.
   local srow = find_row(s, function(_, _, t)
@@ -425,7 +425,7 @@ do
   h.assert_true("marker: marked lines hidden", joined:find("\n+L1", 1, true) == nil)
   h.assert_true("marker: marked lines hidden 2", joined:find("\n+L2", 1, true) == nil)
   h.assert_true("marker: unseen lines visible", joined:find("\n+L3", 1, true) ~= nil)
-  h.assert_true("marker: hunk stays unseen", joined:find("✓ seen (", 1, true) == nil)
+  h.assert_true("marker: hunk stays unseen", joined:find(" seen (", 1, true) == nil)
   -- the marker row carries a {marker=...} target with no line and the right span.
   local mrow = find_row(s, function(_, _, t) return t and t.marker and not t.line end)
   h.assert_true("marker: row has marker target", mrow ~= nil)
@@ -473,7 +473,7 @@ do
   h.assert_true("del marker: collapsed row present", joined:find("✓ marked 3 lines", 1, true) ~= nil)
   h.assert_true("del marker: deleted rows hidden", joined:find("\n-A", 1, true) == nil)
   h.assert_true("del marker: add line still visible", joined:find("\n+X", 1, true) ~= nil)
-  h.assert_true("del marker: hunk stays unseen", joined:find("✓ seen (", 1, true) == nil)
+  h.assert_true("del marker: hunk stays unseen", joined:find(" seen (", 1, true) == nil)
   h.assert_true("del marker: committed del identity stored",
     #s.store:seen_del_ranges(drepo.shas[2], "d.txt") > 0)
 end
@@ -566,7 +566,7 @@ do
   local s3 = fresh()
   s3:mark_visual_range(lrow(s3, "+L1"), lrow(s3, "+L4"))
   joined = table.concat(api.nvim_buf_get_lines(s3.buf, 0, -1, false), "\n")
-  h.assert_true("stage3 whole-hunk: seen section", joined:find("✓ seen (", 1, true) ~= nil)
+  h.assert_true("stage3 whole-hunk: seen section", joined:find(" seen (", 1, true) ~= nil)
   h.assert_true("stage3 whole-hunk: no marker", joined:find("marked", 1, true) == nil)
 
   -- Behavior 6 (fall-through): normal `m` on an ordinary hunk line still toggles
@@ -579,7 +579,7 @@ do
   local hline = lrow(s4, "+L1")
   s4:toggle_seen(hline)
   joined = table.concat(api.nvim_buf_get_lines(s4.buf, 0, -1, false), "\n")
-  h.assert_true("stage3 fall-through: whole hunk seen", joined:find("✓ seen (", 1, true) ~= nil)
+  h.assert_true("stage3 fall-through: whole hunk seen", joined:find(" seen (", 1, true) ~= nil)
   h.assert_eq("stage3 fall-through: all lines seen",
     #s4.store:seen_ranges(csha, "m.txt"), 1)
 end
@@ -644,20 +644,20 @@ do
 end
 
 -- Unseen section: changed hunks render under a default-expanded
--- "● unseen (N hunks)" header. Collapsing any row in the section (here a diff
+-- "unseen (N hunks)" header. Collapsing any row in the section (here a diff
 -- line) hides the section body but leaves the file header in place.
 do
   local s = open({ state_dir = vim.fn.tempname() })
   local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
-  h.assert_true("unseen-section: header present", joined:find("● unseen (", 1, true) ~= nil)
-  h.assert_true("unseen-section: default expanded chevron", joined:find("v ● unseen", 1, true) ~= nil)
+  h.assert_true("unseen-section: header present", joined:find("unseen (", 1, true) ~= nil)
+  h.assert_true("unseen-section: default expanded chevron", joined:find("v unseen", 1, true) ~= nil)
   h.assert_true("unseen-section: body shown", joined:find("\n+TWO", 1, true) ~= nil)
 
   local lrow = find_row(s, function(_, _, t) return t and t.line and t.sec == "unseen" end)
   h.assert_true("unseen-section: found a line row", lrow ~= nil)
   s:toggle_collapse(lrow)
   local j2 = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
-  h.assert_true("unseen-section: collapsed chevron", j2:find("> ● unseen", 1, true) ~= nil)
+  h.assert_true("unseen-section: collapsed chevron", j2:find("> unseen", 1, true) ~= nil)
   h.assert_true("unseen-section: body hidden", j2:find("\n+TWO", 1, true) == nil)
   h.assert_true("unseen-section: file header intact", j2:find("v f.txt", 1, true) ~= nil)
   s:toggle_collapse(find_row(s, function(_, _, t) return t and t.unseen end))
@@ -738,13 +738,13 @@ do
   h.assert_true("combined: THREE seen on c2",
     state.covers(s.store:seen_ranges(repo.shas[3], "f.txt"), 3))
   local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
-  h.assert_true("combined: f.txt seen section", joined:find("✓ seen (1 hunks)", 1, true) ~= nil)
+  h.assert_true("combined: f.txt seen section", joined:find(" seen (1 hunks)", 1, true) ~= nil)
   h.assert_true("combined: f.txt header still shown", joined:find("v f.txt", 1, true) ~= nil)
   h.assert_true("combined: f.txt body elided", joined:find("\n+TWO", 1, true) == nil)
   -- reopen: persisted seen still collapses f.txt in combined.
   local s2 = open({ state_dir = dir })
   local joined2 = table.concat(api.nvim_buf_get_lines(s2.buf, 0, -1, false), "\n")
-  h.assert_true("combined reopen: f.txt still fully seen", joined2:find("✓ seen", 1, true) ~= nil)
+  h.assert_true("combined reopen: f.txt still fully seen", joined2:find(" seen", 1, true) ~= nil)
   h.assert_true("combined reopen: g.txt still shown", joined2:find("v g.txt", 1, true) ~= nil)
 end
 
@@ -783,7 +783,7 @@ do
   s:mark_visual_range(crow(s, "+A1"), crow(s, "+A2"))
   local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
   h.assert_true("combined marker: marker present", joined:find("✓ marked 2 lines", 1, true) ~= nil)
-  h.assert_true("combined marker: hunk stays unseen", joined:find("✓ seen (", 1, true) == nil)
+  h.assert_true("combined marker: hunk stays unseen", joined:find(" seen (", 1, true) == nil)
   h.assert_true("combined marker: A3 still visible", joined:find("\n+A3", 1, true) ~= nil)
   h.assert_true("combined marker: A1 hidden", joined:find("\n+A1", 1, true) == nil)
   -- Each line routed to its owning commit's store.
@@ -861,7 +861,7 @@ do
   cs2:toggle_seen(c2hdr)
   local done = open2(r2.shas[3])
   local j3 = table.concat(api.nvim_buf_get_lines(done.buf, 0, -1, false), "\n")
-  h.assert_true("follow-up: x.txt fully seen after c2", j3:find("✓ seen", 1, true) ~= nil)
+  h.assert_true("follow-up: x.txt fully seen after c2", j3:find(" seen", 1, true) ~= nil)
 end
 
 -- Re-diff branch: a file with two far-apart hunks from two commits; once the
@@ -896,7 +896,7 @@ do
   s:toggle_seen(l2row)
   local s2 = open3()
   local joined = table.concat(api.nvim_buf_get_lines(s2.buf, 0, -1, false), "\n")
-  h.assert_true("two-hunk: L2 seen section", joined:find("✓ seen (1 hunks)", 1, true) ~= nil)
+  h.assert_true("two-hunk: L2 seen section", joined:find(" seen (1 hunks)", 1, true) ~= nil)
   h.assert_true("two-hunk: L10 (unseen) shown", joined:find("\n+L10", 1, true) ~= nil)
   h.assert_true("two-hunk: L2 hunk collapsed", joined:find("\n+L2", 1, true) == nil)
 end
@@ -1092,7 +1092,7 @@ do
   -- (a)/(b): committed and uncommitted edits both show; D is unseen initially.
   h.assert_true("wt combined: committed +B shown", joined:find("\n+B", 1, true) ~= nil)
   h.assert_true("wt combined: uncommitted +D shown", joined:find("\n+D", 1, true) ~= nil)
-  h.assert_true("wt combined: m.txt not yet fully seen", joined:find("✓ seen", 1, true) == nil)
+  h.assert_true("wt combined: m.txt not yet fully seen", joined:find(" seen", 1, true) == nil)
   -- The dirty line is owned by the floating commit (zero sha remapped).
   h.assert_eq("wt combined: +D owned by WORKTREE", s:provenance("m.txt")[4].sha, glean.WORKTREE)
 
@@ -1107,11 +1107,11 @@ do
   h.assert_true("wt combined: dirty D hash-seen on WORKTREE",
     next(s.store:seen_hashes(glean.WORKTREE, "m.txt")) ~= nil)
   local jseen = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
-  h.assert_true("wt combined: m.txt fully seen", jseen:find("✓ seen (1 hunks)", 1, true) ~= nil)
+  h.assert_true("wt combined: m.txt fully seen", jseen:find(" seen (1 hunks)", 1, true) ~= nil)
   -- reopen: persisted committed + floating seen still collapses the file.
   local s2 = openwm(dir)
   local j2 = table.concat(api.nvim_buf_get_lines(s2.buf, 0, -1, false), "\n")
-  h.assert_true("wt combined reopen: m.txt still fully seen", j2:find("✓ seen", 1, true) ~= nil)
+  h.assert_true("wt combined reopen: m.txt still fully seen", j2:find(" seen", 1, true) ~= nil)
 
   -- (d): a comment on the dirty line lands in the floating shard by line hash.
   local cdir = vim.fn.tempname()
@@ -1370,14 +1370,14 @@ do
   })
   local joined = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
   h.assert_true("del-hunk: shows -b deletion", joined:find("\n-b", 1, true) ~= nil)
-  h.assert_true("del-hunk: starts unseen", joined:find("✓ seen", 1, true) == nil)
+  h.assert_true("del-hunk: starts unseen", joined:find(" seen", 1, true) == nil)
   local frow = find_row(s, function(_, line, t)
     return t and t.commit == 1 and t.file and not t.hunk and line:find("d.txt", 1, true)
   end)
   s:toggle_seen(frow)
   local jseen = table.concat(api.nvim_buf_get_lines(s.buf, 0, -1, false), "\n")
   h.assert_true("del-hunk: marking moves it to the seen section",
-    jseen:find("✓ seen", 1, true) ~= nil)
+    jseen:find(" seen", 1, true) ~= nil)
   h.assert_true("del-hunk: del identity persisted in pre-image coords",
     #s.store:seen_del_ranges(dr.shas[2], "d.txt") > 0)
 end

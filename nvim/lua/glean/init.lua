@@ -675,7 +675,7 @@ function Session:build()
     if #seen_idx > 0 then
       local c = self.collapse[seen_ck]; if c == nil then c = true end
       local chev = c and CHEVRON_CLOSED or CHEVRON_OPEN
-      emit(("%s ✓ seen (%d hunks)"):format(chev, #seen_idx),
+      emit(("%s seen (%d hunks)"):format(chev, #seen_idx),
         vim.tbl_extend("force", target_base, { seen = true }), "GleanSeen")
       if not c then
         for _, hi in ipairs(seen_idx) do
@@ -686,7 +686,7 @@ function Session:build()
     if #unseen_idx > 0 then
       local c = self.collapse[unseen_ck]; if c == nil then c = false end
       local chev = c and CHEVRON_CLOSED or CHEVRON_OPEN
-      emit(("%s ● unseen (%d hunks)"):format(chev, #unseen_idx),
+      emit(("%s unseen (%d hunks)"):format(chev, #unseen_idx),
         vim.tbl_extend("force", target_base, { unseen = true }), "GleanFileHeader")
       if not c then
         for _, hi in ipairs(unseen_idx) do
