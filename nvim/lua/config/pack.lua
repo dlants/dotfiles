@@ -21,6 +21,13 @@ vim.api.nvim_create_autocmd("PackChanged", {
     end
     if name == "magenta" and (kind == "install" or kind == "update") then
       vim.system({ "npm", "run", "build" }, { cwd = ev.data.path }):wait()
+      -- The magenta-scripts packages depend on the SDK shipped with magenta, so
+      -- reinstall their runtime deps whenever magenta itself changes.
+      local scripts_dir = vim.fn.expand("~/src/dotfiles/magenta-scripts")
+      for _, pkg in ipairs(vim.fn.glob(scripts_dir .. "/*/package.json", true, true)) do
+        local cwd = vim.fn.fnamemodify(pkg, ":h")
+        vim.system({ "npm", "install", "--omit=dev", "--no-audit", "--no-fund" }, { cwd = cwd }):wait()
+      end
     end
   end
 })

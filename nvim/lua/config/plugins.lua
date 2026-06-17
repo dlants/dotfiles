@@ -307,7 +307,24 @@ vim.lsp.config("zls", vim.tbl_deep_extend("force", default_config, {
   settings = { zls = { semantic_tokens = "partial" } }
 }))
 
-vim.lsp.config("ty", default_config)
+-- Prefer a project-local `.venv/bin/ty` over the global one, so the LSP's
+-- bundled typeshed/version matches the project's pinned ty. Falls back to the
+-- `ty` on PATH when no venv binary is found.
+local function ty_cmd(dispatchers, config)
+  -- `config.root_dir` is the per-buffer root Neovim already resolved from this
+  -- server's `root_markers`, so each ty project gets its own binary.
+  local exe = "ty"
+  local root = config and config.root_dir
+  if root then
+    local venv_ty = root .. "/.venv/bin/ty"
+    if vim.uv.fs_stat(venv_ty) then
+      exe = venv_ty
+    end
+  end
+  return vim.lsp.rpc.start({ exe, "server" }, dispatchers)
+end
+
+vim.lsp.config("ty", vim.tbl_deep_extend("force", default_config, { cmd = ty_cmd }))
 vim.lsp.config("ruff", default_config)
 vim.lsp.config("biome", default_config)
 
