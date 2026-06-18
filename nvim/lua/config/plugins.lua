@@ -229,7 +229,8 @@ vim.diagnostic.config({
   severity_sort = true
 })
 
-local capabilities = require("cmp_nvim_lsp").default_capabilities()
+-- local capabilities = require("cmp_nvim_lsp").default_capabilities()
+local capabilities = require("blink.cmp").get_lsp_capabilities()
 capabilities.textDocument.completion.completionItem.snippetSupport = true
 
 local on_attach = function(_, bufnr)
@@ -419,6 +420,8 @@ vim.api.nvim_create_autocmd("FileType", {
 --------------------------------------------------------------------------------
 -- nvim-cmp
 --------------------------------------------------------------------------------
+-- Replaced by blink.cmp (config below). Kept for reference.
+--[[
 local cmp = require("cmp")
 vim.opt.completeopt = { "menu", "menuone", "noselect" }
 
@@ -509,6 +512,56 @@ vim.api.nvim_create_autocmd("FileType", {
       })
     })
   end
+})
+
+--------------------------------------------------------------------------------
+-- end cmp config ]]
+
+--------------------------------------------------------------------------------
+-- blink.cmp
+--------------------------------------------------------------------------------
+local disabled_filetypes = { "needle", "shuck", "glean", "fugitive", "oil" }
+
+local function visible_bufnrs()
+  local bufs = {}
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    bufs[vim.api.nvim_win_get_buf(win)] = true
+  end
+  return vim.tbl_keys(bufs)
+end
+
+require("blink.cmp").setup({
+  enabled = function()
+    return not vim.tbl_contains(disabled_filetypes, vim.bo.filetype)
+  end,
+  keymap = {
+    preset = "none",
+    ["<CR>"] = { "accept", "fallback" },
+    ["<Tab>"] = { "select_next", "fallback" },
+    ["<S-Tab>"] = { "select_prev", "fallback" },
+    ["<C-j>"] = { "select_next", "fallback" },
+    ["<C-k>"] = { "select_prev", "fallback" },
+  },
+  completion = {
+    list = { selection = { preselect = false, auto_insert = true } },
+  },
+  appearance = { use_nvim_cmp_as_default = true },
+  sources = {
+    default = { "lsp", "path", "buffer" },
+    per_filetype = {
+      lua = { "lsp", "path", "buffer" },
+    },
+    providers = {
+      buffer = {
+        opts = { get_bufnrs = visible_bufnrs },
+        transform_items = function(_, items)
+          return vim.tbl_filter(function(item)
+            return #item.label <= 30
+          end, items)
+        end,
+      },
+    },
+  },
 })
 
 --------------------------------------------------------------------------------
