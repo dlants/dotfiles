@@ -1,12 +1,22 @@
 -- Native vim.pack plugin management (Neovim 0.12+)
 
--- Load magenta.nvim: from GitHub on Linux, from local source (~/src/magenta.nvim) elsewhere
+-- Plugins authored locally and published on GitHub. On Linux they are fetched
+-- from GitHub via vim.pack (see below); elsewhere they load from ~/src so local
+-- edits take effect immediately.
 local is_linux = vim.uv.os_uname().sysname == "Linux"
+local local_plugins = { "magenta.nvim", "needle", "shuck", "glean" }
 if not is_linux then
-  local magenta_path = vim.fn.expand("~/src/magenta.nvim")
-  if vim.fn.isdirectory(magenta_path) == 1 then
-    vim.opt.rtp:prepend(magenta_path)
-    vim.opt.rtp:append(magenta_path .. "/after")
+  for _, name in ipairs(local_plugins) do
+    local path = vim.fn.expand("~/src/" .. name)
+    if vim.fn.isdirectory(path) == 1 then
+      vim.opt.rtp:prepend(path)
+      if vim.fn.isdirectory(path .. "/after") == 1 then
+        vim.opt.rtp:append(path .. "/after")
+      end
+      if vim.fn.isdirectory(path .. "/doc") == 1 then
+        vim.cmd("silent! helptags " .. vim.fn.fnameescape(path .. "/doc"))
+      end
+    end
   end
 end
 
@@ -67,7 +77,12 @@ vim.pack.add({
 })
 
 if is_linux then
-  vim.pack.add({ { src = "https://github.com/dlants/magenta.nvim", name = "magenta" } })
+  vim.pack.add({
+    { src = "https://github.com/dlants/magenta.nvim", name = "magenta" },
+    "https://github.com/dlants/needle",
+    "https://github.com/dlants/shuck",
+    "https://github.com/dlants/glean",
+  })
 end
 
 -- :PluginUpdate — fetch + show confirmation buffer for all managed plugins

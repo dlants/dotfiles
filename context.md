@@ -34,18 +34,25 @@ Configures magenta.nvim with its provider profiles.
 - **Oil.nvim**: File explorer integrated with Neovim buffers
 - **Leap.nvim**: Quick navigation with 's' key for bidirectional jumping
 
-### Custom Pickers: needle & shuck
+### Custom Pickers: needle & shuck (and glean)
 
-Two homegrown pickers (in `nvim/lua/needle/` and `nvim/lua/shuck.lua`) have
-replaced fzf-lua. Both render in plain neovim splits (prompt window + results
-window), share `<C-j>/<C-k>` navigation and `<CR>`/`<C-x>`/`<C-v>`/`<C-t>` open
-actions, and pick a search root from the current buffer (cwd if the buffer is
-under it, else the nearest git root, else the buffer's dir).
+needle, shuck and glean are homegrown neovim plugins, each published as a
+standalone public repo under `github.com/dlants` and checked out at
+`~/src/{needle,shuck,glean}`. Like magenta, macOS loads them from `~/src` (rtp
+prepend in `nvim/lua/config/pack.lua`) so local edits apply immediately, while
+Linux fetches them from GitHub via `vim.pack`. Each repo has a README, nvim
+help docs under `doc/`, and the lua under `lua/<name>/`.
 
-**needle** (`nvim/lua/needle/init.lua`) — a signal-aware fuzzy file picker.
+The two pickers (needle, shuck) have replaced fzf-lua. Both render in plain
+neovim splits (prompt window + results window), share `<C-j>/<C-k>` navigation
+and `<CR>`/`<C-x>`/`<C-v>`/`<C-t>` open actions, and pick a search root from the
+current buffer (cwd if the buffer is under it, else the nearest git root, else
+the buffer's dir).
+
+**needle** (`~/src/needle`) — a signal-aware fuzzy file picker.
 - Sources: files (`M.files`), buffers (`M.buffers`), and help tags (`M.help`),
   exposed as `:Needle [dir]`, `:NeedleBuffers`, `:NeedleHelp`.
-- Files are ranked by a fuzzy match score (`needle/score.lua`) plus weighted
+- Files are ranked by a fuzzy match score (`lua/needle/score.lua`) plus weighted
   signals: in buffer list, directory proximity to open buffers, recent access
   (decaying), recent mtime, and git-dirty. Signal flags show as a `blamg`
   prefix column.
@@ -53,7 +60,7 @@ under it, else the nearest git root, else the buffer's dir).
 - `<C-h>` toggles unrestricted (`--no-ignore`) file listing.
 - Keymaps: `<leader>f` files, `<leader>b` buffers, `<leader>h` help.
 
-**shuck** (`nvim/lua/shuck.lua`) — a streamed shell-command picker (a
+**shuck** (`~/src/shuck`) — a streamed shell-command picker (a
 vim-grepper replacement), `:Shuck` / `<leader>g`.
 - Runs an arbitrary shell command (default `rg -H --no-heading --vimgrep `) and
   streams stdout/stderr live into the results window.

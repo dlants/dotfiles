@@ -174,11 +174,15 @@
   # Prevent rustup from creating a broken fish config (nix manages PATH)
   home.file.".config/fish/conf.d/rustup.fish".text = "";
 
-  # Clone magenta.nvim if it doesn't exist
-  home.activation.cloneMagenta = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    if [ ! -d "$HOME/src/magenta.nvim" ]; then
-      mkdir -p "$HOME/src"
-      ${pkgs.git}/bin/git clone https://github.com/dlants/magenta.nvim.git "$HOME/src/magenta.nvim"
-    fi
+  # Clone locally-authored neovim plugins into ~/src if they don't exist. On
+  # macOS these are loaded from ~/src (see nvim/lua/config/pack.lua) so local
+  # edits take effect immediately; on Linux pack.lua fetches them via vim.pack.
+  home.activation.cloneLocalPlugins = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    mkdir -p "$HOME/src"
+    for repo in magenta.nvim needle shuck glean; do
+      if [ ! -d "$HOME/src/$repo" ]; then
+        ${pkgs.git}/bin/git clone "https://github.com/dlants/$repo.git" "$HOME/src/$repo"
+      fi
+    done
   '';
 }
