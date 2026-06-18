@@ -24,6 +24,7 @@
   home.activation.brewInstall = lib.hm.dag.entryAfter ["writeBoundary"] ''
     if command -v brew &> /dev/null; then
       brew list --cask hammerspoon &> /dev/null || brew install --cask hammerspoon
+      brew list --cask keycastr &> /dev/null || brew install --cask keycastr
       brew list pkgx &> /dev/null || brew install pkgx
     fi
   '';
