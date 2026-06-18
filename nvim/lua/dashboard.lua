@@ -745,6 +745,11 @@ end
 
 local state = { buf = nil, win = nil, timer = nil, start = nil, active = false, mode = nil, ns = nil }
 
+-- Stop the animation timer and mark the dashboard inactive, but leave the
+-- buffer in place. Because the buffer is created with bufhidden = "wipe",
+-- Neovim wipes it lazily once it's no longer displayed in any window. This
+-- avoids force-deleting the buffer from inside a BufLeave/WinLeave autocmd,
+-- which used to interfere with other plugins mid window-management.
 local function stop()
   if state.timer then
     state.timer:stop()
@@ -752,9 +757,6 @@ local function stop()
     state.timer = nil
   end
   state.active = false
-  if state.buf and api.nvim_buf_is_valid(state.buf) then
-    pcall(api.nvim_buf_delete, state.buf, { force = true })
-  end
   state.buf = nil
   state.win = nil
 end
