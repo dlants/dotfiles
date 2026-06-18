@@ -647,7 +647,186 @@ local function plusEncode(s)
   return s
 end
 
+-- Preset window layouts. Each layout is a list of placements mapping an app to
+-- a region. Regions are expressed against "logical monitors" (left/right) which
+-- map to physical monitors when two are present, or to the left/right halves of
+-- a single monitor otherwise. `frac` ("full"/"left"/"right") subdivides a
+-- logical monitor. Layouts always target the second desktop.
+local LAYOUT_DESKTOP = 2
+
+local LAYOUT_APP_NAMES = {
+  zoom = "zoom.us",
+  slack = "Slack",
+  chrome = "Google Chrome",
+  term = "Ghostty",
+}
+
+local LAYOUTS = {
+  zt = {
+    { app = "zoom", region = { mon = "left", frac = "full" } },
+    { app = "term", region = { mon = "right", frac = "full" } },
+  },
+  st = {
+    { app = "slack", region = { mon = "left", frac = "full" } },
+    { app = "term", region = { mon = "right", frac = "full" } },
+  },
+  zct = {
+    { app = "zoom", region = { mon = "left", frac = "full" } },
+    { app = "chrome", region = { mon = "right", frac = "left" } },
+    { app = "term", region = { mon = "right", frac = "right" } },
+  },
+  ct = {
+    { app = "chrome", region = { mon = "left", frac = "full" } },
+    { app = "term", region = { mon = "right", frac = "full" } },
+  },
+  cst = {
+    { app = "chrome", region = { mon = "left", frac = "left" } },
+    { app = "slack", region = { mon = "left", frac = "right" } },
+    { app = "term", region = { mon = "right", frac = "full" } },
+  },
+  sct = {
+    { app = "slack", region = { mon = "left", frac = "left" } },
+    { app = "chrome", region = { mon = "left", frac = "right" } },
+    { app = "term", region = { mon = "right", frac = "full" } },
+  },
+}
+
+local function logicalMonitors()
+  local screens = physicalScreensLeftToRight()
+  if #screens == 0 then return nil end
+  if #screens >= 2 then
+    return { left = screens[1]:frame(), right = screens[2]:frame() }
+  end
+  local sf = screens[1]:frame()
+  return {
+    left = { x = sf.x, y = sf.y, w = sf.w / 2, h = sf.h },
+    right = { x = sf.x + sf.w / 2, y = sf.y, w = sf.w / 2, h = sf.h },
+  }
+end
+
+local function regionFrame(region)
+  local mons = logicalMonitors()
+  if not mons then return nil end
+  local base = mons[region.mon]
+  if not base then return nil end
+  if region.frac == "left" then
+    return { x = base.x, y = base.y, w = base.w / 2, h = base.h }
+  elseif region.frac == "right" then
+    return { x = base.x + base.w / 2, y = base.y, w = base.w / 2, h = base.h }
+  end
+  return { x = base.x, y = base.y, w = base.w, h = base.h }
+end
+
+local function layoutTargetSpace()
+  local spaces = userSpacesOnPrimary()
+  return spaces[LAYOUT_DESKTOP]
+end
+
+local function appStandardWindow(name)
+  local app = hs.application.find(name)
+  if not app then return nil end
+  local win = app:mainWindow()
+  if win and win:isStandard() then return win end
+  for _, w in ipairs(app:allWindows()) do
+    if w:isStandard() then return w end
+  end
+  return nil
+end
+
+local function windowOnSpace(win, target)
+  for _, sp in ipairs(hs.spaces.windowSpaces(win) or {}) do
+    if sp == target then return true end
+  end
+  return false
+end
+
+-- Walk the placements one at a time (waiting for each app's window to appear,
+-- dragging it onto the target desktop if needed, then framing it). Sequential
+-- processing keeps the desktop-drag hack in moveFocusedWindowToDesktop from
+-- racing against itself.
+local function applyLayout(placements)
+  local target = layoutTargetSpace()
+  if target and hs.spaces.focusedSpace() ~= target then
+    hs.spaces.gotoSpace(target)
+  end
+
+  for _, p in ipairs(placements) do
+    local name = LAYOUT_APP_NAMES[p.app]
+    if not hs.application.find(name) then
+      hs.application.launchOrFocus(name)
+    end
+  end
+
+  local idx = 0
+  local function placeNext()
+    idx = idx + 1
+    if idx > #placements then return end
+    local p = placements[idx]
+    local name = LAYOUT_APP_NAMES[p.app]
+    local frame = regionFrame(p.region)
+
+    local attempts = 0
+    local function tryPlace()
+      attempts = attempts + 1
+      local win = appStandardWindow(name)
+      if not win then
+        if attempts < 24 then
+          hs.timer.doAfter(0.25, tryPlace)
+        else
+          placeNext()
+        end
+        return
+      end
+      if target and not windowOnSpace(win, target) then
+        win:focus()
+        hs.timer.doAfter(0.2, function()
+          moveFocusedWindowToDesktop(LAYOUT_DESKTOP)
+          hs.timer.doAfter(0.5, function()
+            if frame then win:setFrame(frame) end
+            placeNext()
+          end)
+        end)
+        return
+      end
+      if frame then win:setFrame(frame) end
+      placeNext()
+    end
+    tryPlace()
+  end
+  placeNext()
+end
+
 local commandPaletteItems = {
+  {
+    text = "zt",
+    subText = "zoomterm — zoom left, terminal right",
+    handler = function() applyLayout(LAYOUTS.zt) end,
+  },
+  {
+    text = "st",
+    subText = "slackterm — slack left, terminal right",
+    handler = function() applyLayout(LAYOUTS.st) end,
+  },
+  {
+    text = "zct",
+    subText = "zoomchrometerm — zoom left, chrome half-left, terminal half-right",
+    handler = function() applyLayout(LAYOUTS.zct) end,
+  },
+  {
+    text = "ct",
+    subText = "chrometerm — chrome left, terminal right",
+    handler = function() applyLayout(LAYOUTS.ct) end,
+  },
+  {
+    text = "cst",
+    subText = "chromeslackterm — chrome+slack share left, terminal right",
+    handler = function() applyLayout(LAYOUTS.cst) end,
+  },
+  {
+    text = "sct",
+    subText = "slackchrometerm — slack+chrome share left, terminal right",
+    handler = function() applyLayout(LAYOUTS.sct) end,
+  },
   {
     text = "ghostty1",
     subText = "Ghostty on Desktop 1",
