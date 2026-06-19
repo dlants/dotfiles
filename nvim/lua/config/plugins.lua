@@ -316,6 +316,32 @@ vim.lsp.config("zls", vim.tbl_deep_extend("force", default_config, {
   settings = { zls = { semantic_tokens = "partial" } }
 }))
 
+vim.lsp.config("gopls", vim.tbl_deep_extend("force", default_config, {
+  settings = {
+    gopls = {
+      gofumpt = true,
+      staticcheck = true,
+      usePlaceholders = true,
+      -- cgo packages resolve correctly only with build flags that match;
+      -- the defaults are fine, gopls enables cgo automatically.
+      analyses = {
+        unusedparams = true,
+        unusedwrite = true,
+        nilness = true,
+        shadow = true,
+      },
+      hints = {
+        assignVariableTypes = true,
+        compositeLiteralFields = true,
+        constantValues = true,
+        functionTypeParameters = true,
+        parameterNames = true,
+        rangeVariableTypes = true,
+      },
+    },
+  },
+}))
+
 -- Prefer a project-local `.venv/bin/ty` over the global one, so the LSP's
 -- bundled typeshed/version matches the project's pinned ty. Falls back to the
 -- `ty` on PATH when no venv binary is found.
@@ -343,7 +369,7 @@ end
 
 vim.lsp.enable({
   "bashls", "dockerls", "eslint", "jsonls", "terraformls", "tflint", "yamlls", "teal_ls",
-  "ts_ls", "rust_analyzer", "lua_ls", "zls", "ty", "ruff", "biome"
+  "ts_ls", "rust_analyzer", "lua_ls", "zls", "ty", "ruff", "biome", "gopls"
 })
 
 --------------------------------------------------------------------------------
@@ -362,6 +388,7 @@ require("conform").setup({
     scss = { "prettier" },
     markdown = { "prettier" },
     rust = { "rustfmt" },
+    go = { "goimports", "gofumpt" },
   },
   format_on_save = {
     timeout_ms = 500,
@@ -587,7 +614,7 @@ require("nvim-treesitter").setup({
 local ensure_installed = {
   "lua", "typescript", "tsx", "javascript", "json", "yaml", "html", "css",
   "rust", "bash", "markdown", "markdown_inline", "teal", "python", "nix",
-  "vim", "vimdoc", "toml", "terraform", "java", "zig", "query", "regex",
+  "vim", "vimdoc", "toml", "terraform", "java", "zig", "query", "regex", "go",
 }
 
 local installed = require('nvim-treesitter.config').get_installed()
@@ -600,7 +627,7 @@ end
 
 local ts_filetypes = {
   "lua", "typescript", "tsx", "javascript", "typescriptreact", "javascriptreact",
-  "json", "yaml", "html", "css", "rust", "bash", "markdown", "teal"
+  "json", "yaml", "html", "css", "rust", "bash", "markdown", "teal", "go"
 }
 
 vim.api.nvim_create_autocmd('FileType', {

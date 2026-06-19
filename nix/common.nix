@@ -75,10 +75,18 @@
     terraform-ls
     tflint
     biome
+    gopls  # Go language server
+
+    # Go toolchain & tools
+    go
+    delve  # Go debugger (dlv)
 
     # Formatters
     prettier
     stylua
+    gofumpt   # stricter gofmt
+    (lib.lowPrio gotools)  # goimports (lowPrio: avoids `modernize` clash with gopls)
+    golangci-lint  # Go meta-linter
   ];
 
   # Git configuration
