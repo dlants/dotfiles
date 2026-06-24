@@ -60,8 +60,8 @@ vim.keymap.set("n", "<leader>f", function() require("needle").files() end, { des
 vim.keymap.set("n", "<leader>h", function() require("needle").help() end, { desc = "Help tags (needle)", silent = true })
 vim.keymap.set("n", "<leader>b", function() require("needle").buffers() end, { desc = "Buffers (needle)", silent = true })
 vim.keymap.set("n", "<leader>p", function()
-  require("needle").files({ cwd = vim.fn.expand("~/.claude/skills/benchling-knowledgebase/knowledge") })
-end, { desc = "Find files in PKB (needle)", silent = true })
+  require("needle").files({ cwd = vim.fn.expand("~/src/benchling") })
+end, { desc = "Find files in benchling (needle)", silent = true })
 
 
 --------------------------------------------------------------------------------

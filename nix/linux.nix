@@ -34,20 +34,28 @@
     fi
   '';
 
-  # Clone work-skills into ~/.claude/skills (browser skill symlink added after by setupMagentaSkills)
-  home.activation.cloneWorkSkills = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    if [ ! -d "$HOME/.claude/skills/.git" ]; then
-      rm -rf "$HOME/.claude/skills"
-      mkdir -p "$HOME/.claude"
-      GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh" ${pkgs.git}/bin/git clone git@github.com:benchling/work-skills.git "$HOME/.claude/skills"
-    fi
-  '';
-
-  # Override setupMagentaSkills from common.nix to run after cloneWorkSkills
-  home.activation.setupMagentaSkills = lib.mkForce (lib.hm.dag.entryAfter ["writeBoundary" "cloneWorkSkills"] ''
+  # Override setupMagentaSkills from common.nix to also include the `search`
+  # skill on Linux (macOS omits it).
+  home.activation.setupMagentaSkills = lib.mkForce (lib.hm.dag.entryAfter ["writeBoundary"] ''
     mkdir -p "$HOME/.claude/skills"
     ${import ./magenta-skills.nix { inherit lib dotfilesDir; }}
   '');
+
+  # Clone the personal benchling repo into ~/src and let its scripts/setup.sh
+  # overlay the benchling-specific skill symlinks (atlassian, datadog, etc.) and
+  # worktree context files on top of the nix-managed generic skills above.
+  home.activation.cloneBenchling = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    if [ ! -d "$HOME/src/benchling/.git" ]; then
+      mkdir -p "$HOME/src"
+      GIT_SSH_COMMAND="${pkgs.openssh}/bin/ssh" ${pkgs.git}/bin/git clone git@github.com:dlants/benchling.git "$HOME/src/benchling"
+    fi
+  '';
+
+  home.activation.benchlingSetup = lib.hm.dag.entryAfter ["setupMagentaSkills" "cloneBenchling"] ''
+    if [ -x "$HOME/src/benchling/scripts/setup.sh" ]; then
+      ${pkgs.bash}/bin/bash "$HOME/src/benchling/scripts/setup.sh"
+    fi
+  '';
 
 
   # Set fish as login shell
