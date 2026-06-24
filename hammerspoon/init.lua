@@ -670,6 +670,20 @@ local LAYOUTS = {
     { app = "slack", region = { mon = "left", frac = "full" } },
     { app = "term", region = { mon = "right", frac = "full" } },
   },
+  zs = {
+    { app = "zoom", region = { mon = "left", frac = "full" } },
+    { app = "slack", region = { mon = "right", frac = "full" } },
+  },
+  zst = {
+    { app = "zoom", region = { mon = "left", frac = "full" } },
+    { app = "slack", region = { mon = "right", frac = "left" } },
+    { app = "term", region = { mon = "right", frac = "right" } },
+  },
+  zsc = {
+    { app = "zoom", region = { mon = "left", frac = "full" } },
+    { app = "slack", region = { mon = "right", frac = "left" } },
+    { app = "chrome", region = { mon = "right", frac = "right" } },
+  },
   zct = {
     { app = "zoom", region = { mon = "left", frac = "full" } },
     { app = "chrome", region = { mon = "right", frac = "left" } },
@@ -806,6 +820,21 @@ local commandPaletteItems = {
     text = "st",
     subText = "slackterm — slack left, terminal right",
     handler = function() applyLayout(LAYOUTS.st) end,
+  },
+  {
+    text = "zs",
+    subText = "zoomslack — zoom left, slack right",
+    handler = function() applyLayout(LAYOUTS.zs) end,
+  },
+  {
+    text = "zst",
+    subText = "zoomslackterm — zoom left, slack half-left, terminal half-right",
+    handler = function() applyLayout(LAYOUTS.zst) end,
+  },
+  {
+    text = "zsc",
+    subText = "zoomslackchrome — zoom left, slack half-left, chrome half-right",
+    handler = function() applyLayout(LAYOUTS.zsc) end,
   },
   {
     text = "zct",
