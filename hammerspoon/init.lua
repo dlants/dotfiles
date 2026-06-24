@@ -920,6 +920,16 @@ local commandPaletteItems = {
     subText = "Jira For You",
     handler = function() openInChrome("https://benchling.atlassian.net/jira/for-you") end,
   },
+  {
+    text = "aws",
+    subText = "AWS SSO (Okta)",
+    handler = function() openInChrome("https://benchling.okta.com/home/amazon_aws_sso/0oaxvddav68mF7Zn90x7/aln1ghfn5xxV7ZPbE1d8") end,
+  },
+  {
+    text = "datadog",
+    subText = "Datadog (Okta)",
+    handler = function() openInChrome("https://benchling.okta.com/home/datadog/0oananwjx2mU1LxIN0x7/28057") end,
+  },
 }
 
 -- Scan for installed applications via mdfind (Spotlight backend)
