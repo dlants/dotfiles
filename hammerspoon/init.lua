@@ -747,6 +747,31 @@ local function appStandardWindow(name)
   return nil
 end
 
+local function appWindowOnSpace(name, target)
+  local app = hs.application.find(name)
+  if not app or not target then return nil end
+  for _, w in ipairs(app:allWindows()) do
+    if w:isStandard() then
+      for _, sp in ipairs(hs.spaces.windowSpaces(w) or {}) do
+        if sp == target then return w end
+      end
+    end
+  end
+  return nil
+end
+
+local function newGhosttyWindow()
+  local ghostty = hs.application.find("Ghostty")
+  if not ghostty then
+    hs.application.launchOrFocus("Ghostty")
+    return
+  end
+  ghostty:activate()
+  if not ghostty:selectMenuItem({ "File", "New Window" }) then
+    hs.eventtap.keyStroke({ "cmd" }, "n", 0, ghostty)
+  end
+end
+
 local function windowOnSpace(win, target)
   for _, sp in ipairs(hs.spaces.windowSpaces(win) or {}) do
     if sp == target then return true end
@@ -779,10 +804,48 @@ local function applyLayout(placements)
     local name = LAYOUT_APP_NAMES[p.app]
     local frame = regionFrame(p.region)
 
+    -- For the terminal, always prefer a Ghostty window already on the target
+    -- desktop. If none exists, spawn a fresh window and drag it over rather
+    -- than yanking an existing one off another desktop.
+    if p.app == "term" then
+      local onTarget = appWindowOnSpace(name, target)
+      if onTarget then
+        if frame then onTarget:setFrame(frame) end
+        placeNext()
+        return
+      end
+      newGhosttyWindow()
+      local attempts = 0
+      local function placeNew()
+        attempts = attempts + 1
+        local win = appWindowOnSpace(name, hs.spaces.focusedSpace())
+          or appStandardWindow(name)
+        if not win then
+          if attempts < 24 then hs.timer.doAfter(0.25, placeNew) else placeNext() end
+          return
+        end
+        if target and not windowOnSpace(win, target) then
+          win:focus()
+          hs.timer.doAfter(0.2, function()
+            moveFocusedWindowToDesktop(LAYOUT_DESKTOP)
+            hs.timer.doAfter(0.5, function()
+              if frame then win:setFrame(frame) end
+              placeNext()
+            end)
+          end)
+          return
+        end
+        if frame then win:setFrame(frame) end
+        placeNext()
+      end
+      hs.timer.doAfter(0.3, placeNew)
+      return
+    end
+
     local attempts = 0
     local function tryPlace()
       attempts = attempts + 1
-      local win = appStandardWindow(name)
+      local win = appWindowOnSpace(name, target) or appStandardWindow(name)
       if not win then
         if attempts < 24 then
           hs.timer.doAfter(0.25, tryPlace)
