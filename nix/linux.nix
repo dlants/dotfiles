@@ -9,6 +9,7 @@
     wget
     bubblewrap
     socat
+    strace
     tmux
     # Note: nodejs omitted - devcontainers typically provide their own version
   ];
@@ -57,6 +58,14 @@
     fi
   '';
 
+
+  # magenta.nvim's Linux sandbox uses strace, which needs ptrace to attach to
+  # child processes. The devcontainer defaults to kernel.yama.ptrace_scope=2
+  # (admin-only), so relax it to 1 (parent/child tracing) and persist it.
+  home.activation.enablePtrace = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    echo 'kernel.yama.ptrace_scope = 1' | /usr/bin/sudo tee /etc/sysctl.d/10-ptrace.conf >/dev/null
+    /usr/bin/sudo sysctl -w kernel.yama.ptrace_scope=1 >/dev/null
+  '';
 
   # Set fish as login shell
   home.activation.setFishShell = lib.hm.dag.entryAfter ["writeBoundary"] ''
