@@ -689,6 +689,12 @@ local LAYOUTS = {
     { app = "chrome", region = { mon = "right", frac = "left" } },
     { app = "term", region = { mon = "right", frac = "right" } },
   },
+  zcst = {
+    { app = "zoom", region = { mon = "left", frac = "left" } },
+    { app = "chrome", region = { mon = "left", frac = "right" } },
+    { app = "slack", region = { mon = "right", frac = "left" } },
+    { app = "term", region = { mon = "right", frac = "right" } },
+  },
   ct = {
     { app = "chrome", region = { mon = "left", frac = "full" } },
     { app = "term", region = { mon = "right", frac = "full" } },
@@ -903,6 +909,11 @@ local commandPaletteItems = {
     text = "zct",
     subText = "zoomchrometerm — zoom left, chrome half-left, terminal half-right",
     handler = function() applyLayout(LAYOUTS.zct) end,
+  },
+  {
+    text = "zcst",
+    subText = "zoomchromeslackterm — zoom/chrome share left, slack/term share right",
+    handler = function() applyLayout(LAYOUTS.zcst) end,
   },
   {
     text = "ct",
