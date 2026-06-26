@@ -259,11 +259,34 @@ local function fuzzyScore(target, pattern)
   return score
 end
 
-local function fuzzyScoreFields(text, subText, query)
+-- Bonuses that reward matches against shorter / more-completely-covered
+-- targets, so e.g. "zt" ranks "zt" above "zst".
+local FUZZY_EXACT = 100
+local FUZZY_PREFIX = 50
+local FUZZY_COVERAGE = 40
+local FUZZY_SUBTEXT_PENALTY = 50
+
+local function primaryScore(text, query)
   local s = fuzzyScore(text, query)
+  if s == nil then return nil end
+  local tLower = text:lower()
+  local qLower = query:lower()
+  if tLower == qLower then
+    s = s + FUZZY_EXACT
+  elseif tLower:sub(1, #qLower) == qLower then
+    s = s + FUZZY_PREFIX
+  end
+  if #text > 0 then
+    s = s + FUZZY_COVERAGE * (#query / #text)
+  end
+  return s
+end
+
+local function fuzzyScoreFields(text, subText, query)
+  local s = primaryScore(text, query)
   if s ~= nil then return s end
   local sub = fuzzyScore(subText, query)
-  if sub ~= nil then return sub - 20 end
+  if sub ~= nil then return sub - FUZZY_SUBTEXT_PENALTY end
   return nil
 end
 
