@@ -843,12 +843,26 @@ local function applyLayout(placements)
         placeNext()
         return
       end
+      -- Snapshot existing Ghostty windows so we can pick out the new one
+      -- regardless of which desktop activation left focus on.
+      local before = {}
+      local ghosttyApp = hs.application.find(name)
+      if ghosttyApp then
+        for _, w in ipairs(ghosttyApp:allWindows()) do before[w:id()] = true end
+      end
       newGhosttyWindow()
       local attempts = 0
       local function placeNew()
         attempts = attempts + 1
-        local win = appWindowOnSpace(name, hs.spaces.focusedSpace())
-          or appStandardWindow(name)
+        local win = appWindowOnSpace(name, target)
+        if not win then
+          local g = hs.application.find(name)
+          if g then
+            for _, w in ipairs(g:allWindows()) do
+              if w:isStandard() and not before[w:id()] then win = w break end
+            end
+          end
+        end
         if not win then
           if attempts < 24 then hs.timer.doAfter(0.25, placeNew) else placeNext() end
           return
