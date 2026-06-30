@@ -5,6 +5,7 @@
   home.packages = with pkgs; [
     # macOS-specific tools (GUI apps installed via brew below)
 
+    ollama  # local LLM runtime (Metal-accelerated on Apple Silicon)
     nodejs  # includes npm
     tmux
     zig

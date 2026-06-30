@@ -92,6 +92,7 @@
   # Git configuration
   programs.git = {
     enable = true;
+    lfs.enable = true;
     settings = {
       alias = {
         co = "checkout";
@@ -170,6 +171,15 @@
         [ -f "$pkg/package.json" ] || continue
         ( cd "$pkg" && npm install --omit=dev --no-audit --no-fund ) || true
       done
+    fi
+  '';
+
+  # Install the pkb CLI to ~/go/bin, always tracking latest on each activation.
+  # Impure (needs network + go), so failures are non-fatal. Ensure ~/go/bin is on PATH.
+  home.activation.installPkb = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    if command -v go > /dev/null; then
+      PATH="${pkgs.go}/bin:$PATH" GOBIN="$HOME/go/bin" \
+        ${pkgs.go}/bin/go install github.com/dlants/pkb@latest || true
     fi
   '';
 
