@@ -562,6 +562,29 @@ function selectGhosttyTab(windowId, tabIndex)
 end
 
 
+-- Sony WH-1000XM4 audio mode toggle. Music mode keeps the headphones in A2DP
+-- (high-quality output, Mac mic for input); headset mode claims the Sony as
+-- input, forcing the device into HFP. Requires Zoom mic/speaker set to "Same
+-- as System" or it will re-grab HFP independently.
+local SONY_HEADPHONES = "WH-1000XM4"
+local MAC_MIC = "MacBook Pro Microphone"
+
+local function musicMode()
+  local out = hs.audiodevice.findOutputByName(SONY_HEADPHONES)
+  local mic = hs.audiodevice.findInputByName(MAC_MIC)
+  if out then out:setDefaultOutputDevice() end
+  if mic then mic:setDefaultInputDevice() end
+  hs.alert.show("🎧  Music (A2DP)")
+end
+
+local function headsetMode()
+  local out = hs.audiodevice.findOutputByName(SONY_HEADPHONES)
+  local mic = hs.audiodevice.findInputByName(SONY_HEADPHONES)
+  if mic then mic:setDefaultInputDevice() end
+  if out then out:setDefaultOutputDevice() end
+  hs.alert.show("🎙️  Headset (HFP)")
+end
+
 -- Command palette
 local function handleApp(name)
   local app = hs.application.find(name)
@@ -966,6 +989,16 @@ local commandPaletteItems = {
     text = "sct",
     subText = "slackchrometerm — slack+chrome share left, terminal right",
     handler = function() applyLayout(LAYOUTS.sct) end,
+  },
+  {
+    text = "musicmode",
+    subText = "Sony WH-1000XM4 → A2DP (music, Mac mic)",
+    handler = musicMode,
+  },
+  {
+    text = "headsetmode",
+    subText = "Sony WH-1000XM4 → HFP (headset mic)",
+    handler = headsetMode,
   },
   {
     text = "ghostty1",
