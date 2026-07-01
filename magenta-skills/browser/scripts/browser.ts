@@ -103,6 +103,15 @@ async function executeCommand(command: Command, page: Page, state: { keepOpen: b
       }
       break;
 
+    case 'setViewport':
+      const dims = (args[0] ?? '').split(/\s+/);
+      if (dims.length !== 2) {
+        throw new Error(`setViewport expects 2 arguments, got ${dims.length}`);
+      }
+      console.log(`Setting viewport to ${dims[0]}x${dims[1]}...`);
+      await page.setViewport({ width: Number(dims[0]), height: Number(dims[1]) });
+      break;
+
     case 'load':
       if (args.length !== 1) {
         throw new Error(`load expects 1 argument, got ${args.length}`);

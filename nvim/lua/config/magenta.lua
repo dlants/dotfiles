@@ -6,6 +6,22 @@ local M = {}
 if is_linux then
   M.profiles = {
     {
+      name = "sonnet-5(bedrock)",
+      provider = "bedrock",
+      model = "us.anthropic.claude-sonnet-5",
+      fastModel = "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      thinkingModel = "us.anthropic.claude-opus-4-8",
+      env = {
+        AWS_PROFILE = "dev.ai-inference",
+        AWS_REGION = "us-west-2"
+      },
+      tokenRefreshCommand = "dev aws login",
+      thinking = {
+        enabled = true,
+        effort = "medium"
+      }
+    },
+    {
       name = "opus-4.8(bedrock)",
       provider = "bedrock",
       model = "us.anthropic.claude-opus-4-8",
@@ -34,6 +50,17 @@ if is_linux then
   M.chimeVolume = .01
 else
   M.profiles = {
+    {
+      name = "sonnet-5(max)",
+      provider = "anthropic",
+      model = "claude-sonnet-5",
+      thinkingModel = "claude-opus-4-8",
+      authType = "max",
+      thinking = {
+        enabled = true,
+        effort = "medium"
+      }
+    },
     {
       name = "opus-4.8(max)",
       provider = "anthropic",
