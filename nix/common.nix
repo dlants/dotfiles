@@ -17,15 +17,15 @@
           fetchSubmodules = true;
         };
       in {
-        # Override tmux to 3.6b (nixpkgs still ships 3.6a; 3.6b has copy-mode
-        # stability fixes). Drop this once nixpkgs catches up.
+        # Override tmux to 3.7a (nixpkgs still ships 3.7).
+        # Drop this once nixpkgs catches up.
         tmux = prev.tmux.overrideAttrs (old: {
-          version = "3.6b";
+          version = "3.7a";
           src = prev.fetchFromGitHub {
             owner = "tmux";
             repo = "tmux";
-            tag = "3.6b";
-            hash = "sha256-iW4K/OxSVpxVkyI5Dy6lzwVf/8nXyjcHtL76Ezmxavc=";
+            tag = "3.7a";
+            hash = "sha256-60lcDSOkIvTjqxAROwraPsHcBdv0MvST2ev+sYJDgo8=";
           };
         });
 
@@ -58,7 +58,6 @@
     # Dev tools
     ripgrep
     fd
-    fzf
     delta  # git-delta
     gh     # GitHub CLI
     rustup
@@ -82,6 +81,7 @@
     delve  # Go debugger (dlv)
 
     # Formatters
+    carapace
     prettier
     stylua
     gofumpt   # stricter gofmt
@@ -90,6 +90,11 @@
   ];
 
   # Git configuration
+  programs.fzf = {
+    enable = true;
+    enableZshIntegration = true;
+  };
+
   programs.git = {
     enable = true;
     lfs.enable = true;
@@ -103,15 +108,57 @@
     };
   };
 
-  # Fish shell
-  programs.fish = {
+  # Zsh shell. Configured entirely via nix, no oh-my-zsh.
+  programs.zsh = {
     enable = true;
+    enableCompletion = true;
+    autosuggestion.enable = true;
+    syntaxHighlighting.enable = true;
+
+    history = {
+      size = 100000;
+      save = 100000;
+      share = true;
+      extended = true;
+      ignoreDups = true;
+    };
+
+    plugins = [
+      {
+        name = "fzf-tab";
+        src = pkgs.zsh-fzf-tab;
+        file = "share/fzf-tab/fzf-tab.plugin.zsh";
+      }
+      {
+        name = "zsh-history-substring-search";
+        src = pkgs.zsh-history-substring-search;
+        file = "share/zsh/plugins/zsh-history-substring-search/zsh-history-substring-search.zsh";
+      }
+      {
+        name = "zsh-vi-mode";
+        src = pkgs.zsh-vi-mode;
+        file = "share/zsh-vi-mode/zsh-vi-mode.plugin.zsh";
+      }
+    ];
+
+    initContent = ''
+      export CARAPACE_BRIDGES='zsh,bash'
+      zstyle ':completion:*' format $'\e[2;37mCompleting %d\e[m'
+      source <(carapace _carapace)
+
+      bindkey '^[[A' history-substring-search-up
+      bindkey '^[[B' history-substring-search-down
+
+      if [ -f ~/.config/zsh/config-platform.zsh ]; then
+        source ~/.config/zsh/config-platform.zsh
+      fi
+    '';
   };
 
   # Starship prompt (supports git + jj via custom module)
   programs.starship = {
     enable = true;
-    enableFishIntegration = true;
+    enableZshIntegration = true;
   };
 
   # Neovim configuration
@@ -189,8 +236,6 @@
     ${import ./magenta-skills.nix { inherit lib dotfilesDir; includeSearch = false; }}
   '';
 
-  # Prevent rustup from creating a broken fish config (nix manages PATH)
-  home.file.".config/fish/conf.d/rustup.fish".text = "";
 
   # Clone locally-authored neovim plugins into ~/src if they don't exist. On
   # macOS these are loaded from ~/src (see nvim/lua/config/pack.lua) so local

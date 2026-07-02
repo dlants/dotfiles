@@ -67,16 +67,17 @@
     /usr/bin/sudo sysctl -w kernel.yama.ptrace_scope=1 >/dev/null
   '';
 
-  # Set fish as login shell
-  home.activation.setFishShell = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    FISH_PATH="$HOME/.nix-profile/bin/fish"
-    if [ -x "$FISH_PATH" ]; then
-      if ! grep -qF "$FISH_PATH" /etc/shells 2>/dev/null; then
-        echo "$FISH_PATH" | /usr/bin/sudo tee -a /etc/shells >/dev/null
+  # Set zsh as login shell
+  home.activation.setZshShell = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    ZSH_PATH="$HOME/.nix-profile/bin/zsh"
+    if [ -x "$ZSH_PATH" ]; then
+      if ! grep -qF "$ZSH_PATH" /etc/shells 2>/dev/null; then
+        echo "$ZSH_PATH" | /usr/bin/sudo tee -a /etc/shells >/dev/null
       fi
-      /usr/bin/sudo chsh -s "$FISH_PATH" "$USER"
+      /usr/bin/sudo chsh -s "$ZSH_PATH" "$USER"
     fi
   '';
-  # Fish config (Linux-specific)
-  xdg.configFile."fish/config.fish".source = lib.mkForce (config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/fish/config-linux.fish");
+
+  # Zsh config (Linux-specific)
+  xdg.configFile."zsh/config-platform.zsh".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/zsh/config-linux.zsh";
 }

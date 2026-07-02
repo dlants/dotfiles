@@ -79,11 +79,11 @@ via a flake (`flake.nix`). Two configurations are defined:
 ### File Layout
 
 - `flake.nix` — defines `homeConfigurations` and the `mkHomeConfig` helper
-- `nix/common.nix` — shared config: packages, git, fish, starship, neovim, and
+- `nix/common.nix` — shared config: packages, git, zsh, starship, neovim, and
   config symlinks. Configs are live-linked with `mkOutOfStoreSymlink` (edits in
   the repo take effect immediately, no rebuild needed for plain config changes).
 - `nix/darwin.nix` — macOS extras (Homebrew casks, hammerspoon, zig)
-- `nix/linux.nix` — devcontainer extras (pkgx, work-skills clone, fish login shell)
+- `nix/linux.nix` — devcontainer extras (pkgx, work-skills clone, zsh login shell)
 - `nix/magenta-skills.nix` — generates magenta skill symlinks into `~/.claude/skills`
 
 ### Notable details
@@ -123,3 +123,9 @@ Each tmux instance is independent — sessions are not shared across hosts. The 
 
 - `ctrl-b o` — Opens fzf picker to switch between any pane across all sessions in the current tmux
 - `ta <path>` — Create/switch to a session for a directory
+
+### Troubleshooting
+
+- `notes/tmux-freeze-diagnosis.md` — how to diagnose tmux lockups/freezes
+  (stack sampling, process state, debugger backtraces, core dumps) before
+  resorting to `kill -9`
