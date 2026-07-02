@@ -1074,6 +1074,21 @@ local commandPaletteItems = {
     subText = "Datadog (Okta)",
     handler = function() openInChrome("https://benchling.okta.com/home/datadog/0oananwjx2mU1LxIN0x7/28057") end,
   },
+  {
+    text = "monolithinfra",
+    subText = "Jira board BNCH 551",
+    handler = function() openInChrome("https://benchling.atlassian.net/jira/software/c/projects/BNCH/boards/551") end,
+  },
+  {
+    text = "poststandup",
+    subText = "Monolith Infra Post-Standup",
+    handler = function() openInChrome("https://benchling.atlassian.net/wiki/spaces/MI/pages/76089423/Monolith+Infra+Post-Standup") end,
+  },
+  {
+    text = "retro",
+    subText = "Sprint Planning Retro",
+    handler = function() openInChrome("https://benchling.atlassian.net/wiki/spaces/MI/pages/59441556/Sprint+Planning+Retro") end,
+  },
 }
 
 -- Scan for installed applications via mdfind (Spotlight backend)

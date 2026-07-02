@@ -2,3 +2,4 @@ workspace
 .repro
 
 pkb.db
+tmux-*.log

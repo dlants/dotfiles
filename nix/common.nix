@@ -17,15 +17,19 @@
           fetchSubmodules = true;
         };
       in {
-        # Override tmux to 3.7a (nixpkgs still ships 3.7).
-        # Drop this once nixpkgs catches up.
+        # Pin tmux to 3.6b: nixpkgs' 3.7 and our previous 3.7a pin both have a
+        # rendering regression that corrupts nvim's display inside tmux (garbled
+        # text, broken pane borders) on macOS + Ghostty. Bisected by ruling out
+        # zsh, Ghostty shell-integration, and tmux.conf first; confirmed fixed
+        # on 3.6b. Try bumping to 3.7b+ periodically to see if it's fixed
+        # upstream, then drop this override.
         tmux = prev.tmux.overrideAttrs (old: {
-          version = "3.7a";
+          version = "3.6b";
           src = prev.fetchFromGitHub {
             owner = "tmux";
             repo = "tmux";
-            tag = "3.7a";
-            hash = "sha256-60lcDSOkIvTjqxAROwraPsHcBdv0MvST2ev+sYJDgo8=";
+            tag = "3.6b";
+            hash = "sha256-iW4K/OxSVpxVkyI5Dy6lzwVf/8nXyjcHtL76Ezmxavc=";
           };
         });
 
@@ -114,6 +118,16 @@
     enableCompletion = true;
     autosuggestion.enable = true;
     syntaxHighlighting.enable = true;
+
+    # The Nix installer normally wires this into /etc/zshrc, but on this
+    # machine only /etc/bashrc got patched, so zsh never sourced the
+    # daemon's profile script and never saw the nix/home-manager profile
+    # bin dirs on PATH. Source it ourselves, as early as possible (.zshenv).
+    envExtra = ''
+      if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+        . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+      fi
+    '';
 
     history = {
       size = 100000;
