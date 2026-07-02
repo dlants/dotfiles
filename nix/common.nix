@@ -119,11 +119,13 @@
     autosuggestion.enable = true;
     syntaxHighlighting.enable = true;
 
-    # The Nix installer normally wires this into /etc/zshrc, but on this
-    # machine only /etc/bashrc got patched, so zsh never sourced the
-    # daemon's profile script and never saw the nix/home-manager profile
-    # bin dirs on PATH. Source it ourselves, as early as possible (.zshenv).
+    # The Nix installer normally wires PATH setup into /etc/zshrc or a
+    # nix-daemon.sh profile script, but neither exists on this machine (the
+    # devcontainer has no /nix/var/nix/profiles/default/etc/profile.d at
+    # all), so zsh never saw the nix/home-manager profile bin dirs on PATH.
+    # Prepend them ourselves, as early as possible (.zshenv).
     envExtra = ''
+      export PATH="$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH"
       if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
         . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
       fi
@@ -137,12 +139,18 @@
       ignoreDups = true;
     };
 
-    plugins = [
+    plugins = lib.optionals pkgs.stdenv.isDarwin [
+      # fzf-tab ships a compiled module (fzftab.so) that dlopen()s against the
+      # *system* libc rather than nix's own glibc. On the Ubuntu 22.04
+      # devcontainer (glibc 2.35) that .so was built against a newer glibc
+      # (2.38+), so it fails to load and spams errors on every zsh startup.
+      # macOS doesn't hit this since there's no glibc there.
       {
         name = "fzf-tab";
         src = pkgs.zsh-fzf-tab;
         file = "share/fzf-tab/fzf-tab.plugin.zsh";
       }
+    ] ++ [
       {
         name = "zsh-history-substring-search";
         src = pkgs.zsh-history-substring-search;
