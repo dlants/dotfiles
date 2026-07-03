@@ -66,7 +66,6 @@
     gh     # GitHub CLI
     rustup
     tree-sitter
-    jujutsu  # jj version control
 
     # Language servers
     lua-language-server
@@ -185,7 +184,7 @@
     '';
   };
 
-  # Starship prompt (supports git + jj via custom module)
+  # Starship prompt (supports git via custom module)
   programs.starship = {
     enable = true;
     enableZshIntegration = true;

@@ -209,16 +209,6 @@ vim.wo.colorcolumn = "120"
 
 vim.cmd "autocmd BufWritePre * StripWhitespace"
 
--- Snapshot jj status on markdown write to track work progress
-vim.api.nvim_create_autocmd("BufWritePost", {
-  pattern = vim.fn.expand("~") .. "/src/amusements/*.md",
-  callback = function()
-    local cwd = vim.fn.getcwd()
-    if vim.fn.isdirectory(cwd .. "/.jj") == 1 then
-      vim.fn.jobstart({ "jj", "status" }, { cwd = cwd })
-    end
-  end,
-})
 
 -- Pane navigation: neovim splits → tmux panes (no further escalation;
 -- cross-window navigation is handled by AeroSpace via super-hjkl).
