@@ -139,15 +139,23 @@
       ignoreDups = true;
     };
 
-    plugins = lib.optionals pkgs.stdenv.isDarwin [
-      # fzf-tab ships a compiled module (fzftab.so) that dlopen()s against the
-      # *system* libc rather than nix's own glibc. On the Ubuntu 22.04
-      # devcontainer (glibc 2.35) that .so was built against a newer glibc
-      # (2.38+), so it fails to load and spams errors on every zsh startup.
-      # macOS doesn't hit this since there's no glibc there.
+    plugins = [
       {
         name = "fzf-tab";
-        src = pkgs.zsh-fzf-tab;
+        # fzf-tab ships a compiled module (fzftab.so) for smoother previews,
+        # which dlopen()s against the *system* libc rather than nix's own
+        # glibc. On the Ubuntu 22.04 devcontainer (glibc 2.35) that .so was
+        # built against a newer glibc (2.38+), so it fails to load and the
+        # plugin then prompts (non-interactively-unsafe) to rebuild it. Strip
+        # the module dir there so fzf-tab falls back to its pure-zsh
+        # implementation instead; macOS keeps the compiled module.
+        src =
+          if pkgs.stdenv.isDarwin then pkgs.zsh-fzf-tab
+          else pkgs.runCommand "zsh-fzf-tab-no-module" {} ''
+            cp -r ${pkgs.zsh-fzf-tab} $out
+            chmod -R u+w $out
+            rm -rf $out/share/fzf-tab/modules
+          '';
         file = "share/fzf-tab/fzf-tab.plugin.zsh";
       }
     ] ++ [
