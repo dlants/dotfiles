@@ -2,6 +2,8 @@ if [ -f ~/.config/zsh/secrets.zsh ]; then
     source ~/.config/zsh/secrets.zsh
 fi
 
+export CLICOLOR=1
+alias ls='ls -G'
 alias vi=nvim
 alias rm='rm -I'
 

@@ -43,6 +43,7 @@ if [ -f ~/.config/zsh/secrets.zsh ]; then
     source ~/.config/zsh/secrets.zsh
 fi
 
+alias ls='ls --color=auto'
 alias vi=nvim
 alias rm='rm -I'
 

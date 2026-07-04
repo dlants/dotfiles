@@ -115,6 +115,18 @@
   programs.zsh = {
     enable = true;
     enableCompletion = true;
+    # Skip compaudit's fpath permission scan (the dominant cost of compinit,
+    # ~50%+ of shell startup time) unless the completion dump is more than a
+    # day old. compaudit stats every directory in fpath and is not needed on
+    # every single shell start.
+    completionInit = ''
+      autoload -Uz compinit
+      if [[ -n ''${ZDOTDIR:-$HOME}/.zcompdump(N.mh+24) ]]; then
+        compinit
+      else
+        compinit -C
+      fi
+    '';
     autosuggestion.enable = true;
     syntaxHighlighting.enable = true;
 
@@ -173,7 +185,33 @@
     initContent = ''
       export CARAPACE_BRIDGES='zsh,bash'
       zstyle ':completion:*' format $'\e[2;37mCompleting %d\e[m'
-      source <(carapace _carapace)
+      # Forking carapace and generating the full completion script on every
+      # shell start costs ~100ms+ (it's an external binary invocation, not a
+      # shell function, so it doesn't show up in zprof). Cache its output and
+      # only regenerate when missing or stale (>1 day); run `carapace-refresh`
+      # after installing a new CLI to pick up its completions immediately.
+      carapace_cache="$HOME/.cache/carapace-zsh-init.zsh"
+      carapace-refresh() {
+        mkdir -p "''${carapace_cache:h}"
+        carapace _carapace zsh > "$carapace_cache"
+      }
+      if [[ ! -s $carapace_cache || -n $carapace_cache(N.mh+24) ]]; then
+        carapace-refresh
+      fi
+      source "$carapace_cache"
+
+      # Color-code file listings (ls output, and zsh completion menus/fzf-tab
+      # previews) similarly to fish's default directory/symlink/executable
+      # colors. GNU coreutils' dircolors (present on Linux via the `coreutils`
+      # closure) generates LS_COLORS; macOS ls is BSD ls and doesn't read
+      # LS_COLORS, so fall back to a fish-like palette there. zsh's own
+      # completion system (`list-colors`) uses LS_COLORS regardless of platform.
+      if command -v dircolors > /dev/null; then
+        eval "$(dircolors -b)"
+      else
+        export LS_COLORS='di=34:ln=35:so=32:pi=33:ex=32:bd=33:cd=33:su=31:sg=31:tw=34:ow=34'
+      fi
+      zstyle ':completion:*' list-colors "''${(s.:.)LS_COLORS}"
 
       bindkey '^[[A' history-substring-search-up
       bindkey '^[[B' history-substring-search-down
