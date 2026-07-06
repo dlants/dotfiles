@@ -78,6 +78,7 @@
     tflint
     biome
     gopls  # Go language server
+    sqruff # SQL formatter/linter
 
     # Go toolchain & tools
     go

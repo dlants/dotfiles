@@ -388,6 +388,7 @@ require("conform").setup({
     scss = { "prettier" },
     markdown = { "prettier" },
     rust = { "rustfmt" },
+    sql = { "sqruff" },
     go = { "goimports", "gofumpt" },
   },
   format_on_save = {
@@ -397,11 +398,27 @@ require("conform").setup({
 })
 
 vim.keymap.set({ "n", "v" }, "<leader>`", function()
-  require("conform").format({
+  local conform = require("conform")
+  local format_opts = {
     lsp_fallback = true,
     async = false,
     timeout_ms = 500,
-  })
+  }
+  -- snacks.nvim's bigfile detector sets filetype=bigfile (e.g. minified/one-line
+  -- files), which hides the real ft from conform. Resolve the underlying ft so
+  -- we can still format on demand.
+  if vim.bo.filetype == "bigfile" then
+    local ft = vim.filetype.match({ buf = 0 })
+    local ft_formatters = ft and conform.formatters_by_ft[ft]
+    if ft_formatters then
+      local names = {}
+      for _, name in ipairs(ft_formatters) do
+        names[#names + 1] = name
+      end
+      format_opts.formatters = names
+    end
+  end
+  conform.format(format_opts)
 end, { desc = "Format buffer" })
 
 --------------------------------------------------------------------------------
