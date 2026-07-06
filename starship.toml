@@ -4,7 +4,7 @@
 format = """
 $hostname\
 $directory\
-${custom.git_or_jj}\
+${custom.git_status}\
 $git_state\
 $cmd_duration\
 $line_break\
@@ -22,16 +22,13 @@ style = "blue"
 success_symbol = "[❯](purple)"
 error_symbol = "[❯](red)"
 
-[custom.git_or_jj]
+[custom.git_status]
 description = "Git branch + status"
 when = "git rev-parse --is-inside-work-tree 2>/dev/null"
 command = '''
-branch=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
-dirty=""
-if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
-  dirty="*"
-fi
-echo "${branch}${dirty}"
+root=$(git rev-parse --show-toplevel 2>/dev/null)
+cache_file="$HOME/.cache/starship-git-status/${root//\//%}"
+cat "$cache_file" 2>/dev/null
 '''
 format = "[$output]($style) "
 style = "bright-black"

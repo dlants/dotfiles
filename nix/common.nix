@@ -213,6 +213,32 @@
       fi
       zstyle ':completion:*' list-colors "''${(s.:.)LS_COLORS}"
 
+      # Git branch/dirty status for the starship prompt, computed async.
+      # starship's custom module can't run async itself (every module is
+      # computed synchronously as the prompt is drawn), so instead we
+      # recompute it in the background on each precmd and cache the result
+      # to a file; starship's custom command just reads that file (fast),
+      # picking up the previous precmd's result. This trades a one-prompt
+      # staleness for never blocking on `git diff` in large repos.
+      _starship_git_status_update() {
+        local root
+        root=$(git rev-parse --show-toplevel 2>/dev/null) || return
+        {
+          local cache_dir="$HOME/.cache/starship-git-status"
+          local cache_file="$cache_dir/''${root//\//%}"
+          local branch dirty
+          branch=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
+          dirty=""
+          if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+            dirty="*"
+          fi
+          mkdir -p "$cache_dir"
+          printf '%s' "''${branch}''${dirty}" > "$cache_file.tmp" && mv "$cache_file.tmp" "$cache_file"
+        } &!
+      }
+      autoload -Uz add-zsh-hook
+      add-zsh-hook precmd _starship_git_status_update
+
       bindkey '^[[A' history-substring-search-up
       bindkey '^[[B' history-substring-search-down
 
