@@ -416,6 +416,54 @@ local function gh_browse_lines(opts)
   gh_browse_run(target, opts)
 end
 
+-- Inspect LSP + treesitter state for the current buffer.
+local function buf_info()
+  local buf = vim.api.nvim_get_current_buf()
+  local lines = {}
+  local function add(s) table.insert(lines, s) end
+
+  add("buffer " .. buf .. "  ft=" .. vim.bo[buf].filetype)
+
+  add("")
+  add("LSP clients:")
+  local clients = vim.lsp.get_clients({ bufnr = buf })
+  if #clients == 0 then
+    add("  (none attached)")
+  else
+    for _, c in ipairs(clients) do
+      local caps = {}
+      local sc = c.server_capabilities or {}
+      if sc.hoverProvider then table.insert(caps, "hover") end
+      if sc.definitionProvider then table.insert(caps, "def") end
+      if sc.referencesProvider then table.insert(caps, "refs") end
+      if sc.completionProvider then table.insert(caps, "completion") end
+      if sc.documentFormattingProvider then table.insert(caps, "format") end
+      add(string.format("  [%d] %s  root=%s", c.id, c.name, c.root_dir or "?"))
+      add("      caps: " .. (next(caps) and table.concat(caps, ", ") or "-"))
+    end
+  end
+
+  add("")
+  add("Treesitter:")
+  local ok, parser = pcall(vim.treesitter.get_parser, buf)
+  if not ok or not parser then
+    add("  (no parser)")
+  else
+    add("  lang=" .. parser:lang())
+    local hl_active = vim.treesitter.highlighter.active[buf] ~= nil
+    add("  highlight active=" .. tostring(hl_active))
+    local langs = {}
+    parser:for_each_tree(function(_, ltree) langs[ltree:lang()] = true end)
+    local names = {}
+    for l in pairs(langs) do table.insert(names, l) end
+    add("  trees: " .. table.concat(names, ", "))
+  end
+
+  vim.api.nvim_echo({ { table.concat(lines, "\n") } }, false, {})
+end
+
+vim.api.nvim_create_user_command("BufInfo", buf_info, {})
+
 vim.api.nvim_create_user_command("Gho", function() gh_browse({}) end, {})
 vim.api.nvim_create_user_command("Ghom", function() gh_browse({ branch = "default" }) end, {})
 vim.api.nvim_create_user_command("Ghl", function(opts) gh_browse_lines(opts) end, { range = true })
