@@ -239,8 +239,11 @@
       autoload -Uz add-zsh-hook
       add-zsh-hook precmd _starship_git_status_update
 
-      bindkey '^[[A' history-substring-search-up
-      bindkey '^[[B' history-substring-search-down
+      # Live-linked interactive config (keybindings, etc.); editable without a
+      # home-manager rebuild. See xdg.configFile below.
+      if [ -f ~/.config/zsh/config-shared.zsh ]; then
+        source ~/.config/zsh/config-shared.zsh
+      fi
 
       if [ -f ~/.config/zsh/config-platform.zsh ]; then
         source ~/.config/zsh/config-platform.zsh
@@ -274,6 +277,7 @@
     "nvim/init.lua".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/nvim/init.lua";
     "nvim/lua".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/nvim/lua";
     "starship.toml".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/starship.toml";
+    "zsh/config-shared.zsh".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/zsh/config-shared.zsh";
   };
 
   # Symlink magenta context file
