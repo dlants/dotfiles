@@ -6,6 +6,21 @@ local M = {}
 if is_linux then
   M.profiles = {
     {
+      name = "opus-4.8(bedrock)",
+      provider = "bedrock",
+      model = "us.anthropic.claude-opus-4-8",
+      fastModel = "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      env = {
+        AWS_PROFILE = "dev.ai-inference",
+        AWS_REGION = "us-west-2"
+      },
+      tokenRefreshCommand = "dev aws login",
+      thinking = {
+        enabled = true,
+        effort = "low"
+      }
+    },
+    {
       name = "sonnet-5(bedrock)",
       provider = "bedrock",
       model = "us.anthropic.claude-sonnet-5",
@@ -19,21 +34,6 @@ if is_linux then
       thinking = {
         enabled = true,
         effort = "medium"
-      }
-    },
-    {
-      name = "opus-4.8(bedrock)",
-      provider = "bedrock",
-      model = "us.anthropic.claude-opus-4-8",
-      fastModel = "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-      env = {
-        AWS_PROFILE = "dev.ai-inference",
-        AWS_REGION = "us-west-2"
-      },
-      tokenRefreshCommand = "dev aws login",
-      thinking = {
-        enabled = true,
-        effort = "low"
       }
     },
     {
@@ -51,6 +51,16 @@ if is_linux then
 else
   M.profiles = {
     {
+      name = "opus-4.8(max)",
+      provider = "anthropic",
+      model = "claude-opus-4-8",
+      authType = "max",
+      thinking = {
+        enabled = true,
+        effort = "low"
+      }
+    },
+    {
       name = "sonnet-5(max)",
       provider = "anthropic",
       model = "claude-sonnet-5",
@@ -59,16 +69,6 @@ else
       thinking = {
         enabled = true,
         effort = "medium"
-      }
-    },
-    {
-      name = "opus-4.8(max)",
-      provider = "anthropic",
-      model = "claude-opus-4-8",
-      authType = "max",
-      thinking = {
-        enabled = true,
-        effort = "low"
       }
     },
     {
