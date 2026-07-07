@@ -137,7 +137,7 @@
     # all), so zsh never saw the nix/home-manager profile bin dirs on PATH.
     # Prepend them ourselves, as early as possible (.zshenv).
     envExtra = ''
-      export PATH="$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$PATH"
+      export PATH="$HOME/.nix-profile/bin:/nix/var/nix/profiles/default/bin:$HOME/go/bin:$PATH"
       if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
         . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
       fi
