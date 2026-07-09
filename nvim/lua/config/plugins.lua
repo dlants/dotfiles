@@ -391,6 +391,11 @@ require("conform").setup({
     sql = { "sqruff" },
     go = { "goimports", "gofumpt" },
   },
+  formatters = {
+    prettier = {
+      prepend_args = { "--prose-wrap", "never" },
+    },
+  },
   format_on_save = {
     timeout_ms = 500,
     lsp_fallback = true,

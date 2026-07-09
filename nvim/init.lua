@@ -93,22 +93,31 @@ end
 
 
 
--- Setup markdown/wrapped line mode
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = { "markdown", "txt" },
+-- Window-local visual options for markdown/txt. Fire on BufWinEnter as well as
+-- FileType so they reapply whenever the buffer is displayed in a window (e.g.
+-- when needle :edits an already-loaded buffer into a reused window, FileType
+-- doesn't re-fire and window-local options would otherwise be lost).
+vim.api.nvim_create_autocmd({ "FileType", "BufWinEnter" }, {
   callback = function()
+    if vim.bo.filetype ~= "markdown" and vim.bo.filetype ~= "txt" then return end
     -- Enable soft wrapping, disable hard wrapping
     vim.opt_local.wrap = true
     vim.opt_local.linebreak = true
     vim.opt_local.breakindent = true
     vim.opt_local.textwidth = 0
     vim.opt_local.formatoptions:remove({ "t", "c" })
+  end,
+})
 
-    -- Map j and k to move by visual lines
-    vim.keymap.set("n", "j", "gj", { buffer = 0, noremap = true, silent = true })
-    vim.keymap.set("n", "k", "gk", { buffer = 0, noremap = true, silent = true })
-    vim.keymap.set("v", "j", "gj", { buffer = 0, noremap = true, silent = true })
-    vim.keymap.set("v", "k", "gk", { buffer = 0, noremap = true, silent = true })
+-- Buffer-local markdown keymaps (buffer-scoped, so FileType alone is enough).
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "markdown", "txt" },
+  callback = function()
+    -- Map j and k to move by visual lines, but fall back to hard lines when a
+    -- count is given (so relative line numbers + `10j` still work as expected).
+    local opts = { buffer = 0, noremap = true, silent = true, expr = true }
+    vim.keymap.set({ "n", "v" }, "j", function() return vim.v.count == 0 and "gj" or "j" end, opts)
+    vim.keymap.set({ "n", "v" }, "k", function() return vim.v.count == 0 and "gk" or "k" end, opts)
 
     -- Map $ and 0 to move by visual lines
     vim.keymap.set("n", "$", "g$", { buffer = 0, noremap = true, silent = true })
