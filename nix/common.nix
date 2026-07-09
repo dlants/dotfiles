@@ -227,14 +227,14 @@
         {
           local cache_dir="$HOME/.cache/starship-git-status"
           local cache_file="$cache_dir/''${root//\//%}"
-          local branch dirty
+          local branch markers
           branch=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
-          dirty=""
-          if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
-            dirty="*"
-          fi
+          markers=""
+          git diff --cached --quiet 2>/dev/null || markers+="+"
+          git diff --quiet 2>/dev/null || markers+="*"
+          [ -n "$(git ls-files --others --exclude-standard 2>/dev/null)" ] && markers+="?"
           mkdir -p "$cache_dir"
-          printf '%s' "''${branch}''${dirty}" > "$cache_file.tmp" && mv "$cache_file.tmp" "$cache_file"
+          printf '%s' "git:''${branch}''${markers:+ ''${markers}}" > "$cache_file.tmp" && mv "$cache_file.tmp" "$cache_file"
         } &!
       }
       autoload -Uz add-zsh-hook

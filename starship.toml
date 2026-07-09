@@ -13,10 +13,12 @@ $character"""
 [hostname]
 ssh_only = true
 style = "bold red"
-format = "[$hostname]($style) "
+format = "[dev]($style) "
 
 [directory]
 style = "blue"
+truncation_length = 0
+truncate_to_repo = false
 
 [character]
 success_symbol = "[❯](purple)"
