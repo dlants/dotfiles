@@ -125,6 +125,31 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.keymap.set("v", "$", "g$", { buffer = 0, noremap = true, silent = true })
     vim.keymap.set("v", "0", "g0", { buffer = 0, noremap = true, silent = true })
 
+    -- gg/G: without a count, jump to the top/bottom at column 0 so a large
+    -- column from a wrapped position doesn't land the cursor on a lower visual
+    -- row. With a count, behave like normal gg/G (go to that line).
+    vim.keymap.set({ "n", "x", "o" }, "gg",
+      function() return vim.v.count == 0 and "gg0" or "gg" end, opts)
+    vim.keymap.set({ "n", "x", "o" }, "G",
+      function() return vim.v.count == 0 and "G0" or "G" end, opts)
+
+    -- dd: delete the visual (soft-wrapped) line rather than the whole physical
+    -- line. Falls back to a normal dd when a count is given.
+    vim.keymap.set("n", "dd", function()
+      local count = vim.v.count
+      if count > 0 then
+        vim.cmd("normal! " .. count .. "dd")
+        return
+      end
+      -- Select from the start to the end of the current visual line and delete.
+      -- g$ stops one short at a wrap boundary, so extend by one char there.
+      vim.cmd("normal! g0vg$")
+      if vim.fn.col(".") < vim.fn.col("$") - 1 then
+        vim.cmd("normal! l")
+      end
+      vim.cmd("normal! d")
+    end, { buffer = 0, noremap = true, silent = true })
+
     -- Open URL or file under cursor with <CR>
     vim.keymap.set("n", "<CR>", function()
       local word = vim.fn.expand("<cWORD>")
