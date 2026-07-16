@@ -1,5 +1,5 @@
 # Shared configuration for all platforms
-{ config, pkgs, lib, dotfilesDir, ... }:
+{ config, pkgs, lib, dotfilesDir, starshipPkg, ... }:
 
 {
   home.stateVersion = "24.11";
@@ -66,6 +66,7 @@
     gh     # GitHub CLI
     rustup
     tree-sitter
+    postgresql  # psql client
 
     # Language servers
     lua-language-server
@@ -256,6 +257,9 @@
   programs.starship = {
     enable = true;
     enableZshIntegration = true;
+    # Pinned via the nixpkgs-starship flake input (see flake.nix) so switches
+    # always pull the prebuilt binary and never compile from source.
+    package = starshipPkg;
   };
 
   # Neovim configuration
