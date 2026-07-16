@@ -53,11 +53,10 @@ A good plan covers:
 
 ### Staged Approach
 
-Break the work into a sequence of stages. Each stage should bring up an independent, self-contained piece of the solution that can be verified on its own before moving on to the next one. Order stages so that each builds on a foundation that has already been proven to work.
+Break the work into a sequence of stages. Each stage should bring up an independent, self-contained piece of the solution that can be verified on its own before moving on to the next one.
 
 For each stage, describe:
 
-- **The stage**: what piece of the solution it brings up.
 - **The goal**: what working capability exists once the stage is complete.
 - **Verification**: how we'll confirm this stage works before moving on. Identify the key behaviors needing coverage and the kind of test that fits each (unit, integration, etc.). For the important cases, sketch:
   - Behavior: one-sentence description of what's being verified
