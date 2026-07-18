@@ -141,6 +141,11 @@ vim.api.nvim_create_autocmd("FileType", {
         vim.cmd("normal! " .. count .. "dd")
         return
       end
+      -- Empty line: nothing to select visually, just delete the line.
+      if vim.fn.getline(".") == "" then
+        vim.cmd("normal! dd")
+        return
+      end
       -- Select from the start to the end of the current visual line and delete.
       -- g$ stops one short at a wrap boundary, so extend by one char there.
       vim.cmd("normal! g0vg$")
