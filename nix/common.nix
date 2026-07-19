@@ -186,7 +186,19 @@
 
     initContent = ''
       export CARAPACE_BRIDGES='zsh,bash'
-      zstyle ':completion:*' format $'\e[2;37mCompleting %d\e[m'
+      # fzf-tab required zstyles: group descriptions as headers, no zsh menu
+      # (so fzf-tab can capture the unambiguous prefix). Don't use escape
+      # sequences in the descriptions format; fzf-tab ignores them.
+      zstyle ':completion:*:descriptions' format '[%d]'
+      zstyle ':completion:*' menu no
+      # fzf-tab UX: Tab/Shift-Tab cycle through matches, Enter (default)
+      # accepts the highlighted match.
+      zstyle ':fzf-tab:*' fzf-flags --bind=tab:down,btab:up
+      # Use the longest-common-prefix of the matches (not the raw typed word)
+      # as the fzf query. Otherwise completing a dir like `nvim/<tab>` prefills
+      # the query with `nvim/`, which doesn't match the prefix-stripped
+      # candidates (init.lua, lua/) and shows 0/2 until you delete it.
+      zstyle ':fzf-tab:*' query-string prefix
       # Forking carapace and generating the full completion script on every
       # shell start costs ~100ms+ (it's an external binary invocation, not a
       # shell function, so it doesn't show up in zprof). Cache its output and

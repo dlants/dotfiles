@@ -19,11 +19,15 @@ if [[ -n $TMUX ]]; then
   zle -N _zsh_tmux_pane_right
 fi
 
-# zsh-vi-mode resets bindkeys on init, so (re)bind after it loads.
+# zsh-vi-mode resets bindkeys on init, so (re)bind after it loads. fzf's zsh
+# integration also grabs "^I", so rebind Tab to fzf-tab-complete last here
+# (this must win over both fzf-completion and zvm's reset).
 zvm_after_init_commands+=(
   'bindkey -M viins "^L" autosuggest-accept'
   'bindkey -M viins "^K" history-substring-search-up'
   'bindkey -M viins "^J" history-substring-search-down'
+  'bindkey "^I" fzf-tab-complete'
+  'bindkey -M viins "^I" fzf-tab-complete'
 )
 if [[ -n $TMUX ]]; then
   zvm_after_init_commands+=(
