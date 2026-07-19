@@ -10,7 +10,6 @@
     tmux
     zig
     zls  # Zig language server
-    (pkgs.callPackage ./slk.nix {})  # Slack TUI
   ];
 
   # Tmux config symlink
