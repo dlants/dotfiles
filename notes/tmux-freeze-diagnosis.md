@@ -81,6 +81,42 @@ This writes `tmux-server-<pid>.log` / `tmux-client-<pid>.log` into the tmux
 start directory (cwd), logging all client/server messages — useful for seeing
 what tmux was doing right before it froze.
 
+## Root Cause (found 2026-07-25)
+
+Self-referential copy-mode keybinding. tmux.conf had:
+
+```
+bind-key -T copy-mode-vi C-h send-keys C-h
+```
+
+`send-keys` re-looks-up the key in the *target pane's current* key table. For a
+pane in copy mode that table is `copy-mode-vi`, so the binding dispatched
+itself, enqueuing a new command each time — an unbounded command queue, server
+pegged at 100% CPU (`R` state) and unable to return to `server_loop` to service
+clients (even `tmux list-sessions` from outside hangs).
+
+Trigger: the root binding `bind-key -n C-h if-shell "$is_vim" 'send-keys C-h'`
+only takes the send-keys branch when `ps` shows nvim/zsh on the pane tty —
+hence the apparent nvim correlation. Pressing C-h in an nvim pane that was
+scrolled into copy mode started the loop.
+
+Signature in a `sample`/lldb backtrace:
+
+```
+server_loop -> cmdq_next -> cmd_send_keys_exec -> cmd_send_keys_inject_key
+  -> window_copy_key_table -> key_bindings_dispatch -> cmdq_get_command
+  -> cmdq_insert_after
+```
+
+with most cycles in malloc/`vasprintf` (`cmdq_insert_hook -> cmdq_add_format`,
+and `cmd_print -> args_print` when the server's log level is > 1).
+
+Fix: those copy-mode bindings now use `select-pane -L/-D/-U/-R` instead.
+
+Unrelated leak found at the same time: `ctrl-b o` orphans its
+`tmux-session-using-fzf` / `fzf-tmux` processes (dozens accumulated, some
+outliving the server).
+
 ## Related
 
 Upgraded tmux 3.6b → 3.7a (see `nix/common.nix` tmux overlay) hoping for a
