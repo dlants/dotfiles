@@ -117,16 +117,22 @@
   programs.zsh = {
     enable = true;
     enableCompletion = true;
-    # Skip compaudit's fpath permission scan (the dominant cost of compinit,
-    # ~50%+ of shell startup time) unless the completion dump is more than a
-    # day old. compaudit stats every directory in fpath and is not needed on
-    # every single shell start.
+    # Native vi mode: `bindkey -v` selects zsh's built-in viins/vicmd keymaps,
+    # which are compiled in and cost ~0ms (the zsh-vi-mode plugin this replaces
+    # was ~40ms of interpreted zsh). home-manager emits this before the plugins
+    # are sourced, so plugin keybindings land in the vi keymaps rather than
+    # being wiped by a later keymap switch.
+    defaultKeymap = "viins";
+    # compinit's compaudit fpath permission scan is the dominant cost of
+    # startup (it stats every directory in fpath). Always start with the fast
+    # cached path (-C, no audit), and regenerate the dump in the background if
+    # it's more than a day old, so no interactive shell ever pays for it.
     completionInit = ''
       autoload -Uz compinit
-      if [[ -n ''${ZDOTDIR:-$HOME}/.zcompdump(N.mh+24) ]]; then
-        compinit
-      else
-        compinit -C
+      _zcompdump=''${ZDOTDIR:-$HOME}/.zcompdump
+      compinit -C -d "$_zcompdump"
+      if [[ ! -s $_zcompdump || -n $(print -rl -- $_zcompdump(N.mh+24)) ]]; then
+        { autoload -Uz compinit; compinit -d "$_zcompdump" } &!
       fi
     '';
     autosuggestion.enable = true;
@@ -177,11 +183,6 @@
         src = pkgs.zsh-history-substring-search;
         file = "share/zsh/plugins/zsh-history-substring-search/zsh-history-substring-search.zsh";
       }
-      {
-        name = "zsh-vi-mode";
-        src = pkgs.zsh-vi-mode;
-        file = "share/zsh-vi-mode/zsh-vi-mode.plugin.zsh";
-      }
     ];
 
     initContent = ''
@@ -199,20 +200,25 @@
       # the query with `nvim/`, which doesn't match the prefix-stripped
       # candidates (init.lua, lua/) and shows 0/2 until you delete it.
       zstyle ':fzf-tab:*' query-string prefix
-      # Forking carapace and generating the full completion script on every
-      # shell start costs ~100ms+ (it's an external binary invocation, not a
-      # shell function, so it doesn't show up in zprof). Cache its output and
-      # only regenerate when missing or stale (>1 day); run `carapace-refresh`
-      # after installing a new CLI to pick up its completions immediately.
+      # Forking carapace and generating the full completion script costs
+      # ~100ms+ (it's an external binary invocation, not a shell function, so
+      # it doesn't show up in zprof). Cache its output and source the cache
+      # synchronously; regeneration happens in the background when the cache is
+      # missing or stale (>1 day), so it lands for the *next* shell rather than
+      # blocking this one. Run `carapace-refresh` to update it immediately.
       carapace_cache="$HOME/.cache/carapace-zsh-init.zsh"
       carapace-refresh() {
         mkdir -p "''${carapace_cache:h}"
-        carapace _carapace zsh > "$carapace_cache"
+        carapace _carapace zsh > "$carapace_cache.tmp" && mv "$carapace_cache.tmp" "$carapace_cache"
       }
-      if [[ ! -s $carapace_cache || -n $carapace_cache(N.mh+24) ]]; then
-        carapace-refresh
+      if [[ -s $carapace_cache ]]; then
+        source "$carapace_cache"
+        if [[ -n $(print -rl -- $carapace_cache(N.mh+24)) ]]; then
+          carapace-refresh &!
+        fi
+      else
+        carapace-refresh &!
       fi
-      source "$carapace_cache"
 
       # Color-code file listings (ls output, and zsh completion menus/fzf-tab
       # previews) similarly to fish's default directory/symlink/executable
