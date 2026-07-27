@@ -63,6 +63,10 @@ vim.keymap.set("n", "<leader>p", function()
   require("needle").files({ cwd = vim.fn.expand("~/src/benchling") })
 end, { desc = "Find files in benchling (needle)", silent = true })
 
+vim.ui.select = function(items, opts, on_choice)
+  require("needle").select(items, opts, on_choice)
+end
+
 
 --------------------------------------------------------------------------------
 -- shuck
@@ -245,6 +249,15 @@ local on_attach = function(_, bufnr)
   buf_set_keymap("n", "gr", vim.lsp.buf.references)
   buf_set_keymap("n", "<leader>r", vim.lsp.buf.rename)
   buf_set_keymap("n", "<leader>x", vim.lsp.buf.code_action)
+  -- Biome only offers source.* actions when the requested range overlaps the
+  -- import block, so pin the request to line 1 and ask for the kind explicitly.
+  buf_set_keymap("n", "<leader>X", function()
+    vim.lsp.buf.code_action({
+      context = { only = { "source.organizeImports.biome" }, diagnostics = {} },
+      range = { start = { 1, 0 }, ["end"] = { 1, 0 } },
+      apply = true,
+    })
+  end)
   buf_set_keymap("i", "<C-s>", vim.lsp.buf.signature_help)
   buf_set_keymap("n", "<leader>d", vim.diagnostic.setqflist)
   buf_set_keymap("n", "[d", function()
