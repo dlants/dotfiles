@@ -45,7 +45,8 @@ zle -N zle-keymap-select
 zle-line-init() { _vi_cursor_shape 6 }
 zle -N zle-line-init
 autoload -Uz add-zsh-hook
-add-zsh-hook preexec '_vi_cursor_shape 6'
+_vi_cursor_reset() { _vi_cursor_shape 6 }
+add-zsh-hook preexec _vi_cursor_reset
 
 bindkey -M viins '^[[A' history-substring-search-up
 bindkey -M viins '^[[B' history-substring-search-down

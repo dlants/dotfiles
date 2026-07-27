@@ -268,30 +268,32 @@ vim.keymap.set("n", "<C-l>", function() pane_navigate("l", "R") end, { noremap =
 vim.keymap.set("n", "[j", "<C-O>")
 vim.keymap.set("n", "]j", "<C-I>")
 
--- Jump through jump list until buffer changes
+-- Jump to the nearest jump-list entry whose buffer doesn't appear anywhere
+-- "beyond" the current position (in the opposite direction of travel), so
+-- jumping back skips buffers we can already get to by jumping forward.
 local function jump_until_buffer_changes(direction)
-  local current_buf = vim.api.nvim_get_current_buf()
-  local max_attempts = 100 -- Prevent infinite loops
-  local attempts = 0
+  local jumps, curidx = unpack(vim.fn.getjumplist())
+  local back = direction == "back"
+  local seen = { [vim.api.nvim_get_current_buf()] = true }
 
-  while attempts < max_attempts do
-    attempts = attempts + 1
+  -- Buffers reachable in the opposite direction are not worth landing on.
+  local from, to = (back and curidx + 1 or 1), (back and #jumps or curidx)
+  for i = from, to do
+    seen[jumps[i].bufnr] = true
+  end
 
-    -- Try to jump
-    local keys = vim.api.nvim_replace_termcodes(
-      direction == "back" and "<C-O>" or "<C-I>", true, false, true)
-    local success = pcall(vim.api.nvim_feedkeys, keys, "nx", false)
-
-    if not success then
-      -- No more jumps available
-      break
+  local step = back and -1 or 1
+  local i = curidx + step
+  local count = 1
+  while jumps[i + 1] do
+    local bufnr = jumps[i + 1].bufnr
+    if not seen[bufnr] and vim.api.nvim_buf_is_valid(bufnr) then
+      local key = vim.api.nvim_replace_termcodes(back and "<C-o>" or "<C-i>", true, false, true)
+      vim.api.nvim_feedkeys(count .. key, "nx", false)
+      return
     end
-
-    -- Check if buffer changed
-    local new_buf = vim.api.nvim_get_current_buf()
-    if new_buf ~= current_buf then
-      break
-    end
+    i = i + step
+    count = count + 1
   end
 end
 
