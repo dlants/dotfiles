@@ -61,12 +61,19 @@ the buffer's dir).
 - Keymaps: `<leader>f` files, `<leader>b` buffers, `<leader>h` help.
 
 **shuck** (`~/src/shuck`) — a streamed shell-command picker (a
-vim-grepper replacement), `:Shuck` / `<leader>g`.
-- Runs an arbitrary shell command (default `rg -H --no-heading --vimgrep `) and
-  streams stdout/stderr live into the results window.
+vim-grepper replacement), opened with `require("shuck").open({ cmd = ... })`
+(`<leader>g`, plus `<leader>g` in visual mode to grep the selection).
+- Runs an arbitrary shell command (the mapping passes
+  `rg -H --no-heading --vimgrep `) and streams stdout/stderr live into the
+  results window.
+- The `cmd` passed to `open` is the base command: it seeds the input buffer and
+  is what `<C-u>` resets to. Each base command remembers its last accepted
+  search and restores it on reopen; opening with a different base re-points the
+  live picker instead of stacking one.
 - Per-directory command history is persisted under `stdpath("data")/shuck/`;
   `<Up>`/`<Down>` cycle prefix-matched history, `<C-r>` opens a history picker.
-- `<C-CR>` runs the command, `q` sends results to the quickfix list.
+- `<C-CR>` (or `<CR>` in normal mode) runs the command; `<CR>` in insert mode
+  opens the selection and seeds the quickfix list, as does `q`.
 
 ## Nix / Home Manager Setup
 

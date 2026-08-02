@@ -424,8 +424,7 @@ local function gh_browse_run(target, opts)
     gh_err("gh browse failed: " .. out)
     return
   end
-  local opener = is_linux and "xdg-open" or "open"
-  vim.fn.jobstart({ opener, out }, { detach = true })
+  vim.fn.jobstart({ "open", out }, { detach = true })
 end
 
 local function gh_browse(opts)

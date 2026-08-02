@@ -71,8 +71,9 @@ end
 --------------------------------------------------------------------------------
 -- shuck
 --------------------------------------------------------------------------------
-vim.keymap.set("n", "<leader>g", function() require("shuck").toggle({}) end,
-  { desc = "Toggle shuck", noremap = true, silent = true })
+vim.keymap.set("n", "<leader>g", function()
+  require("shuck").open({ cmd = "rg -H --no-heading --vimgrep " })
+end, { desc = "Open shuck", noremap = true, silent = true })
 
 vim.keymap.set("x", "<leader>g", function()
   local sel = vim.fn.getregion(vim.fn.getpos("v"), vim.fn.getpos("."), { type = vim.fn.mode() })

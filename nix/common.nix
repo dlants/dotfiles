@@ -64,6 +64,7 @@
     fd
     delta  # git-delta
     gh     # GitHub CLI
+    codex  # OpenAI Codex CLI (also provides ChatGPT-subscription auth for magenta)
     rustup
     tree-sitter
     postgresql  # psql client
