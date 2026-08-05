@@ -5,6 +5,27 @@ local M = {}
 
 if is_linux then
   M.profiles = {
+    {
+      name = "opus-5.0(max)",
+      provider = "anthropic",
+      model = "claude-opus-5",
+      authType = "max",
+      thinking = {
+        enabled = true,
+        effort = "low"
+      }
+    },
+    {
+      name = "gpt-5.6-sol(chatgpt)",
+      provider = "openai",
+      model = "gpt-5.6-sol",
+      fastModel = "gpt-5.6-luna",
+      authType = "chatgpt",
+      thinking = {
+        enabled = true,
+        effort = "low"
+      }
+    },
     -- gpt-5.6-sol is not served by bedrock-mantle; terra is the closest sibling.
     -- Needs bedrock-mantle:CreateInference, which dev.ai-inference lacks today.
     {
@@ -53,36 +74,26 @@ if is_linux then
         effort = "medium"
       }
     },
-    {
-      name = "opus-5.0(max)",
-      provider = "anthropic",
-      model = "claude-opus-5",
-      authType = "max",
-      thinking = {
-        enabled = true,
-        effort = "low"
-      }
-    }
   }
   M.chimeVolume = .01
 else
   M.profiles = {
     {
-      name = "gpt-5.6-sol(chatgpt)",
-      provider = "openai",
-      model = "gpt-5.6-sol",
-      fastModel = "gpt-5.6-luna",
-      authType = "chatgpt",
+      name = "opus-5.0(max)",
+      provider = "anthropic",
+      model = "claude-opus-5",
+      authType = "max",
       thinking = {
         enabled = true,
         effort = "low"
       }
     },
     {
-      name = "opus-5.0(max)",
-      provider = "anthropic",
-      model = "claude-opus-5",
-      authType = "max",
+      name = "gpt-5.6-sol(chatgpt)",
+      provider = "openai",
+      model = "gpt-5.6-sol",
+      fastModel = "gpt-5.6-luna",
+      authType = "chatgpt",
       thinking = {
         enabled = true,
         effort = "low"
