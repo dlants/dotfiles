@@ -5,6 +5,23 @@ local M = {}
 
 if is_linux then
   M.profiles = {
+    -- gpt-5.6-sol is not served by bedrock-mantle; terra is the closest sibling.
+    -- Needs bedrock-mantle:CreateInference, which dev.ai-inference lacks today.
+    {
+      name = "gpt-5.6-terra(bedrock)",
+      provider = "openai",
+      model = "openai.gpt-5.6-terra",
+      fastModel = "openai.gpt-5.6-luna",
+      authType = "bedrock",
+      env = {
+        AWS_PROFILE = "dev.ai-inference",
+        AWS_REGION = "us-west-2"
+      },
+      thinking = {
+        enabled = true,
+        effort = "low"
+      }
+    },
     {
       name = "opus-5.0(bedrock)",
       provider = "bedrock",
@@ -51,6 +68,17 @@ if is_linux then
 else
   M.profiles = {
     {
+      name = "gpt-5.6-sol(chatgpt)",
+      provider = "openai",
+      model = "gpt-5.6-sol",
+      fastModel = "gpt-5.6-luna",
+      authType = "chatgpt",
+      thinking = {
+        enabled = true,
+        effort = "low"
+      }
+    },
+    {
       name = "opus-5.0(max)",
       provider = "anthropic",
       model = "claude-opus-5",
@@ -58,6 +86,21 @@ else
       thinking = {
         enabled = true,
         effort = "low"
+      }
+    },
+    {
+      name = "gpt-5.6-terra(bedrock)",
+      provider = "openai",
+      model = "openai.gpt-5.6-terra",
+      fastModel = "openai.gpt-5.6-luna",
+      authType = "bedrock",
+      env = {
+        AWS_PROFILE = "dev.admin",
+        AWS_REGION = "us-west-2"
+      },
+      thinking = {
+        enabled = true,
+        effort = "medium"
       }
     },
     {
