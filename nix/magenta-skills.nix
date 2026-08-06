@@ -3,8 +3,14 @@
 # skill list lives in exactly one place.
 { lib, dotfilesDir, includeSearch ? true }:
 let
-  skills = [ "browser" "plan" "fetch" "glean-review" ]
+  skills = [ "browser" "plan" "fetch" ]
     ++ lib.optional includeSearch "search";
+  # Skills that live in their own project repo; symlinked from there so the
+  # skill ships with the code it documents.
+  externalSkills = { glean-review = "$HOME/src/glean/skills/glean-review"; };
+  link = src: name: ''ln -sfn "${src}" "$HOME/.claude/skills/${name}"'';
 in
-lib.concatMapStringsSep "\n" (s:
-  ''ln -sfn "${dotfilesDir}/magenta-skills/${s}" "$HOME/.claude/skills/${s}"'') skills
+lib.concatStringsSep "\n" (
+  map (s: link "${dotfilesDir}/magenta-skills/${s}" s) skills
+  ++ lib.mapAttrsToList (name: src: link src name) externalSkills
+)
