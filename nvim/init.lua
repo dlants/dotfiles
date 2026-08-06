@@ -219,6 +219,7 @@ require("dashboard").setup()
 require("needle").setup({ exclude_dirs = { ".pkb/index" } })
 require("shuck").setup({})
 require("glean.init").setup()
+require("config.glean").setup()
 -- require("markdown-center").setup({ max_width = 120 })
 
 vim.cmd "filetype plugin indent on"
