@@ -131,7 +131,7 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.keymap.set({ "n", "x", "o" }, "gg",
       function() return vim.v.count == 0 and "gg0" or "gg" end, opts)
     vim.keymap.set({ "n", "x", "o" }, "G",
-      function() return vim.v.count == 0 and "G0" or "G" end, opts)
+      function() return vim.v.count == 0 and "Gg$" or "G" end, opts)
 
     -- dd: delete the visual (soft-wrapped) line rather than the whole physical
     -- line. Falls back to a normal dd when a count is given.

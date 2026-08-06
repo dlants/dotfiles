@@ -3,7 +3,7 @@
 # skill list lives in exactly one place.
 { lib, dotfilesDir, includeSearch ? true }:
 let
-  skills = [ "browser" "plan" "fetch" ]
+  skills = [ "browser" "plan" "fetch" "glean-review" ]
     ++ lib.optional includeSearch "search";
 in
 lib.concatMapStringsSep "\n" (s:
