@@ -128,10 +128,41 @@ vim.api.nvim_create_autocmd("FileType", {
     -- gg/G: without a count, jump to the top/bottom at column 0 so a large
     -- column from a wrapped position doesn't land the cursor on a lower visual
     -- row. With a count, behave like normal gg/G (go to that line).
-    vim.keymap.set({ "n", "x", "o" }, "gg",
-      function() return vim.v.count == 0 and "gg0" or "gg" end, opts)
-    vim.keymap.set({ "n", "x", "o" }, "G",
-      function() return vim.v.count == 0 and "Gg$" or "G" end, opts)
+    -- gg with no count: first visual row of line 1, same screen column
+    -- (clamped to the row width so we don't fall onto a wrapped row below).
+    vim.keymap.set({ "n", "x", "o" }, "gg", function()
+      if vim.v.count > 0 or vim.fn.mode(1):match("^no") then return "gg" end
+      local win = vim.api.nvim_get_current_win()
+      local textoff = vim.fn.getwininfo(win)[1].textoff
+      local width = vim.api.nvim_win_get_width(win) - textoff
+      local screen_col = math.min(vim.fn.wincol() - textoff, width)
+      return "gg" .. screen_col .. "|"
+    end, opts)
+
+    -- G with no count: land on the last *visual* (wrapped) row, at the same
+    -- screen column, in one jump. Plain G lands on the first wrapped row of the
+    -- last line. In operator-pending mode G stays linewise (dG etc).
+    vim.keymap.set({ "n", "x", "o" }, "G", function()
+      if vim.v.count > 0 or vim.fn.mode(1):match("^no") then return "G" end
+      local win = vim.api.nvim_get_current_win()
+      local textoff = vim.fn.getwininfo(win)[1].textoff
+      local screen_col = vim.fn.wincol() - textoff
+      local last = vim.fn.line("$")
+      local end_col = math.max(vim.fn.col({ last, "$" }) - 1, 1)
+      -- virtcol of the first cell of the last line's final wrapped row
+      local end_screen = vim.fn.screenpos(win, last, end_col)
+      if end_screen.curscol == 0 then
+        -- screenpos only knows about lines within the current viewport, so
+        -- temporarily point topline at the last line. No redraw happens in
+        -- between, so the cursor never visibly moves.
+        local view = vim.fn.winsaveview()
+        vim.fn.winrestview({ topline = last })
+        end_screen = vim.fn.screenpos(win, last, end_col)
+        vim.fn.winrestview(view)
+      end
+      local row_start = vim.fn.virtcol({ last, end_col }) - (end_screen.curscol - textoff - 1)
+      return "G" .. (row_start + screen_col - 1) .. "|"
+    end, opts)
 
     -- dd: delete the visual (soft-wrapped) line rather than the whole physical
     -- line. Falls back to a normal dd when a count is given.
@@ -162,6 +193,28 @@ vim.api.nvim_create_autocmd("FileType", {
       local target = word:match("%]%((.+)%)")
           or word:match("https?://[%w%-._~:/?#%[%]@!$&'()*+,;%%=]+")
 
+      -- Resolve a path relative to the markdown file's dir, then cwd, then the
+      -- git root, so repo-rooted paths in notes resolve too.
+      local function resolve_path(path)
+        if vim.startswith(path, "/") or vim.startswith(path, "~") then
+          local p = vim.fn.expand(path)
+          return vim.fn.filereadable(p) == 1 and p or nil
+        end
+        local md_dir = vim.fn.expand("%:p:h")
+        local roots = { md_dir, vim.fn.getcwd() }
+        local git_root = vim.fn.systemlist({ "git", "-C", md_dir, "rev-parse", "--show-toplevel" })[1]
+        if vim.v.shell_error == 0 and git_root and git_root ~= "" then
+          table.insert(roots, git_root)
+        end
+        for _, root in ipairs(roots) do
+          local abs = vim.fn.fnamemodify(root .. "/" .. path, ":p")
+          if vim.fn.filereadable(abs) == 1 then
+            return abs
+          end
+        end
+        return nil
+      end
+
       -- Split a trailing :<line> postfix off a file path
       local function split_line(path)
         local p, l = path:match("^(.-):(%d+)$")
@@ -178,9 +231,8 @@ vim.api.nvim_create_autocmd("FileType", {
           return
         end
         local path, line = split_line(word_path)
-        local md_dir = vim.fn.expand("%:p:h")
-        local abs_path = vim.fn.fnamemodify(md_dir .. "/" .. path, ":p")
-        if vim.fn.filereadable(abs_path) == 1 then
+        local abs_path = resolve_path(path)
+        if abs_path then
           open_file_in_other_window(abs_path, line)
         end
         return
@@ -190,9 +242,8 @@ vim.api.nvim_create_autocmd("FileType", {
         vim.fn.system({ "open", target })
       else
         local path, line = split_line(target)
-        local md_dir = vim.fn.expand("%:p:h")
-        local abs_path = md_dir .. "/" .. path
-        if vim.fn.filereadable(abs_path) == 1 then
+        local abs_path = resolve_path(path)
+        if abs_path then
           open_file_in_other_window(abs_path, line)
         end
       end
