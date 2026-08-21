@@ -281,6 +281,12 @@ local default_config = {
 }
 
 vim.lsp.config("ts_ls", vim.tbl_deep_extend("force", default_config, {
+  -- the aurelia monolith OOMs tsserver at the default ~4GB V8 heap; the wrapper
+  -- process stays alive after the crash, so requests silently return nil.
+  init_options = {
+    hostInfo = "neovim",
+    maxTsServerMemory = 8192,
+  },
   settings = {
     typescript = {
       inlayHints = {
@@ -391,11 +397,11 @@ vim.lsp.enable({
 --------------------------------------------------------------------------------
 require("conform").setup({
   formatters_by_ft = {
-    javascript = { "biome", "prettier", stop_after_first = true },
-    typescript = { "biome", "prettier", stop_after_first = true },
-    javascriptreact = { "biome", "prettier", stop_after_first = true },
-    typescriptreact = { "biome", "prettier", stop_after_first = true },
-    json = { "biome", "prettier", stop_after_first = true },
+    javascript = { "oxfmt", "biome", "prettier", stop_after_first = true },
+    typescript = { "oxfmt", "biome", "prettier", stop_after_first = true },
+    javascriptreact = { "oxfmt", "biome", "prettier", stop_after_first = true },
+    typescriptreact = { "oxfmt", "biome", "prettier", stop_after_first = true },
+    json = { "oxfmt", "biome", "prettier", stop_after_first = true },
     yaml = { "prettier" },
     html = { "prettier" },
     css = { "biome", "prettier", stop_after_first = true },
@@ -408,6 +414,13 @@ require("conform").setup({
   formatters = {
     prettier = {
       prepend_args = { "--prose-wrap", "never" },
+    },
+    -- Only use oxfmt in projects that actually configure it, so everything else still falls
+    -- through to biome/prettier. Restrict the root markers to .oxfmtrc files: conform's builtin
+    -- also matches vite.config.ts, which would claim unrelated Vite projects.
+    oxfmt = {
+      require_cwd = true,
+      cwd = require("conform.util").root_file({ ".oxfmtrc.json", ".oxfmtrc.jsonc" }),
     },
   },
   format_on_save = {

@@ -6,21 +6,15 @@ local M = {}
 if is_linux then
   M.profiles = {
     {
-      name = "opus-5.0(max)",
-      provider = "anthropic",
-      model = "claude-opus-5",
-      authType = "max",
-      thinking = {
-        enabled = true,
-        effort = "low"
-      }
-    },
-    {
-      name = "gpt-5.6-sol(chatgpt)",
-      provider = "openai",
-      model = "gpt-5.6-sol",
-      fastModel = "gpt-5.6-luna",
-      authType = "chatgpt",
+      name = "opus-5.0(bedrock)",
+      provider = "bedrock",
+      model = "us.anthropic.claude-opus-5",
+      fastModel = "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      env = {
+        AWS_PROFILE = "dev.ai-inference",
+        AWS_REGION = "us-west-2"
+      },
+      tokenRefreshCommand = "dev aws login",
       thinking = {
         enabled = true,
         effort = "low"
@@ -38,21 +32,6 @@ if is_linux then
         AWS_PROFILE = "dev.ai-inference",
         AWS_REGION = "us-west-2"
       },
-      thinking = {
-        enabled = true,
-        effort = "low"
-      }
-    },
-    {
-      name = "opus-5.0(bedrock)",
-      provider = "bedrock",
-      model = "us.anthropic.claude-opus-5",
-      fastModel = "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-      env = {
-        AWS_PROFILE = "dev.ai-inference",
-        AWS_REGION = "us-west-2"
-      },
-      tokenRefreshCommand = "dev aws login",
       thinking = {
         enabled = true,
         effort = "low"
