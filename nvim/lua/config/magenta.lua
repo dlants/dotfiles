@@ -5,6 +5,23 @@ local M = {}
 
 if is_linux then
   M.profiles = {
+    -- bedrock-mantle only serves gpt-5.6-sol out of us-east-{1,2}; us-west-2
+    -- 404s on it (luna and terra are available in both).
+    {
+      name = "gpt-5.6-sol(bedrock)",
+      provider = "openai",
+      model = "openai.gpt-5.6-sol",
+      fastModel = "openai.gpt-5.6-luna",
+      authType = "bedrock",
+      env = {
+        AWS_PROFILE = "dev.ai-inference",
+        AWS_REGION = "us-east-1"
+      },
+      thinking = {
+        enabled = true,
+        effort = "low"
+      }
+    },
     {
       name = "opus-5.0(bedrock)",
       provider = "bedrock",
@@ -15,23 +32,6 @@ if is_linux then
         AWS_REGION = "us-west-2"
       },
       tokenRefreshCommand = "dev aws login",
-      thinking = {
-        enabled = true,
-        effort = "low"
-      }
-    },
-    -- gpt-5.6-sol is not served by bedrock-mantle; terra is the closest sibling.
-    -- Needs bedrock-mantle:CreateInference, which dev.ai-inference lacks today.
-    {
-      name = "gpt-5.6-terra(bedrock)",
-      provider = "openai",
-      model = "openai.gpt-5.6-terra",
-      fastModel = "openai.gpt-5.6-luna",
-      authType = "bedrock",
-      env = {
-        AWS_PROFILE = "dev.ai-inference",
-        AWS_REGION = "us-west-2"
-      },
       thinking = {
         enabled = true,
         effort = "low"
