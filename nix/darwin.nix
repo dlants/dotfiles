@@ -33,6 +33,9 @@
   home.file.".hammerspoon".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/hammerspoon";
 
 
+  # Fish config (macOS-specific)
+  xdg.configFile."fish/config-platform.fish".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/fish/config-darwin.fish";
+
   # Zsh config (macOS-specific)
   xdg.configFile."zsh/config-platform.zsh".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/zsh/config-darwin.zsh";
 }

@@ -67,16 +67,23 @@
     /usr/bin/sudo sysctl -w kernel.yama.ptrace_scope=1 >/dev/null
   '';
 
-  # Set zsh as login shell
-  home.activation.setZshShell = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    ZSH_PATH="$HOME/.nix-profile/bin/zsh"
-    if [ -x "$ZSH_PATH" ]; then
-      if ! grep -qF "$ZSH_PATH" /etc/shells 2>/dev/null; then
-        echo "$ZSH_PATH" | /usr/bin/sudo tee -a /etc/shells >/dev/null
+  # Set fish as login shell. zsh is registered in /etc/shells too so switching
+  # back is just `chsh -s ~/.nix-profile/bin/zsh`.
+  home.activation.setLoginShell = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    for shell in fish zsh; do
+      SHELL_PATH="$HOME/.nix-profile/bin/$shell"
+      if [ -x "$SHELL_PATH" ] && ! grep -qF "$SHELL_PATH" /etc/shells 2>/dev/null; then
+        echo "$SHELL_PATH" | /usr/bin/sudo tee -a /etc/shells >/dev/null
       fi
-      /usr/bin/sudo chsh -s "$ZSH_PATH" "$USER"
+    done
+    FISH_PATH="$HOME/.nix-profile/bin/fish"
+    if [ -x "$FISH_PATH" ]; then
+      /usr/bin/sudo chsh -s "$FISH_PATH" "$USER"
     fi
   '';
+
+  # Fish config (Linux-specific)
+  xdg.configFile."fish/config-platform.fish".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/fish/config-linux.fish";
 
   # Zsh config (Linux-specific)
   xdg.configFile."zsh/config-platform.zsh".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/zsh/config-linux.zsh";

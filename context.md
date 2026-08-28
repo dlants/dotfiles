@@ -86,11 +86,11 @@ via a flake (`flake.nix`). Two configurations are defined:
 ### File Layout
 
 - `flake.nix` — defines `homeConfigurations` and the `mkHomeConfig` helper
-- `nix/common.nix` — shared config: packages, git, zsh, starship, neovim, and
+- `nix/common.nix` — shared config: packages, git, fish, zsh, starship, neovim, and
   config symlinks. Configs are live-linked with `mkOutOfStoreSymlink` (edits in
   the repo take effect immediately, no rebuild needed for plain config changes).
 - `nix/darwin.nix` — macOS extras (Homebrew casks, hammerspoon, zig)
-- `nix/linux.nix` — devcontainer extras (pkgx, work-skills clone, zsh login shell)
+- `nix/linux.nix` — devcontainer extras (pkgx, work-skills clone, fish login shell)
 - `nix/magenta-skills.nix` — generates magenta skill symlinks into `~/.claude/skills`
 
 ### Notable details
@@ -114,6 +114,37 @@ Update flake inputs (nixpkgs, home-manager) then rebuild:
 nix flake update
 home-manager switch --flake .#<config>
 ```
+
+## Shell Setup
+
+fish is the login and interactive shell (`nix/common.nix`, `programs.fish`); the
+zsh config it replaced is kept fully configured alongside it, so switching back
+is just `chsh -s ~/.nix-profile/bin/zsh` plus pointing tmux's `default-shell` at
+zsh again. Both are registered in `/etc/shells` by the `setLoginShell`
+activation script on Linux.
+
+- home-manager generates `~/.config/fish/config.fish` (session vars, generated
+  completions). It sources two live-linked files, so everyday changes need no
+  rebuild:
+  - `fish/config-shared.fish` — vi mode + keybindings, cursor shapes, aliases,
+    `fish_title`. Completion is fish's own engine — no carapace, no fzf-tab
+    equivalent.
+  - `fish/config-{darwin,linux}.fish` — linked as `config-platform.fish`; PATH,
+    OrbStack (macOS), `mise activate` and the `.venv` auto-activation (Linux).
+- All custom `bind` calls live in `fish_user_key_bindings`, because fish wipes
+  every binding whenever it (re)loads a keymap.
+- No fzf shell integration under fish (fish's own history search and completion
+  pager cover it); fzf is still installed for `scripts/tmux-session-using-fzf`.
+- Prompts differ per shell: fish uses `fishPlugins.pure` (installed via
+  `programs.fish.plugins`, loaded from `conf.d/plugin-pure.fish`), zsh uses
+  starship with `starship.toml`. starship's fish integration is explicitly
+  disabled — home-manager's `enable*Integration` options default to *true*, so
+  they have to be set to `false`, not just omitted.
+- starship's git segment uses its native `git_branch`/`git_status` modules. (It
+  used to be a `custom.git_status` module fed by an async shell-side writer, to
+  keep `git diff` off the prompt path; see git history if the zsh prompt ever
+  feels slow in a large repo.)
+- `notes/zsh-notes.md` — zsh-specific findings from the interim zsh setup.
 
 ## Tmux Setup
 

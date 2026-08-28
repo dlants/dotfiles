@@ -4,7 +4,8 @@
 format = """
 $hostname\
 $directory\
-${custom.git_status}\
+$git_branch\
+$git_status\
 $git_state\
 $cmd_duration\
 $line_break\
@@ -24,23 +25,16 @@ truncate_to_repo = false
 success_symbol = "[❯](purple)"
 error_symbol = "[❯](red)"
 
-[custom.git_status]
-description = "Git branch + status"
-when = "git rev-parse --is-inside-work-tree 2>/dev/null"
-command = '''
-root=$(git rev-parse --show-toplevel 2>/dev/null)
-cache_file="$HOME/.cache/starship-git-status/${root//\//%}"
-cat "$cache_file" 2>/dev/null
-'''
-format = "[$output]($style) "
-style = "bright-black"
-shell = ["bash"]
-
 [git_branch]
-disabled = true
+format = "[git:$branch]($style) "
+style = "bright-black"
 
 [git_status]
-disabled = true
+format = "[$all_status$ahead_behind]($style) "
+style = "bright-black"
+staged = "+"
+modified = "*"
+untracked = "?"
 
 [git_state]
 format = '\([$state( $progress_current/$progress_total)]($style)\) '

@@ -96,9 +96,13 @@
   ];
 
   # Git configuration
+  # fzf's shell integration (C-r/C-t widgets) is zsh-only; under fish its
+  # built-in history search and completion pager cover the same ground. The
+  # binary is still installed for scripts/tmux-session-using-fzf.
   programs.fzf = {
     enable = true;
     enableZshIntegration = true;
+    enableFishIntegration = false;
   };
 
   programs.git = {
@@ -234,32 +238,6 @@
       fi
       zstyle ':completion:*' list-colors "''${(s.:.)LS_COLORS}"
 
-      # Git branch/dirty status for the starship prompt, computed async.
-      # starship's custom module can't run async itself (every module is
-      # computed synchronously as the prompt is drawn), so instead we
-      # recompute it in the background on each precmd and cache the result
-      # to a file; starship's custom command just reads that file (fast),
-      # picking up the previous precmd's result. This trades a one-prompt
-      # staleness for never blocking on `git diff` in large repos.
-      _starship_git_status_update() {
-        local root
-        root=$(git rev-parse --show-toplevel 2>/dev/null) || return
-        {
-          local cache_dir="$HOME/.cache/starship-git-status"
-          local cache_file="$cache_dir/''${root//\//%}"
-          local branch markers
-          branch=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
-          markers=""
-          git diff --cached --quiet 2>/dev/null || markers+="+"
-          git diff --quiet 2>/dev/null || markers+="*"
-          [ -n "$(git ls-files --others --exclude-standard 2>/dev/null)" ] && markers+="?"
-          mkdir -p "$cache_dir"
-          printf '%s' "git:''${branch}''${markers:+ ''${markers}}" > "$cache_file.tmp" && mv "$cache_file.tmp" "$cache_file"
-        } &!
-      }
-      autoload -Uz add-zsh-hook
-      add-zsh-hook precmd _starship_git_status_update
-
       # Live-linked interactive config (keybindings, etc.); editable without a
       # home-manager rebuild. See xdg.configFile below.
       if [ -f ~/.config/zsh/config-shared.zsh ]; then
@@ -272,10 +250,44 @@
     '';
   };
 
+  # Fish shell. The zsh config above is kept intact and functional so switching
+  # back is just a matter of pointing chsh/tmux's default-shell at it again.
+  programs.fish = {
+    enable = true;
+
+    # pure: the fish port of the pure prompt (what fish used before starship).
+    # starship stays configured for zsh.
+    plugins = [
+      {
+        name = "pure";
+        src = pkgs.fishPlugins.pure.src;
+      }
+    ];
+
+    # Mirrors programs.zsh.envExtra: the nix installer normally wires the
+    # profile bin dirs into a login profile script, but the devcontainer has
+    # none, so prepend them ourselves for every fish, interactive or not.
+    shellInit = ''
+      set -gx PATH $HOME/.nix-profile/bin /nix/var/nix/profiles/default/bin $HOME/go/bin $PATH
+    '';
+
+    # Live-linked interactive config; editable without a home-manager rebuild.
+    # See xdg.configFile below and the per-platform modules.
+    interactiveShellInit = ''
+      test -f ~/.config/fish/config-shared.fish; and source ~/.config/fish/config-shared.fish
+      test -f ~/.config/fish/config-platform.fish; and source ~/.config/fish/config-platform.fish
+    '';
+  };
+
+  # Prevent rustup from creating a broken fish config (nix manages PATH)
+  home.file.".config/fish/conf.d/rustup.fish".text = "";
+
   # Starship prompt (supports git via custom module)
   programs.starship = {
     enable = true;
     enableZshIntegration = true;
+    # fish uses the pure prompt instead (see programs.fish.plugins).
+    enableFishIntegration = false;
     # Pinned via the nixpkgs-starship flake input (see flake.nix) so switches
     # always pull the prebuilt binary and never compile from source.
     package = starshipPkg;
@@ -302,6 +314,7 @@
     "nvim/lua".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/nvim/lua";
     "starship.toml".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/starship.toml";
     "zsh/config-shared.zsh".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/zsh/config-shared.zsh";
+    "fish/config-shared.fish".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/fish/config-shared.fish";
   };
 
   # Symlink magenta context file

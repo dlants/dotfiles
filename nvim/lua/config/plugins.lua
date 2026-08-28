@@ -362,21 +362,25 @@ vim.lsp.config("gopls", vim.tbl_deep_extend("force", default_config, {
   },
 }))
 
--- Prefer a project-local `.venv/bin/ty` over the global one, so the LSP's
--- bundled typeshed/version matches the project's pinned ty. Falls back to the
--- `ty` on PATH when no venv binary is found.
+-- Prefer a project-local `.venv` over the global one, both for the `ty` binary (so the LSP's
+-- bundled typeshed/version matches the project's pinned ty) and for the environment ty resolves
+-- imports against. The latter matters because ty reads `VIRTUAL_ENV` from its process env, which
+-- Neovim inherited from the shell it was launched in: in a monorepo that's the outermost `.venv`,
+-- so a nested project (e.g. a subservice with its own dependency closure) would otherwise
+-- type-check against the wrong site-packages. Falls back to the `ty` on PATH.
 local function ty_cmd(dispatchers, config)
   -- `config.root_dir` is the per-buffer root Neovim already resolved from this
   -- server's `root_markers`, so each ty project gets its own binary.
   local exe = "ty"
+  local env = nil
   local root = config and config.root_dir
-  if root then
-    local venv_ty = root .. "/.venv/bin/ty"
-    if vim.uv.fs_stat(venv_ty) then
-      exe = venv_ty
+  if root and vim.uv.fs_stat(root .. "/.venv") then
+    env = { VIRTUAL_ENV = root .. "/.venv" }
+    if vim.uv.fs_stat(root .. "/.venv/bin/ty") then
+      exe = root .. "/.venv/bin/ty"
     end
   end
-  return vim.lsp.rpc.start({ exe, "server" }, dispatchers)
+  return vim.lsp.rpc.start({ exe, "server" }, dispatchers, { env = env })
 end
 
 vim.lsp.config("ty", vim.tbl_deep_extend("force", default_config, { cmd = ty_cmd }))
@@ -395,13 +399,30 @@ vim.lsp.enable({
 --------------------------------------------------------------------------------
 -- conform.nvim
 --------------------------------------------------------------------------------
+-- Projects that configure oxfmt must never fall through to biome/prettier: those disagree about
+-- quotes and bracket spacing, so a missing/unavailable oxfmt would silently reformat the whole
+-- file the wrong way. Formatting nothing is the safer failure mode.
+local SHARED_OXFMT = "/src/node_modules/.bin/oxfmt"
+local OXFMT_MARKERS = { ".oxfmtrc.json", ".oxfmtrc.jsonc" }
+local oxfmt_root = require("conform.util").root_file(OXFMT_MARKERS)
+
+
+local function js_formatters(bufnr)
+  local dirname = vim.fs.dirname(vim.api.nvim_buf_get_name(bufnr))
+  if dirname ~= "" and vim.fs.root(dirname, OXFMT_MARKERS) then
+    return { "oxfmt" }
+  end
+  return { "biome", "prettier", stop_after_first = true }
+end
+
+
 require("conform").setup({
   formatters_by_ft = {
-    javascript = { "oxfmt", "biome", "prettier", stop_after_first = true },
-    typescript = { "oxfmt", "biome", "prettier", stop_after_first = true },
-    javascriptreact = { "oxfmt", "biome", "prettier", stop_after_first = true },
-    typescriptreact = { "oxfmt", "biome", "prettier", stop_after_first = true },
-    json = { "oxfmt", "biome", "prettier", stop_after_first = true },
+    javascript = js_formatters,
+    typescript = js_formatters,
+    javascriptreact = js_formatters,
+    typescriptreact = js_formatters,
+    json = js_formatters,
     yaml = { "prettier" },
     html = { "prettier" },
     css = { "biome", "prettier", stop_after_first = true },
@@ -420,7 +441,21 @@ require("conform").setup({
     -- also matches vite.config.ts, which would claim unrelated Vite projects.
     oxfmt = {
       require_cwd = true,
-      cwd = require("conform.util").root_file({ ".oxfmtrc.json", ".oxfmtrc.jsonc" }),
+      cwd = oxfmt_root,
+      -- Aurelia worktrees have no node_modules of their own (deps live in the shared /src
+      -- checkout), so fall back to /src's pinned oxfmt before anything on PATH.
+      command = function(_, ctx)
+        for _, dir in ipairs(vim.fs.find("node_modules", { upward = true, path = ctx.dirname, type = "directory", limit = math.huge })) do
+          local bin = dir .. "/.bin/oxfmt"
+          if vim.uv.fs_stat(bin) then
+            return bin
+          end
+        end
+        if vim.uv.fs_stat(SHARED_OXFMT) then
+          return SHARED_OXFMT
+        end
+        return "oxfmt"
+      end,
     },
   },
   format_on_save = {
