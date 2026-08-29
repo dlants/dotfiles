@@ -269,7 +269,9 @@ require "dev"
 require("dashboard").setup()
 require("needle").setup({ exclude_dirs = { ".pkb/index" } })
 require("shuck").setup({})
-require("glean.init").setup()
+-- gt (default) toggles glean's gutter for the current buffer; tab-next is
+-- unused here, so let glean have the mapping.
+require("glean.init").setup({ gutter = { toggle_key = "gt" } })
 require("config.glean").setup()
 -- require("markdown-center").setup({ max_width = 120 })
 
