@@ -35,7 +35,11 @@ Write the plan to `plans/YYYY-MM-DD-<planName>.md` (using the current date).
 
 [A high-level description of the algorithm or system. The main components, how they interact, and the data flow between them. The reasoning behind the approach and any alternatives considered.]
 
-Invariants:
+## Interfaces
+
+[Exact shapes of all interfaces, APIs, tables, etc...]
+
+## Invariants
 
 - [Property that must hold, e.g. "the cache must never return stale entries after an invalidation"]
 - [Assumption the current code depends on that we must preserve]
