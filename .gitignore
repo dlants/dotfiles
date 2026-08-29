@@ -3,3 +3,5 @@ workspace
 
 pkb.db
 tmux-*.log
+.DS_Store
+.magenta-manifest.json
