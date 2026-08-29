@@ -282,8 +282,12 @@ local function primaryScore(text, query)
   return s
 end
 
-local function fuzzyScoreFields(text, subText, query)
+local function fuzzyScoreFields(text, subText, query, aliases)
   local s = primaryScore(text, query)
+  for _, alias in ipairs(aliases or {}) do
+    local a = primaryScore(alias, query)
+    if a ~= nil and (s == nil or a > s) then s = a end
+  end
   if s ~= nil then return s end
   local sub = fuzzyScore(subText, query)
   if sub ~= nil then return sub - FUZZY_SUBTEXT_PENALTY end
@@ -686,6 +690,16 @@ local function openInChrome(url)
   hs.task.new("/usr/bin/open", nil, { "-a", "Google Chrome", url }):start()
 end
 
+local GITHUB_USER = "dlants"
+
+local function githubPullsUrl(repo, arg)
+  local base = "https://github.com/benchling/" .. repo .. "/pulls"
+  if arg and arg:match("^%s*r") then
+    return base .. "?q=is%3Aopen+is%3Apr+review-requested%3A" .. GITHUB_USER
+  end
+  return base .. "/" .. GITHUB_USER
+end
+
 local function plusEncode(s)
   if not s then return "" end
   s = s:gsub("([^%w%-%._~ ])", function(c) return string.format("%%%02X", string.byte(c)) end)
@@ -1042,13 +1056,15 @@ local commandPaletteItems = {
   },
   {
     text = "aurelia",
-    subText = "github.com/benchling/aurelia/pulls/dlants",
-    handler = function() openInChrome("https://github.com/benchling/aurelia/pulls/dlants") end,
+    subText = "aurelia PRs (arg: review)",
+    aliases = { "aur" },
+    handler = function(arg) openInChrome(githubPullsUrl("aurelia", arg)) end,
   },
   {
     text = "infra",
-    subText = "github.com/benchling/infra/pulls/dlants",
-    handler = function() openInChrome("https://github.com/benchling/infra/pulls/dlants") end,
+    subText = "infra PRs (arg: review)",
+    aliases = { "inf" },
+    handler = function(arg) openInChrome(githubPullsUrl("infra", arg)) end,
   },
   {
     text = "conf",
@@ -1092,13 +1108,15 @@ local commandPaletteItems = {
 }
 
 -- Scan for installed applications via mdfind (Spotlight backend)
+local EXCLUDED_APPS = { Chess = true }
+
 local function scanApps()
   local apps = {}
   local handle = io.popen("mdfind -onlyin /Applications -onlyin /System/Applications \"kMDItemKind == 'Application'\"")
   if not handle then return apps end
   for line in handle:lines() do
     local name = line:match("([^/]+)%.app$")
-    if name then
+    if name and not EXCLUDED_APPS[name] then
       table.insert(apps, {
         text = name,
         subText = "App: " .. line,
@@ -1165,6 +1183,7 @@ local function buildCommandPaletteChoices()
     table.insert(choices, {
       text = item.text,
       subText = item.subText,
+      aliases = item.aliases,
       itemIndex = i,
     })
   end
@@ -1243,7 +1262,7 @@ local function refreshCommandPaletteChoices(query)
 
   local scored = {}
   for i, choice in ipairs(allChoices) do
-    local s = fuzzyScoreFields(choice.text, choice.subText, query)
+    local s = fuzzyScoreFields(choice.text, choice.subText, query, choice.aliases)
     if s then
       table.insert(scored, {
         choice = choice,
