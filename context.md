@@ -4,9 +4,7 @@
 
 ### `nvim/lua/config/pack.lua`
 
-Manages plugin installation using native `vim.pack` (Neovim 0.12+). Defines the
-list of remote plugins via `vim.pack.add()` and sets up `PackChanged` autocmds
-(e.g. running `TSUpdate` for treesitter and `npm run build` for magenta).
+Manages plugin installation using native `vim.pack` (Neovim 0.12+). Defines the list of remote plugins via `vim.pack.add()` and sets up `PackChanged` autocmds (e.g. running `TSUpdate` for treesitter and `npm run build` for magenta).
 
 - **Plugin Manager**: Native `vim.pack` — no third-party manager
 - **magenta.nvim**: installed from GitHub on Linux, loaded from local `~/src/magenta.nvim` elsewhere
@@ -36,49 +34,28 @@ Configures magenta.nvim with its provider profiles.
 
 ### Custom Pickers: needle & shuck (and glean)
 
-needle, shuck and glean are homegrown neovim plugins, each published as a
-standalone public repo under `github.com/dlants` and checked out at
-`~/src/{needle,shuck,glean}`. Like magenta, macOS loads them from `~/src` (rtp
-prepend in `nvim/lua/config/pack.lua`) so local edits apply immediately, while
-Linux fetches them from GitHub via `vim.pack`. Each repo has a README, nvim
-help docs under `doc/`, and the lua under `lua/<name>/`.
+needle, shuck and glean are homegrown neovim plugins, each published as a standalone public repo under `github.com/dlants` and checked out at `~/src/{needle,shuck,glean}`. Like magenta, macOS loads them from `~/src` (rtp prepend in `nvim/lua/config/pack.lua`) so local edits apply immediately, while Linux fetches them from GitHub via `vim.pack`. Each repo has a README, nvim help docs under `doc/`, and the lua under `lua/<name>/`.
 
-The two pickers (needle, shuck) have replaced fzf-lua. Both render in plain
-neovim splits (prompt window + results window), share `<C-j>/<C-k>` navigation
-and `<CR>`/`<C-x>`/`<C-v>`/`<C-t>` open actions, and pick a search root from the
-current buffer (cwd if the buffer is under it, else the nearest git root, else
-the buffer's dir).
+The two pickers (needle, shuck) have replaced fzf-lua. Both render in plain neovim splits (prompt window + results window), share `<C-j>/<C-k>` navigation and `<CR>`/`<C-x>`/`<C-v>`/`<C-t>` open actions, and pick a search root from the current buffer (cwd if the buffer is under it, else the nearest git root, else the buffer's dir).
 
 **needle** (`~/src/needle`) — a signal-aware fuzzy file picker.
-- Sources: files (`M.files`), buffers (`M.buffers`), and help tags (`M.help`),
-  exposed as `:Needle [dir]`, `:NeedleBuffers`, `:NeedleHelp`.
-- Files are ranked by a fuzzy match score (`lua/needle/score.lua`) plus weighted
-  signals: in buffer list, directory proximity to open buffers, recent access
-  (decaying), recent mtime, and git-dirty. Signal flags show as a `blamg`
-  prefix column.
+
+- Sources: files (`M.files`), buffers (`M.buffers`), and help tags (`M.help`), exposed as `:Needle [dir]`, `:NeedleBuffers`, `:NeedleHelp`.
+- Files are ranked by a fuzzy match score (`lua/needle/score.lua`) plus weighted signals: in buffer list, directory proximity to open buffers, recent access (decaying), recent mtime, and git-dirty. Signal flags show as a `blamg` prefix column.
 - Access history is persisted to `stdpath("data")/needle/state.json`.
 - `<C-h>` toggles unrestricted (`--no-ignore`) file listing.
 - Keymaps: `<leader>f` files, `<leader>b` buffers, `<leader>h` help.
 
-**shuck** (`~/src/shuck`) — a streamed shell-command picker (a
-vim-grepper replacement), opened with `require("shuck").open({ cmd = ... })`
-(`<leader>g`, plus `<leader>g` in visual mode to grep the selection).
-- Runs an arbitrary shell command (the mapping passes
-  `rg -H --no-heading --vimgrep `) and streams stdout/stderr live into the
-  results window.
-- The `cmd` passed to `open` is the base command: it seeds the input buffer and
-  is what `<C-u>` resets to. Each base command remembers its last accepted
-  search and restores it on reopen; opening with a different base re-points the
-  live picker instead of stacking one.
-- Per-directory command history is persisted under `stdpath("data")/shuck/`;
-  `<Up>`/`<Down>` cycle prefix-matched history, `<C-r>` opens a history picker.
-- `<C-CR>` (or `<CR>` in normal mode) runs the command; `<CR>` in insert mode
-  opens the selection and seeds the quickfix list, as does `q`.
+**shuck** (`~/src/shuck`) — a streamed shell-command picker (a vim-grepper replacement), opened with `require("shuck").open({ cmd = ... })` (`<leader>g`, plus `<leader>g` in visual mode to grep the selection).
+
+- Runs an arbitrary shell command (the mapping passes `rg -H --no-heading --vimgrep `) and streams stdout/stderr live into the results window.
+- The `cmd` passed to `open` is the base command: it seeds the input buffer and is what `<C-u>` resets to. Each base command remembers its last accepted search and restores it on reopen; opening with a different base re-points the live picker instead of stacking one.
+- Per-directory command history is persisted under `stdpath("data")/shuck/`; `<Up>`/`<Down>` cycle prefix-matched history, `<C-r>` opens a history picker.
+- `<C-CR>` (or `<CR>` in normal mode) runs the command; `<CR>` in insert mode opens the selection and seeds the quickfix list, as does `q`.
 
 ## Nix / Home Manager Setup
 
-This dotfiles repo is managed with [Home Manager](https://github.com/nix-community/home-manager)
-via a flake (`flake.nix`). Two configurations are defined:
+This dotfiles repo is managed with [Home Manager](https://github.com/nix-community/home-manager) via a flake (`flake.nix`). Two configurations are defined:
 
 - **`macos`** — aarch64-darwin, user `denis.lantsman`, dotfiles at `~/src/dotfiles` (uses `nix/darwin.nix`)
 - **`devcontainer`** — aarch64-linux, user `aurelia`, dotfiles at `~/src/dotfiles` (uses `nix/linux.nix`)
@@ -86,17 +63,14 @@ via a flake (`flake.nix`). Two configurations are defined:
 ### File Layout
 
 - `flake.nix` — defines `homeConfigurations` and the `mkHomeConfig` helper
-- `nix/common.nix` — shared config: packages, git, fish, zsh, starship, neovim, and
-  config symlinks. Configs are live-linked with `mkOutOfStoreSymlink` (edits in
-  the repo take effect immediately, no rebuild needed for plain config changes).
+- `nix/common.nix` — shared config: packages, git, fish, zsh, starship, neovim, and config symlinks. Configs are live-linked with `mkOutOfStoreSymlink` (edits in the repo take effect immediately, no rebuild needed for plain config changes).
 - `nix/darwin.nix` — macOS extras (Homebrew casks, hammerspoon, zig)
 - `nix/linux.nix` — devcontainer extras (pkgx, work-skills clone, fish login shell)
 - `nix/magenta-skills.nix` — generates magenta skill symlinks into `~/.claude/skills`
 
 ### Notable details
 
-- A nixpkgs overlay in `common.nix` overrides `tree-sitter` to v0.26.8 (nvim-treesitter
-  main branch needs >= 0.26.1; nixpkgs ships 0.25.x).
+- A nixpkgs overlay in `common.nix` overrides `tree-sitter` to v0.26.8 (nvim-treesitter main branch needs >= 0.26.1; nixpkgs ships 0.25.x).
 - Activation scripts clone `magenta.nvim` into `~/src` and set up magenta skills.
 - Flakes are enabled via `~/.config/nix/nix.conf`.
 
@@ -117,33 +91,15 @@ home-manager switch --flake .#<config>
 
 ## Shell Setup
 
-fish is the login and interactive shell (`nix/common.nix`, `programs.fish`); the
-zsh config it replaced is kept fully configured alongside it, so switching back
-is just `chsh -s ~/.nix-profile/bin/zsh` plus pointing tmux's `default-shell` at
-zsh again. Both are registered in `/etc/shells` by the `setLoginShell`
-activation script on Linux.
+fish is the login and interactive shell (`nix/common.nix`, `programs.fish`); the zsh config it replaced is kept fully configured alongside it, so switching back is just `chsh -s ~/.nix-profile/bin/zsh` plus pointing tmux's `default-shell` at zsh again. Both are registered in `/etc/shells` by the `setLoginShell` activation script on Linux.
 
-- home-manager generates `~/.config/fish/config.fish` (session vars, generated
-  completions). It sources two live-linked files, so everyday changes need no
-  rebuild:
-  - `fish/config-shared.fish` — vi mode + keybindings, cursor shapes, aliases,
-    `fish_title`. Completion is fish's own engine — no carapace, no fzf-tab
-    equivalent.
-  - `fish/config-{darwin,linux}.fish` — linked as `config-platform.fish`; PATH,
-    OrbStack (macOS), `mise activate` and the `.venv` auto-activation (Linux).
-- All custom `bind` calls live in `fish_user_key_bindings`, because fish wipes
-  every binding whenever it (re)loads a keymap.
-- No fzf shell integration under fish (fish's own history search and completion
-  pager cover it); fzf is still installed for `scripts/tmux-session-using-fzf`.
-- Prompts differ per shell: fish uses `fishPlugins.pure` (installed via
-  `programs.fish.plugins`, loaded from `conf.d/plugin-pure.fish`), zsh uses
-  starship with `starship.toml`. starship's fish integration is explicitly
-  disabled — home-manager's `enable*Integration` options default to *true*, so
-  they have to be set to `false`, not just omitted.
-- starship's git segment uses its native `git_branch`/`git_status` modules. (It
-  used to be a `custom.git_status` module fed by an async shell-side writer, to
-  keep `git diff` off the prompt path; see git history if the zsh prompt ever
-  feels slow in a large repo.)
+- home-manager generates `~/.config/fish/config.fish` (session vars, generated completions). It sources two live-linked files, so everyday changes need no rebuild:
+  - `fish/config-shared.fish` — vi mode + keybindings, cursor shapes, aliases, `fish_title`. Completion is fish's own engine — no carapace, no fzf-tab equivalent.
+  - `fish/config-{darwin,linux}.fish` — linked as `config-platform.fish`; PATH, OrbStack (macOS), `mise activate` and the `.venv` auto-activation (Linux).
+- All custom `bind` calls live in `fish_user_key_bindings`, because fish wipes every binding whenever it (re)loads a keymap.
+- No fzf shell integration under fish (fish's own history search and completion pager cover it); fzf is still installed for `scripts/tmux-session-using-fzf`.
+- Prompts differ per shell: fish uses `fishPlugins.pure` (installed via `programs.fish.plugins`, loaded from `conf.d/plugin-pure.fish`), zsh uses starship with `starship.toml`. starship's fish integration is explicitly disabled — home-manager's `enable*Integration` options default to _true_, so they have to be set to `false`, not just omitted.
+- starship's git segment uses its native `git_branch`/`git_status` modules. (It used to be a `custom.git_status` module fed by an async shell-side writer, to keep `git diff` off the prompt path; see git history if the zsh prompt ever feels slow in a large repo.)
 - `notes/zsh-notes.md` — zsh-specific findings from the interim zsh setup.
 
 ## Tmux Setup
@@ -164,6 +120,4 @@ Each tmux instance is independent — sessions are not shared across hosts. The 
 
 ### Troubleshooting
 
-- `notes/tmux-freeze-diagnosis.md` — how to diagnose tmux lockups/freezes
-  (stack sampling, process state, debugger backtraces, core dumps) before
-  resorting to `kill -9`
+- `notes/tmux-freeze-diagnosis.md` — how to diagnose tmux lockups/freezes (stack sampling, process state, debugger backtraces, core dumps) before resorting to `kill -9`

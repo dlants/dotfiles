@@ -89,6 +89,7 @@
     # Formatters
     carapace
     prettier
+    dprint  # fast markdown formatter (see dprint/dprint.json)
     stylua
     gofumpt   # stricter gofmt
     (lib.lowPrio gotools)  # goimports (lowPrio: avoids `modernize` clash with gopls)
@@ -313,6 +314,7 @@
     "nvim/init.lua".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/nvim/init.lua";
     "nvim/lua".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/nvim/lua";
     "starship.toml".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/starship.toml";
+    "dprint/dprint.json".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/dprint/dprint.json";
     "zsh/config-shared.zsh".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/zsh/config-shared.zsh";
     "fish/config-shared.fish".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/fish/config-shared.fish";
   };

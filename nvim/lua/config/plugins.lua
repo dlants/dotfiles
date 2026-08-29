@@ -1,8 +1,30 @@
 -- Plugin configuration (called after vim.pack.add loads plugins)
 
+-- Wrap a diagnostic message at `width` columns; virtual_lines has no max width
+-- of its own, so long messages run off the right edge of the screen.
+local function wrap_message(msg, width)
+  local out = {}
+  for line in msg:gmatch("[^\n]+") do
+    while #line > width do
+      local cut = line:sub(1, width):match(".*()%s") or width
+      table.insert(out, line:sub(1, cut - 1))
+      line = line:sub(cut + 1)
+    end
+    table.insert(out, line)
+  end
+  return table.concat(out, "\n")
+end
+
 -- Function to temporarily show virtual lines
 local function show_virtual_lines_until_next_move()
-  vim.diagnostic.config({ virtual_lines = true })
+  vim.diagnostic.config({
+    virtual_lines = {
+      format = function(d)
+        local width = math.max(vim.api.nvim_win_get_width(0) - 20, 40)
+        return wrap_message(d.message, width)
+      end,
+    },
+  })
   vim.defer_fn(function()
     vim.api.nvim_create_autocmd("CursorMoved", {
       once = true,
@@ -427,7 +449,7 @@ require("conform").setup({
     html = { "prettier" },
     css = { "biome", "prettier", stop_after_first = true },
     scss = { "prettier" },
-    markdown = { "prettier" },
+    markdown = { "dprint" },
     rust = { "rustfmt" },
     sql = { "sqruff" },
     go = { "goimports", "gofumpt" },
@@ -435,6 +457,17 @@ require("conform").setup({
   formatters = {
     prettier = {
       prepend_args = { "--prose-wrap", "never" },
+    },
+    -- dprint only looks for a project dprint.json by walking up from cwd; fall back to the
+    -- dotfiles-managed global config so any markdown buffer formats.
+    dprint = {
+      args = function(_, ctx)
+        local args = { "fmt", "--stdin", ctx.filename }
+        if not vim.fs.root(ctx.dirname, { "dprint.json", ".dprint.json", "dprint.jsonc", ".dprint.jsonc" }) then
+          vim.list_extend(args, { "--config", vim.fn.expand("~/.config/dprint/dprint.json") })
+        end
+        return args
+      end,
     },
     -- Only use oxfmt in projects that actually configure it, so everything else still falls
     -- through to biome/prettier. Restrict the root markers to .oxfmtrc files: conform's builtin
