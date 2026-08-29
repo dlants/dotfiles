@@ -1,4 +1,4 @@
--- Send a glean review's comments to magenta as structured data.
+-- Send a glean review to magenta as structured data rather than rendered prose.
 --
 -- Overrides <leader>mb (magenta's "add buffer to context") with a buffer-local
 -- binding inside glean buffers, where adding the buffer itself would just hand
@@ -15,6 +15,19 @@ local function session_id(bufnr)
   end
 end
 
+-- The one-line provenance the excerpt is meaningless without: which review, in
+-- which repo, over which range. `WORKTREE` is glean's sentinel target, so spell
+-- it as what it actually is.
+local function describe(id)
+  for _, s in ipairs(require("glean.api").sessions()) do
+    if s.id == id then
+      local target = s.target == "WORKTREE" and "the work tree" or s.target
+      return ("Glean review %s — %s, %s..%s (%s scope)")
+        :format(s.id, vim.fn.fnamemodify(s.repo, ":t"), s.base, target, s.scope)
+    end
+  end
+  return ("Glean review %s"):format(id)
+end
 -- One JSON object per line inside a literal array: valid JSON, but readable and
 -- diffable in the input buffer. Neovim has no pretty-printer.
 local function encode(comments)
@@ -27,7 +40,7 @@ end
 
 local function build_text(id, comments)
   return table.concat({
-    ("Glean review comments — session %s:"):format(id),
+    describe(id) .. " — comments:",
     "",
     "```",
     (':lua require("glean.api").comments("%s")'):format(id),
@@ -68,6 +81,32 @@ local function send_comments()
   paste(build_text(id, comments))
 end
 
+-- Overrides visual <leader>mp (magenta's "send selection") the same way, and for
+-- the same reason: the raw buffer lines are rendered prose — virtual +/- markers,
+-- marker rows, headers — under a `glean://` name the agent cannot open. Ask
+-- glean for the diff its rows stand for instead. The selection is taken
+-- linewise; a partial-line selection just means its whole lines.
+
+local function send_selection()
+  local id = session_id(vim.api.nvim_get_current_buf())
+  if not id then
+    vim.notify("glean: this buffer is not a live review", vim.log.levels.WARN)
+    return
+  end
+  local srow, erow = vim.fn.line("v"), vim.fn.line(".")
+  vim.cmd("normal! \27")
+  local ok, text = pcall(require("glean.api").excerpt, id, srow, erow)
+  if not ok then
+    vim.notify(tostring(text), vim.log.levels.ERROR)
+    return
+  end
+  if text == "" then
+    vim.notify("glean: the selection holds no diff lines", vim.log.levels.WARN)
+    return
+  end
+  paste(describe(id) .. " — selected diff:\n\n```diff\n" .. text .. "\n```")
+end
+
 function M.setup()
   local function bind(bufnr)
     vim.keymap.set("n", "<leader>mb", send_comments, {
@@ -75,6 +114,12 @@ function M.setup()
       silent = true,
       noremap = true,
       desc = "Send glean review comments to Magenta",
+    })
+    vim.keymap.set("x", "<leader>mp", send_selection, {
+      buffer = bufnr,
+      silent = true,
+      noremap = true,
+      desc = "Send the selected diff to Magenta",
     })
   end
   vim.api.nvim_create_autocmd("FileType", {
