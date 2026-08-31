@@ -1096,6 +1096,11 @@ local commandPaletteItems = {
     handler = function() openInChrome("https://benchling.atlassian.net/jira/software/c/projects/BNCH/boards/551") end,
   },
   {
+    text = "opssync",
+    subText = "Monolith Ops Sync notebook",
+    handler = function() openInChrome("https://app.datadoghq.com/notebook/13043391/monolith-ops-sync") end,
+  },
+  {
     text = "poststandup",
     subText = "Monolith Infra Post-Standup",
     handler = function() openInChrome("https://benchling.atlassian.net/wiki/spaces/MI/pages/76089423/Monolith+Infra+Post-Standup") end,
