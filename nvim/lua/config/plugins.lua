@@ -182,6 +182,29 @@ require("lualine").setup({
 --------------------------------------------------------------------------------
 -- gitsigns
 --------------------------------------------------------------------------------
+-- gitsigns' on_reload callback does `assert(cache[bufnr])`, which blows up when a
+-- reload event lands on a buffer it has already detached from (e.g. opening a file
+-- from oil). Swallow the error so it doesn't get echoed at us.
+do
+  local attach = vim.api.nvim_buf_attach
+  ---@diagnostic disable-next-line: duplicate-set-field
+  vim.api.nvim_buf_attach = function(bufnr, send_buffer, opts)
+    local info = debug.getinfo(2, "S")
+    if opts and opts.on_reload and info and info.source:find("gitsigns", 1, true) then
+      local on_reload = opts.on_reload
+      opts = vim.tbl_extend("force", opts, {
+        on_reload = function(...)
+          local ok, err = pcall(on_reload, ...)
+          if not ok and not tostring(err):find("assertion failed", 1, true) then
+            error(err)
+          end
+        end,
+      })
+    end
+    return attach(bufnr, send_buffer, opts)
+  end
+end
+
 require("gitsigns").setup()
 
 vim.keymap.set('n', ']c', function()
