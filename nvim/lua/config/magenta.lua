@@ -59,6 +59,17 @@ if is_linux then
 else
   M.profiles = {
     {
+      name = "gpt-6-astra(chatgpt)",
+      provider = "openai",
+      model = "gpt-6-astra",
+      fastModel = "gpt-5.6-luna",
+      authType = "chatgpt",
+      thinking = {
+        enabled = true,
+        effort = "medium"
+      }
+    },
+    {
       name = "opus-5.0(max)",
       provider = "anthropic",
       model = "claude-opus-5",
