@@ -33,7 +33,7 @@ Write the plan to `plans/YYYY-MM-DD-<planName>.md` (using the current date).
 
 # Design
 
-[A high-level description of the algorithm or system. The main components, how they interact, and the data flow between them. The reasoning behind the approach and any alternatives considered.]
+[A high-level description of the algorithm or system. The main components, how they interact, and the data flow between them. The reasoning behind the approach.]
 
 ## Interfaces
 

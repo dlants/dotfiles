@@ -91,17 +91,38 @@ export const STAGES_YIELD_SCHEMA = {
   required: ["stages"],
 } as const;
 
+export type StageResult =
+  | { status: "complete"; commit: string }
+  | { status: "incomplete-proceed"; note: string }
+  | { status: "incomplete-blocked"; note: string };
+
+// Anthropic rejects oneOf/anyOf/allOf at the top level of a tool input schema,
+// so the variants are flattened into one object with conditionally-used fields.
 export const STAGE_DONE_YIELD_SCHEMA = {
   type: "object",
   properties: {
-    done: { type: "boolean" },
-    notes: {
+    status: {
+      enum: ["complete", "incomplete-proceed", "incomplete-blocked"],
+    },
+    commit: {
       type: "string",
-      description: "Short summary of what was done or changed.",
+      description: 'Required when status is "complete": the commit SHA.',
+    },
+    note: {
+      type: "string",
+      description:
+        'Required when status is "incomplete-proceed" or "incomplete-blocked": progress and concrete next steps, or the blocker.',
     },
   },
-  required: ["done"],
+  required: ["status"],
+  additionalProperties: false,
 } as const;
+
+const STAGE_YIELD_INSTRUCTIONS = [
+  'When complete and committed, yield_to_parent with { status: "complete", commit: "<commit SHA>" }.',
+  'If unfinished but another implementation thread can continue, yield with { status: "incomplete-proceed", note: "<progress and concrete next steps>" }.',
+  'If blocked and unable to proceed, yield with { status: "incomplete-blocked", note: "<blocker and what is needed>" }.',
+].join("\n");
 
 async function git(repo: string, ...args: string[]): Promise<string> {
   const result = await $`git -C ${repo} ${args}`;
@@ -276,7 +297,7 @@ export function buildImplementStagePrompt(
     "- Only once all tests, typechecks, and lints pass, commit your changes with",
     `  a descriptive message (e.g. \"Stage ${index}: ${stage.title}\").`,
     "",
-    "When the stage is committed, yield_to_parent with { done: true, notes }.",
+    STAGE_YIELD_INSTRUCTIONS,
   ].join("\n");
 }
 
@@ -320,7 +341,7 @@ export function buildAddressReviewPrompt(
     "- Only once all tests, typechecks, and lints pass, commit your changes with",
     "  a descriptive message.",
     "",
-    "When your changes are committed, yield_to_parent with { done: true, notes }.",
+    STAGE_YIELD_INSTRUCTIONS,
   ].join("\n");
 }
 
@@ -375,21 +396,50 @@ export async function runImplementPlan({
   }
   log(`Plan has ${stages.length} stage(s).`);
 
+  async function implementUntilComplete(
+    prompt: string,
+    stageNumber: number,
+  ): Promise<boolean> {
+    let continuation = "";
+    while (true) {
+      const result = await thread<StageResult>(
+        prompt + continuation,
+        STAGE_DONE_YIELD_SCHEMA,
+        {
+          cwd: repo,
+          contextFiles: [planAbs],
+          systemReminder: PLAN_MAINTENANCE_REMINDER,
+        },
+      );
+      switch (result.status) {
+        case "complete":
+          log(`Stage ${stageNumber}: committed ${result.commit}.`);
+          return true;
+        case "incomplete-proceed":
+          log(`Stage ${stageNumber}: continuing. ${result.note}`);
+          continuation = `\n\nPrevious implementation is incomplete. Continue the same stage from the existing work.\n${result.note}`;
+          break;
+        case "incomplete-blocked":
+          log(`Stage ${stageNumber}: blocked. ${result.note}`);
+          return false;
+        default:
+          throw new Error("Invalid stage implementation result");
+      }
+    }
+  }
+
   for (let i = 0; i < stages.length; i++) {
     const stage = stages[i];
     const n = i + 1;
     const baseRef = await currentHead(repo);
     log(`Stage ${n}/${stages.length}: ${stage.title}`);
 
-    await thread<{ done: boolean; notes?: string }>(
-      buildImplementStagePrompt(stage, n, stages.length, planLabel),
-      STAGE_DONE_YIELD_SCHEMA,
-      {
-        cwd: repo,
-        contextFiles: [planAbs],
-        systemReminder: PLAN_MAINTENANCE_REMINDER,
-      },
-    );
+    if (
+      !(await implementUntilComplete(
+        buildImplementStagePrompt(stage, n, stages.length, planLabel),
+        n,
+      ))
+    ) return { branch, stages };
 
     const changed = await getChangedPaths(repo, baseRef);
     if (changed.length === 0) {
@@ -409,15 +459,12 @@ export async function runImplementPlan({
     }
 
     log(`Stage ${n}: review found ${findingCount} finding(s); addressing.`);
-    await thread<{ done: boolean; notes?: string }>(
-      buildAddressReviewPrompt(results, stage, n, stages.length, planLabel),
-      STAGE_DONE_YIELD_SCHEMA,
-      {
-        cwd: repo,
-        contextFiles: [planAbs],
-        systemReminder: PLAN_MAINTENANCE_REMINDER,
-      },
-    );
+    if (
+      !(await implementUntilComplete(
+        buildAddressReviewPrompt(results, stage, n, stages.length, planLabel),
+        n,
+      ))
+    ) return { branch, stages };
     log(`Stage ${n}: review addressed.`);
   }
 

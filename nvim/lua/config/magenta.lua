@@ -6,9 +6,9 @@ local M = {}
 if is_linux then
   M.profiles = {
     {
-      name = "opus-5.0(bedrock)",
+      name = "opus-5.5(bedrock)",
       provider = "bedrock",
-      model = "us.anthropic.claude-opus-5",
+      model = "global.anthropic.claude-opus-5-5[1m]",
       fastModel = "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       env = {
         AWS_PROFILE = "dev.ai-inference",
@@ -43,7 +43,7 @@ if is_linux then
       provider = "bedrock",
       model = "us.anthropic.claude-sonnet-5",
       fastModel = "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-      thinkingModel = "us.anthropic.claude-opus-5",
+      thinkingModel = "global.anthropic.claude-opus-5-5[1m]",
       env = {
         AWS_PROFILE = "dev.ai-inference",
         AWS_REGION = "us-west-2"
@@ -59,37 +59,36 @@ if is_linux then
 else
   M.profiles = {
     {
-      name = "gpt-6-astra(chatgpt)",
-      provider = "openai",
-      model = "gpt-6-astra",
-      fastModel = "gpt-5.6-luna",
-      authType = "chatgpt",
-      thinking = {
-        enabled = true,
-        effort = "medium"
-      }
-    },
-    {
-      name = "opus-5.0(max)",
+      name = "opus-5.5(max)",
       provider = "anthropic",
-      model = "claude-opus-5",
+      model = "claude-opus-5-5",
+      thinkingModel = "claude-fable-5-1",
       authType = "max",
       thinking = {
         enabled = true,
         effort = "low"
       }
-    },
-    {
-      name = "gpt-5.6-sol(chatgpt)",
-      provider = "openai",
-      model = "gpt-5.6-sol",
-      fastModel = "gpt-5.6-luna",
-      authType = "chatgpt",
-      thinking = {
-        enabled = true,
-        effort = "low"
-      }
-    },
+    }, {
+    name = "gpt-6-astra(chatgpt)",
+    provider = "openai",
+    model = "gpt-6-astra",
+    fastModel = "gpt-5.6-luna",
+    authType = "chatgpt",
+    thinking = {
+      enabled = true,
+      effort = "medium"
+    }
+  }, {
+    name = "gpt-5.6-sol(chatgpt)",
+    provider = "openai",
+    model = "gpt-5.6-sol",
+    fastModel = "gpt-5.6-luna",
+    authType = "chatgpt",
+    thinking = {
+      enabled = true,
+      effort = "low"
+    }
+  },
     {
       name = "gpt-5.6-terra(bedrock)",
       provider = "openai",
@@ -110,7 +109,7 @@ else
       name = "sonnet-5(max)",
       provider = "anthropic",
       model = "claude-sonnet-5",
-      thinkingModel = "claude-opus-5",
+      thinkingModel = "claude-opus-5-5",
       authType = "max",
       thinking = {
         enabled = true,
@@ -118,9 +117,9 @@ else
       }
     },
     {
-      name = "opus-5.0(bedrock)",
+      name = "opus-5.5(bedrock)",
       provider = "bedrock",
-      model = "us.anthropic.claude-opus-5",
+      model = "global.anthropic.claude-opus-5-5[1m]",
       fastModel = "us.anthropic.claude-haiku-4-5-20251001-v1:0",
       env = {
         AWS_PROFILE = "dev.ai-inference",

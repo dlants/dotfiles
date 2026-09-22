@@ -124,6 +124,62 @@ describe("runImplementPlan (temp git repo)", () => {
     $.sync`rm -rf ${repo}`;
   });
 
+  it("retries the same stage with each continuation note before advancing", async () => {
+    const stages = [
+      { title: "first", summary: "First stage" },
+      { title: "second", summary: "Second stage" },
+    ];
+    const prompts: string[] = [];
+    const logs: string[] = [];
+    await runImplementPlan({
+      params: { plan: "PLAN.md", repo },
+      log: (message) => logs.push(message),
+      thread: (async (prompt: string) => {
+        if (prompt.includes("Break the following implementation plan")) return { stages };
+        prompts.push(prompt);
+        if (prompts.length <= 2) {
+          writeFileSync(path.join(repo, "partial.ts"), `// attempt ${prompts.length}\n`);
+          return { status: "incomplete-proceed", note: `Resume attempt ${prompts.length}` };
+        }
+        writeFileSync(path.join(repo, `stage-${prompts.length}.ts`), "export {};\n");
+        git("add", "-A");
+        git("commit", "-m", "complete stage");
+        return { status: "complete", commit: git("rev-parse", "HEAD").trim() };
+      }) as never,
+    });
+    expect(prompts).toHaveLength(4);
+    for (const prompt of prompts.slice(0, 3)) expect(prompt).toContain("Stage 1/2: first");
+    expect(prompts[1]).toContain("Resume attempt 1");
+    expect(prompts[2]).toContain("Resume attempt 2");
+    expect(prompts[3]).toContain("Stage 2/2: second");
+    expect(prompts[3]).not.toContain("Resume attempt");
+    expect(logs.some((message) => message.startsWith("All 2 stage(s) complete"))).toBe(true);
+  });
+
+  it("logs a blocker and stops without reviewing or starting later stages", async () => {
+    const prompts: string[] = [];
+    const logs: string[] = [];
+    await runImplementPlan({
+      params: { plan: "PLAN.md", repo },
+      log: (message) => logs.push(message),
+      thread: (async (prompt: string) => {
+        if (prompt.includes("Break the following implementation plan")) return {
+          stages: [
+            { title: "first", summary: "First stage" },
+            { title: "second", summary: "Second stage" },
+          ],
+        };
+        prompts.push(prompt);
+        writeFileSync(path.join(repo, "partial.ts"), "// unfinished\n");
+        return { status: "incomplete-blocked", note: "Need a destination decision" };
+      }) as never,
+    });
+    expect(prompts).toHaveLength(1);
+    expect(logs).toContain("Stage 1: blocked. Need a destination decision");
+    expect(logs.some((message) => /Reviewing|review clean|All .*complete/.test(message))).toBe(false);
+    expect(readFileSync(path.join(repo, "partial.ts"), "utf8")).toBe("// unfinished\n");
+  });
+
   it("creates a branch, runs a stage per stage, and commits each", async () => {
     const stages: Stage[] = [
       { title: "stage one", summary: "first" },
@@ -147,7 +203,7 @@ describe("runImplementPlan (temp git repo)", () => {
         );
         git("add", "-A");
         git("commit", "-m", `Stage ${implementCount}: ${title}`);
-        return { done: true };
+        return { status: "complete", commit: git("rev-parse", "HEAD").trim() };
       }
       // Review threads: no instruction files exist, so runReview returns []
       // before ever calling thread; this branch should not be hit.
@@ -156,7 +212,7 @@ describe("runImplementPlan (temp git repo)", () => {
 
     const logs: string[] = [];
     const result = await runImplementPlan({
-      params: { plan: "PLAN.md", repo, branch: "feat/test" },
+      params: { plan: "PLAN.md", repo, branch: "feat/test", newBranch: true },
       thread: thread as never,
       log: (m) => logs.push(m),
     });
@@ -205,6 +261,7 @@ describe("prepareImplementation (worktrees)", () => {
       repo: main,
       planAbs,
       branch: "feat/x",
+      newBranch: true,
       log: (m) => logs.push(m),
     });
 
@@ -228,6 +285,7 @@ describe("prepareImplementation (worktrees)", () => {
       repo: main,
       planAbs,
       branch: "feat/y",
+      newBranch: true,
       log: () => {},
     });
 
