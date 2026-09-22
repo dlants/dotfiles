@@ -39,7 +39,11 @@
   # skill on Linux (macOS omits it).
   home.activation.setupMagentaSkills = lib.mkForce (lib.hm.dag.entryAfter ["writeBoundary"] ''
     mkdir -p "$HOME/.claude/skills"
-    ${import ./magenta-skills.nix { inherit lib dotfilesDir; }}
+    ${import ./magenta-skills.nix {
+      inherit lib dotfilesDir;
+      # On Linux glean is installed by vim.pack, not cloned into ~/src.
+      gleanSkillsDir = "$HOME/.local/share/nvim/site/pack/core/opt/glean/skills/glean-review";
+    }}
   '');
 
   # Clone the personal benchling repo into ~/src and let its scripts/setup.sh

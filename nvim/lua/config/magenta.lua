@@ -5,6 +5,21 @@ local M = {}
 
 if is_linux then
   M.profiles = {
+    {
+      name = "opus-5.0(bedrock)",
+      provider = "bedrock",
+      model = "us.anthropic.claude-opus-5",
+      fastModel = "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+      env = {
+        AWS_PROFILE = "dev.ai-inference",
+        AWS_REGION = "us-west-2"
+      },
+      tokenRefreshCommand = "dev aws login",
+      thinking = {
+        enabled = true,
+        effort = "low"
+      }
+    },
     -- bedrock-mantle only serves gpt-5.6-sol out of us-east-{1,2}; us-west-2
     -- 404s on it (luna and terra are available in both).
     {
@@ -16,21 +31,6 @@ if is_linux then
       env = {
         AWS_PROFILE = "dev.ai-inference",
         AWS_REGION = "us-east-1"
-      },
-      tokenRefreshCommand = "dev aws login",
-      thinking = {
-        enabled = true,
-        effort = "low"
-      }
-    },
-    {
-      name = "opus-5.0(bedrock)",
-      provider = "bedrock",
-      model = "us.anthropic.claude-opus-5",
-      fastModel = "us.anthropic.claude-haiku-4-5-20251001-v1:0",
-      env = {
-        AWS_PROFILE = "dev.ai-inference",
-        AWS_REGION = "us-west-2"
       },
       tokenRefreshCommand = "dev aws login",
       thinking = {

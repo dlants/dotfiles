@@ -52,15 +52,18 @@ local function build_text(id, comments)
   }, "\n")
 end
 
--- Route through `:Magenta paste`, which opens the sidebar if needed and appends
--- to the active thread's input buffer. It reads register + synchronously, so we
--- can borrow the register and hand it straight back.
+-- Hand the text to node's clipboard-paste handler, which appends it to the
+-- active thread's input buffer and opens the sidebar if needed. We can't go
+-- through `:Magenta paste`: it reads register +, and on linux `+` is served by
+-- vim.g.clipboard, whose paste command reads the host's shared clipboard file,
+-- so anything we set is unreadable.
 local function paste(text)
-  local saved, savedtype = vim.fn.getreg("+"), vim.fn.getregtype("+")
-  vim.fn.setreg("+", text, "l")
-  local ok, err = pcall(vim.cmd, "Magenta paste")
-  vim.fn.setreg("+", saved, savedtype)
-  if not ok then vim.notify(tostring(err), vim.log.levels.ERROR) end
+  local channel = require("magenta").channel_id
+  if not channel then
+    vim.notify("magenta is not running", vim.log.levels.ERROR)
+    return
+  end
+  vim.rpcnotify(channel, "magentaClipboardTextPaste", { text = text, fromDisplay = false })
 end
 
 local function send_comments()

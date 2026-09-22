@@ -374,12 +374,14 @@
   '';
 
 
-  # Clone locally-authored neovim plugins into ~/src if they don't exist. On
-  # macOS these are loaded from ~/src (see nvim/lua/config/pack.lua) so local
-  # edits take effect immediately; on Linux pack.lua fetches them via vim.pack.
+  # Clone locally-authored neovim plugins into ~/src if they don't exist. macOS
+  # loads all of them from ~/src (see nvim/lua/config/pack.lua) so local edits
+  # take effect immediately; on Linux pack.lua fetches them via vim.pack, so
+  # only magenta.nvim is cloned (magenta-scripts build against its sdk) and the
+  # rest would just go stale.
   home.activation.cloneLocalPlugins = lib.hm.dag.entryAfter ["writeBoundary"] ''
     mkdir -p "$HOME/src"
-    for repo in magenta.nvim needle shuck glean; do
+    for repo in magenta.nvim ${lib.optionalString pkgs.stdenv.isDarwin "needle shuck glean"}; do
       if [ ! -d "$HOME/src/$repo" ]; then
         ${pkgs.git}/bin/git clone "https://github.com/dlants/$repo.git" "$HOME/src/$repo"
       fi
