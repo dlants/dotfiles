@@ -3,7 +3,7 @@
 # skill list lives in exactly one place.
 { lib, dotfilesDir, includeSearch ? true, gleanSkillsDir ? "$HOME/src/glean/skills/glean-review" }:
 let
-  skills = [ "browser" "plan" "fetch" "review" ]
+  skills = [ "browser" "plan" "fetch" "review" "magenta-archive" ]
     ++ lib.optional includeSearch "search";
   # Skills that live in their own project repo; symlinked from there so the
   # skill ships with the code it documents.
