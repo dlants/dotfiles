@@ -4,9 +4,9 @@
 -- from GitHub via vim.pack (see below); elsewhere they load from ~/src so local
 -- edits take effect immediately.
 local is_linux = vim.uv.os_uname().sysname == "Linux"
-local local_plugins = { "magenta.nvim", "needle", "shuck", "glean" }
-if not is_linux then
-  for _, name in ipairs(local_plugins) do
+local local_plugins = { "magenta.nvim", "needle", "shuck" }
+for _, name in ipairs(local_plugins) do
+  if not is_linux then
     local path = vim.fn.expand("~/src/" .. name)
     if vim.fn.isdirectory(path) == 1 then
       vim.opt.rtp:prepend(path)
@@ -28,6 +28,9 @@ vim.api.nvim_create_autocmd("PackChanged", {
         vim.cmd.packadd("nvim-treesitter")
       end
       vim.cmd("TSUpdate")
+    end
+    if name == "glean" and (kind == "install" or kind == "update") then
+      vim.system({ "npm", "run", "build" }, { cwd = ev.data.path }):wait()
     end
     if name == "magenta" and (kind == "install" or kind == "update") then
       vim.system({ "npm", "run", "build" }, { cwd = ev.data.path }):wait()
@@ -83,8 +86,16 @@ if is_linux then
     { src = "https://github.com/dlants/magenta.nvim", name = "magenta" },
     "https://github.com/dlants/needle",
     "https://github.com/dlants/shuck",
-    "https://github.com/dlants/glean",
   })
+end
+
+-- glean always installs from git (with a built node bundle). GLEAN_DEV only
+-- switches what runs: ~/src/glean is prepended ahead of the installed copy
+-- (glean has no plugin/ dir, so require resolution is all that matters), and
+-- glean's node.lua then runs the TypeScript source instead of dist/.
+vim.pack.add({ "https://github.com/dlants/glean" })
+if vim.env.GLEAN_DEV ~= nil and vim.env.GLEAN_DEV ~= "" then
+  vim.opt.rtp:prepend(vim.fn.expand("~/src/glean"))
 end
 
 -- :PluginUpdate — fetch + show confirmation buffer for all managed plugins

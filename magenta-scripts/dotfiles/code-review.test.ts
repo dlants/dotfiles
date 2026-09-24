@@ -103,6 +103,16 @@ describe("discovery + runReview (temp git repo)", () => {
     rmSync(repo, { recursive: true, force: true });
   });
 
+  it("keeps brace alternations intact when splitting applyTo", () => {
+    write(
+      ".github/instructions/multi.instructions.md",
+      `---\napplyTo: "**/*.{ts,lua}"\n---\nMulti rules.\n`,
+    );
+    const names = discoverApplicableInstructions(repo, ["lua/x.lua"]).map(
+      (i) => i.name,
+    );
+    expect(names).toContain(".github/instructions/multi.instructions.md");
+  });
   it("detects untracked changes and selects matching instructions", async () => {
     write("src/a.ts", "export const x = 1;\n");
     const changed = await getChangedPaths(repo, "HEAD");

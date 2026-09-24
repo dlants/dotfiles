@@ -145,7 +145,11 @@ function stripQuotes(s: string): string {
 
 function normalizeGlobs(applyTo: string | string[] | undefined): string[] {
   if (applyTo === undefined) return [];
-  const list = Array.isArray(applyTo) ? applyTo : applyTo.split(",");
+  // Split on top-level commas only, so brace alternations like `*.{ts,lua}`
+  // stay intact for globToRegExp.
+  const list = Array.isArray(applyTo)
+    ? applyTo
+    : applyTo.split(/,(?![^{]*\})/);
   return list.map((g) => g.trim()).filter(Boolean);
 }
 

@@ -10,9 +10,8 @@ local M = {}
 -- The "gN" id of the review rendered in `bufnr`, or nil if it isn't a live one.
 -- The api addresses reviews by this string, and it goes into the pasted command.
 local function session_id(bufnr)
-  for _, s in ipairs(require("glean.init").live_sessions()) do
-    if s.buf == bufnr then return s.id end
-  end
+  local ok, s = pcall(require("glean.api").session, bufnr)
+  if ok and s then return s.id end
 end
 
 -- The one-line provenance the excerpt is meaningless without: which review, in

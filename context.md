@@ -34,7 +34,7 @@ Configures magenta.nvim with its provider profiles.
 
 ### Custom Pickers: needle & shuck (and glean)
 
-needle, shuck and glean are homegrown neovim plugins, each published as a standalone public repo under `github.com/dlants` and checked out at `~/src/{needle,shuck,glean}`. Like magenta, macOS loads them from `~/src` (rtp prepend in `nvim/lua/config/pack.lua`) so local edits apply immediately, while Linux fetches them from GitHub via `vim.pack`. Each repo has a README, nvim help docs under `doc/`, and the lua under `lua/<name>/`.
+needle, shuck and glean are homegrown neovim plugins, each published as a standalone public repo under `github.com/dlants` and checked out at `~/src/{needle,shuck,glean}`. Like magenta, macOS loads needle and shuck from `~/src` (rtp prepend in `nvim/lua/config/pack.lua`) so local edits apply immediately, while Linux fetches them from GitHub via `vim.pack`. glean is always installed from GitHub via `vim.pack` (a `PackChanged` hook runs `npm run build` for its node bundle); setting `GLEAN_DEV` additionally prepends `~/src/glean` to the rtp so the local checkout runs instead (from TypeScript source when `GLEAN_DEV=1`). Each repo has a README, nvim help docs under `doc/`, and the lua under `lua/<name>/`.
 
 The two pickers (needle, shuck) have replaced fzf-lua. Both render in plain neovim splits (prompt window + results window), share `<C-j>/<C-k>` navigation and `<CR>`/`<C-x>`/`<C-v>`/`<C-t>` open actions, and pick a search root from the current buffer (cwd if the buffer is under it, else the nearest git root, else the buffer's dir).
 
