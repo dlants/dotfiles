@@ -33,6 +33,8 @@
   home.file.".hammerspoon".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/hammerspoon";
 
 
+  # Magenta options (profiles + sandbox), macOS-specific
+  home.file.".magenta/options.json".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-options-darwin.json";
   # Fish config (macOS-specific)
   xdg.configFile."fish/config-platform.fish".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/fish/config-darwin.fish";
 

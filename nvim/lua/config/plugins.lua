@@ -46,13 +46,8 @@ if magenta_ok then
   magenta_timings.init()
   magenta_timings.record("config: magenta required")
 
-  local magenta_config = require("config.magenta")
-  magenta_timings.record("config: magenta config loaded")
-
   magenta.setup({
-    profiles = magenta_config.profiles,
     sidebarPosition = "left",
-    editPrediction = magenta_config.editPrediction,
     chimeVolume = 0,
   })
   magenta_timings.record("config: magenta.setup() returned")

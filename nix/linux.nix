@@ -86,6 +86,8 @@
     fi
   '';
 
+  # Magenta options (profiles), Linux-specific
+  home.file.".magenta/options.json".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-options-linux.json";
   # Fish config (Linux-specific)
   xdg.configFile."fish/config-platform.fish".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/fish/config-linux.fish";
 
