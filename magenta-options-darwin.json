@@ -45,7 +45,7 @@
     {
       "name": "opus-5.5(bedrock)",
       "provider": "bedrock",
-      "model": "global.anthropic.claude-opus-5-5[1m]",
+      "model": "us.anthropic.claude-opus-5-5",
       "fastModel": "us.anthropic.claude-haiku-5-5",
       "env": { "AWS_PROFILE": "dev.ai-inference", "AWS_REGION": "us-west-2" },
       "tokenRefreshCommand": "aws sso login --profile dev.ai-inference",
