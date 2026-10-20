@@ -6,6 +6,7 @@ Magenta script package (discovered via `~/.magenta/scripts -> magenta-scripts`).
   For each stage it spawns an agent to implement and commit the stage, then runs
   the code-review workflow over just that stage's changes and (if there are
   findings) spawns an agent to address them and commit.
+- **review-plan** — reviews a plan file from each perspective markdown file in the `instructions` dir (in the target repo) in parallel (prompts share a common prefix containing the plan, so the prompt cache is reused), then spawns an agent to revise the plan.
 - **code-review** — reviews a git changeset against the repo's
   `.github/instructions/*.instructions.md` (and `copilot-instructions.md`),
   spawning one review thread per applicable instruction file in parallel.
