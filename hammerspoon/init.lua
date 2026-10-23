@@ -1067,6 +1067,11 @@ local commandPaletteItems = {
     handler = function(arg) openInChrome(githubPullsUrl("infra", arg)) end,
   },
   {
+    text = "pulls",
+    subText = "GitHub pulls",
+    handler = function() openInChrome("https://github.com/pulls") end,
+  },
+  {
     text = "conf",
     subText = "Search Confluence (space + query)",
     handler = function(arg)
