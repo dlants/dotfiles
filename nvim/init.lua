@@ -57,6 +57,26 @@ local function open_file_in_other_window(abs_path, line)
   local cur_win = vim.api.nvim_get_current_win()
   local cur_is_magenta = pcall(vim.api.nvim_win_get_var, cur_win, "magenta")
 
+  -- Directories go through :edit so oil's BufReadCmd hijack handles them.
+  if vim.fn.isdirectory(abs_path) == 1 then
+    if cur_is_magenta then
+      local target
+      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        if not pcall(vim.api.nvim_win_get_var, win, "magenta") then
+          target = win
+          break
+        end
+      end
+      if target then
+        vim.api.nvim_set_current_win(target)
+      else
+        vim.cmd("botright vsplit")
+      end
+    end
+    vim.cmd.edit(vim.fn.fnameescape(abs_path))
+    return
+  end
+
   local buf = vim.fn.bufadd(abs_path)
   vim.fn.bufload(buf)
 
@@ -198,7 +218,7 @@ vim.api.nvim_create_autocmd("FileType", {
       local function resolve_path(path)
         if vim.startswith(path, "/") or vim.startswith(path, "~") then
           local p = vim.fn.expand(path)
-          return vim.fn.filereadable(p) == 1 and p or nil
+          return (vim.fn.filereadable(p) == 1 or vim.fn.isdirectory(p) == 1) and p or nil
         end
         local md_dir = vim.fn.expand("%:p:h")
         local roots = { md_dir, vim.fn.getcwd() }
@@ -208,7 +228,7 @@ vim.api.nvim_create_autocmd("FileType", {
         end
         for _, root in ipairs(roots) do
           local abs = vim.fn.fnamemodify(root .. "/" .. path, ":p")
-          if vim.fn.filereadable(abs) == 1 then
+          if vim.fn.filereadable(abs) == 1 or vim.fn.isdirectory(abs) == 1 then
             return abs
           end
         end
