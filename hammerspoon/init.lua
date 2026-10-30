@@ -589,6 +589,26 @@ local function headsetMode()
   hs.alert.show("🎙️  Headset (HFP)")
 end
 
+-- Equivalent to `caffeinate -di`: held via IOKit power assertions owned by
+-- Hammerspoon, so no terminal or child process is needed. Released on reload.
+local caffeinateMenubar = nil
+
+local function toggleCaffeinate()
+  local on = not hs.caffeinate.get("displayIdle")
+  hs.caffeinate.set("displayIdle", on, true)
+  hs.caffeinate.set("systemIdle", on, true)
+  if on and not caffeinateMenubar then
+    caffeinateMenubar = hs.menubar.new()
+    caffeinateMenubar:setTitle("☕")
+    caffeinateMenubar:setTooltip("caffeinate on — click to turn off")
+    caffeinateMenubar:setClickCallback(toggleCaffeinate)
+  elseif not on and caffeinateMenubar then
+    caffeinateMenubar:delete()
+    caffeinateMenubar = nil
+  end
+  hs.alert.show(on and "caffeinate on" or "caffeinate off")
+end
+
 -- Command palette
 local function handleApp(name)
   local app = hs.application.find(name)
@@ -1003,6 +1023,12 @@ local commandPaletteItems = {
     text = "sct",
     subText = "slackchrometerm — slack+chrome share left, terminal right",
     handler = function() applyLayout(LAYOUTS.sct) end,
+  },
+  {
+    text = "caffeinate",
+    subText = "Toggle keeping display/system awake",
+    aliases = { "caf" },
+    handler = toggleCaffeinate,
   },
   {
     text = "musicmode",
