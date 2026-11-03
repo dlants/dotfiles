@@ -1,4 +1,5 @@
 {
+  "pullRequestRepos": ["https://github.com/dlants/*", "https://github.com/benchling/*"],
   "profiles": [
     {
       "name": "opus-5.5(bedrock)",
