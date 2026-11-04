@@ -9,8 +9,8 @@ import { realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  connectWatcher,
   WaitTimeoutError,
+  watchUntil,
 } from "./magenta-sdk/watchers/client.ts";
 import type { ResourceState } from "./magenta-sdk/watchers/protocol.ts";
 
@@ -100,29 +100,19 @@ async function main(): Promise<string> {
     path.dirname(fileURLToPath(import.meta.url)),
     "manifest.json",
   );
-  const client = await connectWatcher(manifest);
-  try {
-    return await new Promise<string>((resolve, reject) => {
-      let predicate: ((ctx: string) => boolean) | undefined;
-      const check = (s: ResourceState) => {
-        if (s.key !== url) return;
-        if (s.status === "unavailable") return reject(new Error(s.error));
-        if (!hasContext(s) || !s.context) return;
-        predicate ??= makePredicate(until, s.context);
-        if (predicate(s.context)) resolve(s.context);
-      };
-      client.onState(check);
-      client.onClose(() => reject(new Error("watcher connection closed")));
-      if (timeout !== undefined)
-        setTimeout(
-          () => reject(new WaitTimeoutError(`timed out after ${timeout}s`)),
-          timeout * 1000,
-        );
-      client.subscribe(url).then(check, reject);
-    });
-  } finally {
-    client.close();
-  }
+  // The baseline is the first state seen, kept across watcher reconnects.
+  let predicate: ((ctx: string) => boolean) | undefined;
+  return watchUntil(
+    manifest,
+    url,
+    (s) => {
+      if (s.status === "unavailable") throw new Error(s.error);
+      if (!hasContext(s) || !s.context) return undefined;
+      predicate ??= makePredicate(until, s.context);
+      return predicate(s.context) ? s.context : undefined;
+    },
+    timeout === undefined ? {} : { timeoutMs: timeout * 1000 },
+  );
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
