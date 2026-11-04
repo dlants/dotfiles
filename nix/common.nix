@@ -329,6 +329,10 @@
   home.file.".magenta/scripts".source =
     config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-scripts";
 
+  # Watcher packages (see magenta's authoring-magenta-watchers skill), listed
+  # by manifest path in the `watchers` option.
+  home.file.".magenta/watchers".source =
+    config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-watchers";
   # Each script package imports the SDK via a `magenta-sdk` symlink that magenta
   # does not manage for us. magenta lives either in the local checkout (macOS) or
   # in the neovim pack dir (Linux), so point the symlink at whichever exists.
@@ -340,7 +344,7 @@
       if [ -d "$candidate" ]; then sdk="$candidate"; break; fi
     done
     if [ -n "$sdk" ]; then
-      for pkg in "${dotfilesDir}/magenta-scripts"/*/; do
+      for pkg in "${dotfilesDir}/magenta-scripts"/*/ "${dotfilesDir}/magenta-watchers"/*/; do
         [ -f "$pkg/index.ts" ] || continue
         ln -sfn "$sdk" "$pkg/magenta-sdk"
       done

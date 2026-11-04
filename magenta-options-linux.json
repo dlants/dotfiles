@@ -1,5 +1,8 @@
 {
-  "pullRequestRepos": ["https://github.com/dlants/*", "https://github.com/benchling/*"],
+  "watchers": [
+    "~/.magenta/watchers/github-pr/manifest.json",
+    "~/.magenta/watchers/git-repo/manifest.json"
+  ],
   "profiles": [
     {
       "name": "opus-5.5(bedrock)",
