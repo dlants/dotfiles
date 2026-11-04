@@ -3,8 +3,13 @@
  * rendering. Ported from node/server/src/pull-requests/. Edit `render` and
  * `summarize` to filter checks or bot comments.
  */
-import type { PollResult } from "./magenta-sdk/watchers/index.ts";
+import { type PollResult, regexScan } from "./magenta-sdk/watchers/index.ts";
 import type { GitHubClient, GitHubResponse } from "./github.ts";
+
+/** Scoping knob: narrow the owner/repo part to restrict tracked PRs. */
+export const scanPrUrls = regexScan([
+  { pattern: /https:\/\/github\.com\/dlants\/[^/\s]+\/pull\/\d+/ },
+]);
 
 export type PullRequestRef = {
   url: string;
