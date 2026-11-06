@@ -77,7 +77,7 @@ local function send_comments()
     return
   end
   if #comments == 0 then
-    vim.notify(("glean: %s has no comments"):format(id), vim.log.levels.INFO)
+    paste(describe(id) .. ' — no comments yet. See the glean-review skill for the require("glean.api") commands.')
     return
   end
   paste(build_text(id, comments))
