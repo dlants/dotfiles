@@ -341,7 +341,7 @@
     for candidate in \
       "$HOME/src/magenta.nvim/sdk" \
       "$HOME/.local/share/nvim/site/pack/core/opt/magenta/sdk"; do
-      if [ -d "$candidate" ]; then sdk="$candidate"; break; fi
+      if [ -d "$candidate/watchers" ]; then sdk="$candidate"; break; fi
     done
     if [ -n "$sdk" ]; then
       for pkg in "${dotfilesDir}/magenta-scripts"/*/ "${dotfilesDir}/magenta-watchers"/*/; do

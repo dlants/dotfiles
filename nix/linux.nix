@@ -87,8 +87,8 @@
     fi
   '';
 
-  # Magenta options (profiles), Linux-specific
-  home.file.".magenta/options.json".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/magenta-options-linux.json";
+  # ~/.magenta/options.json is owned by the benchling repo (linked by its
+  # scripts/setup.sh, run in benchlingSetup above), not by dotfiles.
   # Fish config (Linux-specific)
   xdg.configFile."fish/config-platform.fish".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesDir}/fish/config-linux.fish";
 
