@@ -60,4 +60,5 @@ Write the plan to `plans/YYYY-MM-DD-<planName>.md` (using the current date).
 
 - Goal: [...]
 - Tests: [...]
+- Status: Not implemented.
 ```

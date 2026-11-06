@@ -374,7 +374,7 @@
   # Magenta skills symlinks (skill list defined in ./magenta-skills.nix)
   home.activation.setupMagentaSkills = lib.hm.dag.entryAfter ["writeBoundary"] ''
     mkdir -p "$HOME/.claude/skills"
-    ${import ./magenta-skills.nix { inherit lib dotfilesDir; includeSearch = false; }}
+    ${import ./magenta-skills.nix { inherit lib dotfilesDir; platform = "darwin"; includeSearch = false; }}
   '';
 
 
