@@ -366,6 +366,12 @@ export function render({ pr }: PollState): string {
   ].join("\n");
 }
 
+const STATE_ICONS: Record<PullRequestSnapshot["state"], string> = {
+  open: "🟢",
+  merged: "🟣",
+  closed: "🔴",
+};
+
 export function summarize({ pr }: PollState): {
   summary: string;
   details?: string;
@@ -374,7 +380,7 @@ export function summarize({ pr }: PollState): {
   const comments = pr.comments.length
     ? `, ${pr.comments.length} comment${pr.comments.length === 1 ? "" : "s"}`
     : "";
-  const summary = `${pr.ref.owner}/${pr.ref.repo}#${pr.ref.number} ${pr.state}${pr.draft ? " (draft)" : ""}: ${pr.title}${checks}${comments}`;
+  const summary = `${STATE_ICONS[pr.state]} ${pr.state}${pr.draft ? " (draft)" : ""} ${pr.ref.owner}/${pr.ref.repo}#${pr.ref.number}: ${pr.title}${checks}${comments}`;
   if (!pr.checks.length) return { summary };
   return { summary, details: pr.checks.map(checkLine).join("\n") };
 }

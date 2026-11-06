@@ -1,1 +1,4 @@
 */magenta-sdk
+node_modules/
+*.sock
+*.sock.log

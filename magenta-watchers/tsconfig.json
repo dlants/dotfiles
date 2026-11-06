@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "lib": ["ESNext"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "moduleDetection": "force",
+    "target": "ESNext",
+    "strict": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "types": ["node"],
+    "paths": {
+      "@magenta/server": [
+        "/home/aurelia/.local/share/nvim/site/pack/core/opt/magenta/node/server/src/index.ts"
+      ]
+    }
+  },
+  "include": ["*/*.ts"],
+  "exclude": ["**/node_modules/**", "*/magenta-sdk/**/test/**"]
+}
