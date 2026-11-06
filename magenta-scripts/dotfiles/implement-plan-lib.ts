@@ -40,9 +40,12 @@ export type Stage = {
 
 /** Recurring reminder injected into implement/address threads. */
 export const PLAN_MAINTENANCE_REMINDER =
-  "You are implementing a plan stage by stage. Keep the plan file updated as you " +
-  "work: record progress as items are completed, and note any decisions or " +
-  "deviations so the plan stays an accurate reflection of the work.";
+  "You are implementing a plan stage by stage. The plan file is the only channel " +
+  "for reporting status: your yield carries no free text. Keep the plan updated as " +
+  "you work: mark the stage's status (Done / In progress / Blocked), check off " +
+  "completed items, record decisions and deviations, and for unfinished work write " +
+  "concrete next steps or the blocker so the next agent (or the user) can pick up " +
+  "from the plan alone. Restructure later stages if the work shows the plan should change.";
 
 export const IMPLEMENT_PLAN_PARAM_SCHEMA = {
   type: "object",
@@ -70,48 +73,39 @@ export const IMPLEMENT_PLAN_PARAM_SCHEMA = {
   required: ["plan", "repo"],
 } as const;
 
-export const STAGES_YIELD_SCHEMA = {
-  type: "object",
-  properties: {
-    stages: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          summary: {
-            type: "string",
-            description: "One or two sentences describing the stage's scope.",
-          },
-        },
-        required: ["title", "summary"],
-      },
-    },
-  },
-  required: ["stages"],
-} as const;
-
-export type StageResult =
-  | { status: "complete"; commit: string }
-  | { status: "incomplete-proceed"; note: string }
-  | { status: "incomplete-blocked"; note: string };
+export type NavigatorResult =
+  | { action: "implement"; title: string; summary: string }
+  | { action: "done" };
 
 // Anthropic rejects oneOf/anyOf/allOf at the top level of a tool input schema,
 // so the variants are flattened into one object with conditionally-used fields.
+export const NAVIGATOR_YIELD_SCHEMA = {
+  type: "object",
+  properties: {
+    action: { enum: ["implement", "done"] },
+    title: {
+      type: "string",
+      description: 'Required when action is "implement": the stage title.',
+    },
+    summary: {
+      type: "string",
+      description:
+        'Required when action is "implement": one or two sentences describing the stage scope.',
+    },
+  },
+  required: ["action"],
+  additionalProperties: false,
+} as const;
+
+export type StageResult = {
+  status: "complete" | "incomplete-proceed" | "incomplete-blocked";
+};
+
 export const STAGE_DONE_YIELD_SCHEMA = {
   type: "object",
   properties: {
     status: {
       enum: ["complete", "incomplete-proceed", "incomplete-blocked"],
-    },
-    commit: {
-      type: "string",
-      description: 'Required when status is "complete": the commit SHA.',
-    },
-    note: {
-      type: "string",
-      description:
-        'Required when status is "incomplete-proceed" or "incomplete-blocked": progress and concrete next steps, or the blocker.',
     },
   },
   required: ["status"],
@@ -119,9 +113,10 @@ export const STAGE_DONE_YIELD_SCHEMA = {
 } as const;
 
 const STAGE_YIELD_INSTRUCTIONS = [
-  'When complete and committed, yield_to_parent with { status: "complete", commit: "<commit SHA>" }.',
-  'If unfinished but another implementation thread can continue, yield with { status: "incomplete-proceed", note: "<progress and concrete next steps>" }.',
-  'If blocked and unable to proceed, yield with { status: "incomplete-blocked", note: "<blocker and what is needed>" }.',
+  "Before yielding, record the stage's status, progress, decisions, and any next steps or blockers in the plan file. The yield carries only a status; anything you want the next agent or the user to know must be in the plan.",
+  'When complete and committed, yield_to_parent with { status: "complete" }.',
+  'If unfinished but another implementation thread can continue from the plan notes, yield with { status: "incomplete-proceed" }.',
+  'If blocked and unable to proceed, yield with { status: "incomplete-blocked" }.',
 ].join("\n");
 
 async function git(repo: string, ...args: string[]): Promise<string> {
@@ -247,39 +242,48 @@ export function defaultBranchName(planPath: string): string {
   return `implement-${base || "plan"}-${stamp}`;
 }
 
-export function buildExtractStagesPrompt(
+export function buildNavigatorPrompt(
   planPath: string,
   planBody: string,
+  completed: Stage[],
 ): string {
+  const done = completed.length
+    ? completed.map((s, i) => `${i + 1}. ${s.title}`).join("\n")
+    : "(none yet)";
   return [
-    "Break the following implementation plan into its ordered, independently",
-    "committable stages. Preserve the plan author's own staging if the plan",
-    "already defines stages; otherwise infer a small number of coherent stages.",
+    "You are navigating the implementation of a plan. Decide what single stage",
+    "should be implemented NEXT, or whether the plan is fully implemented.",
+    "The plan may have been revised by previous implementation agents; trust its",
+    "current recorded status and structure. Inspect the repo (e.g. git log) if",
+    "needed to verify progress.",
     "",
     `Plan file: ${planPath}`,
+    "",
+    "Stages completed so far in this run:",
+    done,
     "",
     "--- BEGIN PLAN ---",
     planBody.trim(),
     "--- END PLAN ---",
     "",
-    "Do not implement anything. When done, yield_to_parent with the ordered list",
-    "of stages, each with a short title and a one- or two-sentence summary.",
+    "Do not implement anything or edit files. When done, yield_to_parent with",
+    '{ action: "implement", title, summary } for the next independently committable',
+    'stage, or { action: "done" } if nothing remains.',
   ].join("\n");
 }
 
 export function buildImplementStagePrompt(
   stage: Stage,
   index: number,
-  total: number,
   planPath: string,
 ): string {
   return [
-    `You are implementing ONE stage of a ${total}-stage implementation plan.`,
+    "You are implementing ONE stage of an implementation plan.",
     "",
     `Plan file: ${planPath}`,
     "Read the full plan before starting so you understand the surrounding context.",
     "",
-    `## Stage ${index}/${total}: ${stage.title}`,
+    `## Stage ${index}: ${stage.title}`,
     stage.summary,
     "",
     "Instructions:",
@@ -291,9 +295,9 @@ export function buildImplementStagePrompt(
     "  typechecks, and lints must pass (not just the ones for files you touched).",
     "  Run the project's full test, typecheck, and lint commands and fix any",
     "  failures you introduced.",
-    `- Document your progress and any decisions directly in the plan file`,
-    `  (${planPath}): check off completed items and record decisions/deviations`,
-    "  so the plan stays an accurate reflection of the work.",
+    `- Record status, progress, and decisions directly in the plan file`,
+    `  (${planPath}): mark this stage's status, check off completed items, and`,
+    "  record decisions/deviations so the plan stays an accurate reflection of the work.",
     "- Only once all tests, typechecks, and lints pass, commit your changes with",
     `  a descriptive message (e.g. \"Stage ${index}: ${stage.title}\").`,
     "",
@@ -322,11 +326,10 @@ export function buildAddressReviewPrompt(
   results: { instruction: string; findings: Finding[] }[],
   stage: Stage,
   index: number,
-  total: number,
   planPath: string,
 ): string {
   return [
-    `Code review of your changes for stage ${index}/${total} ("${stage.title}")`,
+    `Code review of your changes for stage ${index} ("${stage.title}")`,
     "produced the following findings. Address each actionable item.",
     "",
     formatFindings(results),
@@ -383,18 +386,8 @@ export async function runImplementPlan({
     newBranch: params.newBranch,
     log,
   });
-  const planBody = readFileSync(planAbs, "utf8");
   const planLabel = path.relative(repo, planAbs);
-
-  const { stages } = await thread<{ stages: Stage[] }>(
-    buildExtractStagesPrompt(planLabel, planBody),
-    STAGES_YIELD_SCHEMA,
-  );
-  if (stages.length === 0) {
-    log("No stages found in the plan.");
-    return { branch, stages };
-  }
-  log(`Plan has ${stages.length} stage(s).`);
+  const completed: Stage[] = [];
 
   async function implementUntilComplete(
     prompt: string,
@@ -413,14 +406,14 @@ export async function runImplementPlan({
       );
       switch (result.status) {
         case "complete":
-          log(`Stage ${stageNumber}: committed ${result.commit}.`);
+          log(`Stage ${stageNumber}: complete.`);
           return true;
         case "incomplete-proceed":
-          log(`Stage ${stageNumber}: continuing. ${result.note}`);
-          continuation = `\n\nPrevious implementation is incomplete. Continue the same stage from the existing work.\n${result.note}`;
+          log(`Stage ${stageNumber}: incomplete; continuing.`);
+          continuation = `\n\nA previous implementation thread left this stage incomplete. Continue from the existing work; its progress and next steps are recorded in the plan file (${planLabel}).`;
           break;
         case "incomplete-blocked":
-          log(`Stage ${stageNumber}: blocked. ${result.note}`);
+          log(`Stage ${stageNumber}: blocked. See ${planLabel} for details.`);
           return false;
         default:
           throw new Error("Invalid stage implementation result");
@@ -428,22 +421,31 @@ export async function runImplementPlan({
     }
   }
 
-  for (let i = 0; i < stages.length; i++) {
-    const stage = stages[i];
-    const n = i + 1;
+  for (let n = 1; ; n++) {
+    const next = await thread<NavigatorResult>(
+      buildNavigatorPrompt(planLabel, readFileSync(planAbs, "utf8"), completed),
+      NAVIGATOR_YIELD_SCHEMA,
+      { cwd: repo },
+    );
+    if (next.action === "done") break;
+    if (next.action !== "implement" || !next.title) {
+      throw new Error("Invalid navigator result");
+    }
+    const stage: Stage = { title: next.title, summary: next.summary ?? "" };
     const baseRef = await currentHead(repo);
-    log(`Stage ${n}/${stages.length}: ${stage.title}`);
+    log(`Stage ${n}: ${stage.title}`);
 
     if (
       !(await implementUntilComplete(
-        buildImplementStagePrompt(stage, n, stages.length, planLabel),
+        buildImplementStagePrompt(stage, n, planLabel),
         n,
       ))
-    ) return { branch, stages };
+    ) return { branch, stages: completed };
 
     const changed = await getChangedPaths(repo, baseRef);
     if (changed.length === 0) {
       log(`Stage ${n}: no changes detected; skipping review.`);
+      completed.push(stage);
       continue;
     }
 
@@ -455,19 +457,21 @@ export async function runImplementPlan({
     const findingCount = results.reduce((c, r) => c + r.findings.length, 0);
     if (findingCount === 0) {
       log(`Stage ${n}: review clean.`);
+      completed.push(stage);
       continue;
     }
 
     log(`Stage ${n}: review found ${findingCount} finding(s); addressing.`);
     if (
       !(await implementUntilComplete(
-        buildAddressReviewPrompt(results, stage, n, stages.length, planLabel),
+        buildAddressReviewPrompt(results, stage, n, planLabel),
         n,
       ))
-    ) return { branch, stages };
+    ) return { branch, stages: completed };
     log(`Stage ${n}: review addressed.`);
+    completed.push(stage);
   }
 
-  log(`All ${stages.length} stage(s) complete on ${branch}.`);
-  return { branch, stages };
+  log(`All ${completed.length} stage(s) complete on ${branch}.`);
+  return { branch, stages: completed };
 }

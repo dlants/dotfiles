@@ -80,8 +80,8 @@ describe("prompt builders", () => {
   const stage: Stage = { title: "Set up types", summary: "Add the types." };
 
   it("implement prompt references the plan path and stage", () => {
-    const p = buildImplementStagePrompt(stage, 1, 3, "PLAN.md");
-    expect(p).toContain("Stage 1/3: Set up types");
+    const p = buildImplementStagePrompt(stage, 1, "PLAN.md");
+    expect(p).toContain("Stage 1: Set up types");
     expect(p).toContain("PLAN.md");
     expect(p).toContain("commit your changes");
   });
@@ -91,13 +91,21 @@ describe("prompt builders", () => {
       [{ instruction: "ts", findings: [{ file: "a.ts", comment: "nit" }] }],
       stage,
       2,
-      3,
       "PLAN.md",
     );
-    expect(p).toContain('stage 2/3 ("Set up types")');
+    expect(p).toContain('stage 2 ("Set up types")');
     expect(p).toContain("a.ts — nit");
   });
 });
+
+function navigator(stages: Stage[]) {
+  let i = 0;
+  return (prompt: string) => {
+    if (!prompt.includes("You are navigating the implementation")) return undefined;
+    const s = stages[i++];
+    return s ? { action: "implement", ...s } : { action: "done" };
+  };
+}
 
 describe("runImplementPlan (temp git repo)", () => {
   let repo: string;
@@ -131,51 +139,54 @@ describe("runImplementPlan (temp git repo)", () => {
     ];
     const prompts: string[] = [];
     const logs: string[] = [];
+    const nav = navigator(stages);
     await runImplementPlan({
       params: { plan: "PLAN.md", repo },
       log: (message) => logs.push(message),
       thread: (async (prompt: string) => {
-        if (prompt.includes("Break the following implementation plan")) return { stages };
+        const n = nav(prompt);
+        if (n) return n;
         prompts.push(prompt);
         if (prompts.length <= 2) {
           writeFileSync(path.join(repo, "partial.ts"), `// attempt ${prompts.length}\n`);
-          return { status: "incomplete-proceed", note: `Resume attempt ${prompts.length}` };
+          return { status: "incomplete-proceed" };
         }
         writeFileSync(path.join(repo, `stage-${prompts.length}.ts`), "export {};\n");
         git("add", "-A");
         git("commit", "-m", "complete stage");
-        return { status: "complete", commit: git("rev-parse", "HEAD").trim() };
+        return { status: "complete" };
       }) as never,
     });
     expect(prompts).toHaveLength(4);
-    for (const prompt of prompts.slice(0, 3)) expect(prompt).toContain("Stage 1/2: first");
-    expect(prompts[1]).toContain("Resume attempt 1");
-    expect(prompts[2]).toContain("Resume attempt 2");
-    expect(prompts[3]).toContain("Stage 2/2: second");
-    expect(prompts[3]).not.toContain("Resume attempt");
+    for (const prompt of prompts.slice(0, 3)) expect(prompt).toContain("Stage 1: first");
+    expect(prompts[0]).not.toContain("left this stage incomplete");
+    expect(prompts[1]).toContain("left this stage incomplete");
+    expect(prompts[2]).toContain("left this stage incomplete");
+    expect(prompts[3]).toContain("Stage 2: second");
+    expect(prompts[3]).not.toContain("left this stage incomplete");
     expect(logs.some((message) => message.startsWith("All 2 stage(s) complete"))).toBe(true);
   });
 
   it("logs a blocker and stops without reviewing or starting later stages", async () => {
     const prompts: string[] = [];
     const logs: string[] = [];
+    const nav = navigator([
+      { title: "first", summary: "First stage" },
+      { title: "second", summary: "Second stage" },
+    ]);
     await runImplementPlan({
       params: { plan: "PLAN.md", repo },
       log: (message) => logs.push(message),
       thread: (async (prompt: string) => {
-        if (prompt.includes("Break the following implementation plan")) return {
-          stages: [
-            { title: "first", summary: "First stage" },
-            { title: "second", summary: "Second stage" },
-          ],
-        };
+        const n = nav(prompt);
+        if (n) return n;
         prompts.push(prompt);
         writeFileSync(path.join(repo, "partial.ts"), "// unfinished\n");
-        return { status: "incomplete-blocked", note: "Need a destination decision" };
+        return { status: "incomplete-blocked" };
       }) as never,
     });
     expect(prompts).toHaveLength(1);
-    expect(logs).toContain("Stage 1: blocked. Need a destination decision");
+    expect(logs).toContain("Stage 1: blocked. See PLAN.md for details.");
     expect(logs.some((message) => /Reviewing|review clean|All .*complete/.test(message))).toBe(false);
     expect(readFileSync(path.join(repo, "partial.ts"), "utf8")).toBe("// unfinished\n");
   });
@@ -188,11 +199,11 @@ describe("runImplementPlan (temp git repo)", () => {
 
     const prompts: string[] = [];
     let implementCount = 0;
+    const nav = navigator(stages);
     const thread = async (prompt: string) => {
       prompts.push(prompt);
-      if (prompt.includes("Break the following implementation plan")) {
-        return { stages };
-      }
+      const n = nav(prompt);
+      if (n) return n;
       if (prompt.includes("You are implementing ONE stage")) {
         // Simulate the implementing agent writing a file and committing it.
         implementCount++;
@@ -203,7 +214,7 @@ describe("runImplementPlan (temp git repo)", () => {
         );
         git("add", "-A");
         git("commit", "-m", `Stage ${implementCount}: ${title}`);
-        return { status: "complete", commit: git("rev-parse", "HEAD").trim() };
+        return { status: "complete" };
       }
       // Review threads: no instruction files exist, so runReview returns []
       // before ever calling thread; this branch should not be hit.
