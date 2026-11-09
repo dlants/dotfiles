@@ -596,16 +596,35 @@ local caffeinateTimer = nil
 local caffeinateTicker = nil
 local caffeinateEndsAt = nil
 
+-- Under an hour, round up to one of these minute steps so the label only
+-- changes a handful of times.
+local CAFFEINATE_MINUTE_STEPS = { 60, 30, 10, 5, 1 }
+
+-- Returns the label and the seconds until it next changes.
 local function formatRemaining(secs)
-  if secs >= 86400 then return math.floor(secs / 86400) .. "d" end
-  if secs >= 3600 then return math.floor(secs / 3600) .. "h" end
-  return math.max(1, math.ceil(secs / 60)) .. "m"
+  if secs >= 3600 then
+    local unit, suffix = 3600, "h"
+    if secs >= 86400 then unit, suffix = 86400, "d" end
+    return math.floor(secs / unit) .. suffix, secs % unit + 1
+  end
+  for i = #CAFFEINATE_MINUTE_STEPS, 1, -1 do
+    local step = CAFFEINATE_MINUTE_STEPS[i]
+    if secs <= step * 60 then
+      local label = step == 60 and "1h" or (step .. "m")
+      local lower = CAFFEINATE_MINUTE_STEPS[i + 1]
+      return label, math.max(1, secs - (lower or 0) * 60)
+    end
+  end
 end
 
+-- Reschedules itself for the moment the label next changes, rather than polling.
 local function updateCaffeinateTitle()
-  if caffeinateMenubar and caffeinateEndsAt then
-    caffeinateMenubar:setTitle("☕" .. formatRemaining(caffeinateEndsAt - os.time()))
-  end
+  if not (caffeinateMenubar and caffeinateEndsAt) then return end
+  local remaining = caffeinateEndsAt - os.time()
+  local label, delay = formatRemaining(remaining)
+  caffeinateMenubar:setTitle("☕" .. label)
+  if caffeinateTicker then caffeinateTicker:stop() end
+  caffeinateTicker = hs.timer.doAfter(delay, updateCaffeinateTitle)
 end
 local CAFFEINATE_DEFAULT_SECONDS = 2 * 60 * 60
 local CAFFEINATE_UNITS = { s = 1, m = 60, h = 3600, d = 86400 }
@@ -650,9 +669,6 @@ local function startCaffeinate(arg)
   caffeinateMenubar:setTooltip("caffeinate until " .. untilStr .. " — click to turn off")
   caffeinateEndsAt = os.time() + math.floor(seconds)
   updateCaffeinateTitle()
-  if not caffeinateTicker then
-    caffeinateTicker = hs.timer.doEvery(30, updateCaffeinateTitle)
-  end
   hs.alert.show("caffeinate until " .. untilStr)
 end
 
