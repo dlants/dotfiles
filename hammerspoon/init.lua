@@ -593,6 +593,20 @@ end
 -- Hammerspoon, so no terminal or child process is needed. Released on reload.
 local caffeinateMenubar = nil
 local caffeinateTimer = nil
+local caffeinateTicker = nil
+local caffeinateEndsAt = nil
+
+local function formatRemaining(secs)
+  if secs >= 86400 then return math.floor(secs / 86400) .. "d" end
+  if secs >= 3600 then return math.floor(secs / 3600) .. "h" end
+  return math.max(1, math.ceil(secs / 60)) .. "m"
+end
+
+local function updateCaffeinateTitle()
+  if caffeinateMenubar and caffeinateEndsAt then
+    caffeinateMenubar:setTitle("☕" .. formatRemaining(caffeinateEndsAt - os.time()))
+  end
+end
 local CAFFEINATE_DEFAULT_SECONDS = 2 * 60 * 60
 local CAFFEINATE_UNITS = { s = 1, m = 60, h = 3600, d = 86400 }
 
@@ -600,6 +614,8 @@ local function stopCaffeinate()
   hs.caffeinate.set("displayIdle", false, true)
   hs.caffeinate.set("systemIdle", false, true)
   if caffeinateTimer then caffeinateTimer:stop(); caffeinateTimer = nil end
+  if caffeinateTicker then caffeinateTicker:stop(); caffeinateTicker = nil end
+  caffeinateEndsAt = nil
   if caffeinateMenubar then caffeinateMenubar:delete(); caffeinateMenubar = nil end
   hs.alert.show("caffeinate off")
 end
@@ -629,10 +645,14 @@ local function startCaffeinate(arg)
   local untilStr = os.date("%a %H:%M", os.time() + math.floor(seconds))
   if not caffeinateMenubar then
     caffeinateMenubar = hs.menubar.new()
-    caffeinateMenubar:setTitle("☕")
     caffeinateMenubar:setClickCallback(stopCaffeinate)
   end
   caffeinateMenubar:setTooltip("caffeinate until " .. untilStr .. " — click to turn off")
+  caffeinateEndsAt = os.time() + math.floor(seconds)
+  updateCaffeinateTitle()
+  if not caffeinateTicker then
+    caffeinateTicker = hs.timer.doEvery(30, updateCaffeinateTitle)
+  end
   hs.alert.show("caffeinate until " .. untilStr)
 end
 
