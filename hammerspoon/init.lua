@@ -592,21 +592,48 @@ end
 -- Equivalent to `caffeinate -di`: held via IOKit power assertions owned by
 -- Hammerspoon, so no terminal or child process is needed. Released on reload.
 local caffeinateMenubar = nil
+local caffeinateTimer = nil
+local CAFFEINATE_DEFAULT_SECONDS = 2 * 60 * 60
+local CAFFEINATE_UNITS = { s = 1, m = 60, h = 3600, d = 86400 }
 
-local function toggleCaffeinate()
-  local on = not hs.caffeinate.get("displayIdle")
-  hs.caffeinate.set("displayIdle", on, true)
-  hs.caffeinate.set("systemIdle", on, true)
-  if on and not caffeinateMenubar then
+local function stopCaffeinate()
+  hs.caffeinate.set("displayIdle", false, true)
+  hs.caffeinate.set("systemIdle", false, true)
+  if caffeinateTimer then caffeinateTimer:stop(); caffeinateTimer = nil end
+  if caffeinateMenubar then caffeinateMenubar:delete(); caffeinateMenubar = nil end
+  hs.alert.show("caffeinate off")
+end
+
+-- Accepts e.g. "4h", "30m", "1d", "1h30m"; nil if unparseable.
+local function parseDuration(s)
+  local total, matched = 0, false
+  for n, unit in s:gmatch("(%d+%.?%d*)%s*([smhd]?)") do
+    total = total + tonumber(n) * CAFFEINATE_UNITS[unit ~= "" and unit or "h"]
+    matched = true
+  end
+  return matched and total or nil
+end
+
+local function startCaffeinate(arg)
+  arg = arg and arg:match("^%s*(.-)%s*$") or ""
+  if arg == "off" then stopCaffeinate() return end
+  local seconds = CAFFEINATE_DEFAULT_SECONDS
+  if arg ~= "" then
+    seconds = parseDuration(arg)
+    if not seconds then hs.alert.show("bad duration: " .. arg) return end
+  end
+  hs.caffeinate.set("displayIdle", true, true)
+  hs.caffeinate.set("systemIdle", true, true)
+  if caffeinateTimer then caffeinateTimer:stop() end
+  caffeinateTimer = hs.timer.doAfter(seconds, stopCaffeinate)
+  local untilStr = os.date("%a %H:%M", os.time() + math.floor(seconds))
+  if not caffeinateMenubar then
     caffeinateMenubar = hs.menubar.new()
     caffeinateMenubar:setTitle("☕")
-    caffeinateMenubar:setTooltip("caffeinate on — click to turn off")
-    caffeinateMenubar:setClickCallback(toggleCaffeinate)
-  elseif not on and caffeinateMenubar then
-    caffeinateMenubar:delete()
-    caffeinateMenubar = nil
+    caffeinateMenubar:setClickCallback(stopCaffeinate)
   end
-  hs.alert.show(on and "caffeinate on" or "caffeinate off")
+  caffeinateMenubar:setTooltip("caffeinate until " .. untilStr .. " — click to turn off")
+  hs.alert.show("caffeinate until " .. untilStr)
 end
 
 -- Command palette
@@ -1026,9 +1053,15 @@ local commandPaletteItems = {
   },
   {
     text = "caffeinate",
-    subText = "Toggle keeping display/system awake",
+    subText = "Keep display/system awake (arg: duration e.g. 4h, 1d, off; default 2h)",
     aliases = { "caf" },
-    handler = toggleCaffeinate,
+    handler = startCaffeinate,
+  },
+  {
+    text = "decaffeinate",
+    subText = "Stop keeping display/system awake",
+    aliases = { "decaf" },
+    handler = stopCaffeinate,
   },
   {
     text = "musicmode",
